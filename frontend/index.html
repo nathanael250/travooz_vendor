@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Travooz Vendor Platform</title>
+    <!-- Google Maps API -->
+    <script>
+      // Global callback function for Google Maps API
+      let googleMapsLoadAttempts = 0;
+      const MAX_LOAD_ATTEMPTS = 3;
+      
+      function initMap() {
+        // Google Maps API is loaded and ready
+        // The React component will detect window.google.maps automatically
+        console.log('Google Maps API loaded successfully');
+        window.googleMapsLoaded = true;
+        window.googleMapsLoadError = null;
+      }
+      
+      // Global error handler for Google Maps API
+      function handleGoogleMapsError(error) {
+        console.error('Google Maps API error:', error);
+        window.googleMapsLoadError = error;
+        window.googleMapsLoaded = false;
+        
+        // Dispatch custom event for React components to listen to
+        window.dispatchEvent(new CustomEvent('googlemaps:error', { 
+          detail: { error, attempt: googleMapsLoadAttempts } 
+        }));
+      }
+      
+      // Load Google Maps with retry logic
+      function loadGoogleMaps() {
+        if (window.google && window.google.maps) {
+          initMap();
+          return;
+        }
+        
+        googleMapsLoadAttempts++;
+        const script = document.createElement('script');
+        const apiKey = 'AIzaSyD2arEwy-YlQ7NU7fWOIxbJgTOLiH6RUqc';
+        
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async&libraries=places&callback=initMap`;
+        script.async = true;
+        script.defer = true;
+        
+        script.onload = function() {
+          // Script loaded, but callback will handle actual initialization
+          console.log('Google Maps script loaded, waiting for callback...');
+        };
+        
+        script.onerror = function() {
+          console.error('Failed to load Google Maps script');
+          handleGoogleMapsError({
+            type: 'script_load_failed',
+            message: 'Failed to load Google Maps script. Check your network connection and API key.'
+          });
+          
+          // Retry if attempts < max
+          if (googleMapsLoadAttempts < MAX_LOAD_ATTEMPTS) {
+            console.log(`Retrying Google Maps load (attempt ${googleMapsLoadAttempts + 1}/${MAX_LOAD_ATTEMPTS})...`);
+            setTimeout(loadGoogleMaps, 2000 * googleMapsLoadAttempts); // Exponential backoff
+          } else {
+            handleGoogleMapsError({
+              type: 'max_attempts_reached',
+              message: 'Failed to load Google Maps after multiple attempts. Please check your API key and network connection.'
+            });
+          }
+        };
+        
+        // Set timeout for callback
+        const callbackTimeout = setTimeout(() => {
+          if (!window.google || !window.google.maps) {
+            handleGoogleMapsError({
+              type: 'callback_timeout',
+              message: 'Google Maps API callback timed out. The API may be slow or there may be an authentication issue.'
+            });
+          }
+        }, 15000); // 15 second timeout
+        
+        // Wrap initMap to clear timeout when callback fires
+        // Store original initMap if it exists
+        const originalInitMap = window.initMap;
+        window.initMap = function() {
+          clearTimeout(callbackTimeout);
+          // Call the actual initMap function (defined above)
+          if (typeof initMap === 'function') {
+            initMap();
+          }
+        };
+        
+        // Remove any existing script to avoid duplicates
+        const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+        if (existingScript) {
+          existingScript.remove();
+        }
+        
+        document.head.appendChild(script);
+      }
+      
+      // Initialize on page load
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadGoogleMaps);
+      } else {
+        loadGoogleMaps();
+      }
+      
+      // Global authentication failure handler
+      window.gm_authFailure = function() {
+        handleGoogleMapsError({
+          type: 'auth_failure',
+          message: 'Google Maps API authentication failed. Please check your API key and ensure billing is enabled in Google Cloud Console.'
+        });
+      };
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+

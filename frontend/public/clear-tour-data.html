@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Tour Package Data</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        .button {
+            background: #3CAF54;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        .button:hover {
+            background: #2d8f3f;
+        }
+        .button.danger {
+            background: #dc3545;
+        }
+        .button.danger:hover {
+            background: #c82333;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196F3;
+        }
+        .data-list {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Clear Tour Package Data</h1>
+        
+        <div class="info">
+            <strong>⚠️ Warning:</strong> This will clear all tour package related data from your browser's localStorage. 
+            This includes:
+            <ul>
+                <li>Tour business ID</li>
+                <li>Tour setup progress data</li>
+                <li>Tour submission status</li>
+                <li>Tour setup complete data</li>
+            </ul>
+            <strong>Note:</strong> This will NOT clear your authentication tokens or user data (unless you choose to clear everything).
+        </div>
+
+        <div class="data-list" id="currentData">
+            <strong>Current Tour Data in localStorage:</strong><br>
+            <div id="dataDisplay">Loading...</div>
+        </div>
+
+        <div>
+            <button class="button" onclick="clearTourData()">
+                Clear Tour Package Data Only
+            </button>
+            <button class="button danger" onclick="clearAllData()">
+                Clear All Data (Including Auth)
+            </button>
+            <button class="button" onclick="refreshData()">
+                Refresh Data Display
+            </button>
+        </div>
+
+        <div class="status" id="status"></div>
+    </div>
+
+    <script>
+        const tourKeys = [
+            'tour_business_id',
+            'tour_setup_data',
+            'tour_setup_complete',
+            'tour_submission_status'
+        ];
+
+        function displayCurrentData() {
+            const dataDisplay = document.getElementById('dataDisplay');
+            let html = '';
+            
+            tourKeys.forEach(key => {
+                const value = localStorage.getItem(key);
+                if (value) {
+                    html += `<strong>${key}:</strong> ${value.substring(0, 100)}${value.length > 100 ? '...' : ''}<br>`;
+                } else {
+                    html += `<strong>${key}:</strong> <em>Not set</em><br>`;
+                }
+            });
+
+            // Also check for user and token
+            const user = localStorage.getItem('user');
+            const token = localStorage.getItem('token');
+            html += `<br><strong>user:</strong> ${user ? 'Set (not cleared by tour-only clear)' : 'Not set'}<br>`;
+            html += `<strong>token:</strong> ${token ? 'Set (not cleared by tour-only clear)' : 'Not set'}<br>`;
+
+            dataDisplay.innerHTML = html || '<em>No tour data found</em>';
+        }
+
+        function showStatus(message, isError = false) {
+            const status = document.getElementById('status');
+            status.className = 'status ' + (isError ? 'error' : 'success');
+            status.textContent = message;
+            status.style.display = 'block';
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 5000);
+        }
+
+        function clearTourData() {
+            let cleared = 0;
+            tourKeys.forEach(key => {
+                if (localStorage.getItem(key)) {
+                    localStorage.removeItem(key);
+                    cleared++;
+                }
+            });
+
+            if (cleared > 0) {
+                showStatus(`✅ Cleared ${cleared} tour package data item(s) from localStorage.`);
+            } else {
+                showStatus('ℹ️ No tour package data found to clear.');
+            }
+            
+            displayCurrentData();
+        }
+
+        function clearAllData() {
+            if (!confirm('Are you sure you want to clear ALL data including authentication? You will be logged out.')) {
+                return;
+            }
+
+            // Clear tour data
+            tourKeys.forEach(key => {
+                localStorage.removeItem(key);
+            });
+
+            // Clear auth data
+            localStorage.removeItem('token');
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('stays_token');
+            localStorage.removeItem('user');
+
+            showStatus('✅ All data cleared. You will need to log in again.');
+            displayCurrentData();
+        }
+
+        function refreshData() {
+            displayCurrentData();
+            showStatus('🔄 Data display refreshed.');
+        }
+
+        // Display data on load
+        displayCurrentData();
+    </script>
+</body>
+</html>
+

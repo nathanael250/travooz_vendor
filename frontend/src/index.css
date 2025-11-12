@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Lock global scroll to the app layouts */
+html, body, #root {
+  height: 100%;
+}
+
+/* Prevent window-level scrollbar; Vendor/Admin layouts handle scroll areas */
+body {
+  overflow: hidden;
+}
+
+/* Allow scrolling on auth pages */
+body.auth-page {
+  overflow: auto;
+  height: auto;
+}
+
+/* Ensure proper scrolling for auth pages */
+body.auth-page #root {
+  height: auto;
+  min-height: 100vh;
+}
+
+/* Modal animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slideInRight {
+  animation: slideInRight 0.3s ease-out;
+}

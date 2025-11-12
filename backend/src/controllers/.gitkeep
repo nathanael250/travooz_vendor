@@ -1,0 +1,8 @@
+# Controllers folder
+# Organize controllers by service:
+# - stays/
+# - restaurants/
+# - tours/
+# - cars/
+# - activities/
+

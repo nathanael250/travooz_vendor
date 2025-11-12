@@ -1,0 +1,10 @@
+# Routes folder
+# Create route files for each service:
+# - stays.routes.js
+# - restaurants.routes.js
+# - tours.routes.js
+# - cars.routes.js
+# - activities.routes.js
+# - auth.routes.js
+# - admin.routes.js
+
