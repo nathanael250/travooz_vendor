@@ -1,12 +1,8 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ordersAPI } from "@/lib/api";
-import { format } from "date-fns";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ordersAPI } from '../../services/restaurantDashboardService';
+import { format } from 'date-fns';
 import * as XLSX from "xlsx";
-import { toast } from "sonner";
+import toast from 'react-hot-toast';
 
 
 const Reports = () => {
@@ -21,9 +17,9 @@ const Reports = () => {
     totalOrders: 0,
     totalCustomers: 0,
   });
-  const [categoryData, setCategoryData] = useState<any[]>([]);
-  const [hourlyData, setHourlyData] = useState<any[]>([]);
-  const [revenueData, setRevenueData] = useState<any[]>([]);
+  const [categoryData, setCategoryData] = useState([]);
+  const [hourlyData, setHourlyData] = useState([]);
+  const [revenueData, setRevenueData] = useState([]);
   const [dateRangeText, setDateRangeText] = useState("");
 
   useEffect(() => {
@@ -133,7 +129,7 @@ const Reports = () => {
           .filter((name) => name)
       );
 
-      const categoryMap = new Map<string, { quantity; revenue }>();
+      const categoryMap = new Map();
       (currentOrdersWithItems || []).forEach((order) => {
         (order.order_items || []).forEach((item) => {
           const category = item.menu_items?.category || "Unknown";
@@ -153,7 +149,7 @@ const Reports = () => {
 
       const topCategory = categoryArray.length > 0 ? categoryArray[0].name : "N/A";
 
-      const hourMap = new Map<number, number>();
+        const hourMap = new Map();
       (currentOrdersWithItems || []).forEach((order) => {
         const hour = new Date(order.created_at).getHours();
         hourMap.set(hour, (hourMap.get(hour) || 0) + 1);
@@ -175,7 +171,7 @@ const Reports = () => {
           })()
         : "N/A";
 
-      const dailyRevenueMap = new Map<string, number>();
+      const dailyRevenueMap = new Map();
       (currentOrdersWithItems || []).forEach((order) => {
         const date = format(new Date(order.created_at), "MMM dd");
         dailyRevenueMap.set(
@@ -388,30 +384,29 @@ const Reports = () => {
           </div>
           <div className="flex items-center gap-2">
             <div className="no-print">
-              <Select value={dateRange} onValueChange={setDateRange}>
-                <SelectTrigger className="w-[140px] h-8 text-xs">
-                  <SelectValue placeholder="Select period" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="today">Today</SelectItem>
-                  <SelectItem value="week">Last 7 Days</SelectItem>
-                  <SelectItem value="month">This Month</SelectItem>
-                  <SelectItem value="year">This Year</SelectItem>
-                </SelectContent>
-              </Select>
+              <select 
+                value={dateRange} 
+                onChange={(e) => setDateRange(e.target.value)}
+                className="w-[140px] h-8 text-xs border border-gray-300 rounded px-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="today">Today</option>
+                <option value="week">Last 7 Days</option>
+                <option value="month">This Month</option>
+                <option value="year">This Year</option>
+              </select>
             </div>
-            <Button 
+            <button 
               onClick={handleExportToExcel}
-              className="no-print bg-green-600 hover:bg-green-700 text-white border-green-600 h-8 px-3 text-xs"
+              className="no-print bg-green-600 hover:bg-green-700 text-white border border-green-600 h-8 px-3 text-xs rounded"
             >
               Export to Excel
-            </Button>
-            <Button 
+            </button>
+            <button 
               onClick={handlePrint}
-              className="no-print bg-green-600 hover:bg-green-700 text-white border-green-600 h-8 px-3 text-xs"
+              className="no-print bg-green-600 hover:bg-green-700 text-white border border-green-600 h-8 px-3 text-xs rounded"
             >
               Print
-            </Button>
+            </button>
           </div>
         </div>
 
@@ -425,95 +420,95 @@ const Reports = () => {
       ) : (
         <>
           <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
-            <Card className="border-l-2 border-l-primary">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-2 px-2">
-                <CardTitle className="text-xs font-medium">Sales Growth</CardTitle>
-              </CardHeader>
-              <CardContent className="px-2 pb-2">
+            <div className="bg-white border border-gray-200 rounded border-l-2 border-l-green-600">
+              <div className="flex flex-row items-center justify-between space-y-0 pb-1 pt-2 px-2 border-b border-gray-200">
+                <h3 className="text-xs font-medium">Sales Growth</h3>
+              </div>
+              <div className="px-2 pb-2">
                 <div className={`text-sm font-bold ${stats.salesGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {stats.salesGrowth >= 0 ? '+' : ''}{stats.salesGrowth.toFixed(1)}%
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-gray-500 mt-0.5">
                   vs previous {dateRange === "today" ? "day" : dateRange === "week" ? "week" : dateRange === "month" ? "month" : "year"}
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card className="border-l-2 border-l-secondary">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-2 px-2">
-                <CardTitle className="text-xs font-medium">Top Category</CardTitle>
-              </CardHeader>
-              <CardContent className="px-2 pb-2">
-                <div className="text-sm font-bold text-secondary">{stats.topCategory}</div>
-                <p className="text-xs text-muted-foreground mt-0.5">Most ordered</p>
-              </CardContent>
-            </Card>
+            <div className="bg-white border border-gray-200 rounded border-l-2 border-l-blue-600">
+              <div className="flex flex-row items-center justify-between space-y-0 pb-1 pt-2 px-2 border-b border-gray-200">
+                <h3 className="text-xs font-medium">Top Category</h3>
+              </div>
+              <div className="px-2 pb-2">
+                <div className="text-sm font-bold text-blue-600">{stats.topCategory}</div>
+                <p className="text-xs text-gray-500 mt-0.5">Most ordered</p>
+              </div>
+            </div>
 
-            <Card className="border-l-2 border-l-accent">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-2 px-2">
-                <CardTitle className="text-xs font-medium">Average Order</CardTitle>
-              </CardHeader>
-              <CardContent className="px-2 pb-2">
-                <div className="text-sm font-bold text-accent">
+            <div className="bg-white border border-gray-200 rounded border-l-2 border-l-purple-600">
+              <div className="flex flex-row items-center justify-between space-y-0 pb-1 pt-2 px-2 border-b border-gray-200">
+                <h3 className="text-xs font-medium">Average Order</h3>
+              </div>
+              <div className="px-2 pb-2">
+                <div className="text-sm font-bold text-purple-600">
                   frw {stats.averageOrder.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">Per transaction</p>
-              </CardContent>
-            </Card>
+                <p className="text-xs text-gray-500 mt-0.5">Per transaction</p>
+              </div>
+            </div>
 
-            <Card className="border-l-2 border-l-primary">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-2 px-2">
-                <CardTitle className="text-xs font-medium">Peak Hours</CardTitle>
-              </CardHeader>
-              <CardContent className="px-2 pb-2">
-                <div className="text-sm font-bold text-primary">{stats.peakHour}</div>
-                <p className="text-xs text-muted-foreground mt-0.5">Busiest time</p>
-              </CardContent>
-            </Card>
+            <div className="bg-white border border-gray-200 rounded border-l-2 border-l-green-600">
+              <div className="flex flex-row items-center justify-between space-y-0 pb-1 pt-2 px-2 border-b border-gray-200">
+                <h3 className="text-xs font-medium">Peak Hours</h3>
+              </div>
+              <div className="px-2 pb-2">
+                <div className="text-sm font-bold text-green-600">{stats.peakHour}</div>
+                <p className="text-xs text-gray-500 mt-0.5">Busiest time</p>
+              </div>
+            </div>
           </div>
 
           <div className="grid gap-2 md:grid-cols-3">
-            <Card>
-              <CardHeader className="pb-1 pt-2 px-2">
-                <CardTitle className="text-xs font-medium">Total Revenue</CardTitle>
-              </CardHeader>
-              <CardContent className="px-2 pb-2">
+            <div className="bg-white border border-gray-200 rounded">
+              <div className="pb-1 pt-2 px-2 border-b border-gray-200">
+                <h3 className="text-xs font-medium">Total Revenue</h3>
+              </div>
+              <div className="px-2 pb-2">
                 <div className="text-lg font-bold text-green-600">
                   frw {stats.totalRevenue.toLocaleString()}
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-gray-500 mt-0.5">
                   {stats.totalOrders} orders completed
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card>
-              <CardHeader className="pb-1 pt-2 px-2">
-                <CardTitle className="text-xs font-medium">Total Orders</CardTitle>
-              </CardHeader>
-              <CardContent className="px-2 pb-2">
+            <div className="bg-white border border-gray-200 rounded">
+              <div className="pb-1 pt-2 px-2 border-b border-gray-200">
+                <h3 className="text-xs font-medium">Total Orders</h3>
+              </div>
+              <div className="px-2 pb-2">
                 <div className="text-lg font-bold text-blue-600">
                   {stats.totalOrders}
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-gray-500 mt-0.5">
                   Completed orders
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card>
-              <CardHeader className="pb-1 pt-2 px-2">
-                <CardTitle className="text-xs font-medium">Total Customers</CardTitle>
-              </CardHeader>
-              <CardContent className="px-2 pb-2">
+            <div className="bg-white border border-gray-200 rounded">
+              <div className="pb-1 pt-2 px-2 border-b border-gray-200">
+                <h3 className="text-xs font-medium">Total Customers</h3>
+              </div>
+              <div className="px-2 pb-2">
                 <div className="text-lg font-bold text-purple-600">
                   {stats.totalCustomers}
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-gray-500 mt-0.5">
                   Unique customers
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
           <div className="print-tables-only">
@@ -526,85 +521,85 @@ const Reports = () => {
               )}
             </div>
             <div className="grid gap-2 md:grid-cols-2">
-            <Card>
-              <CardHeader className="pb-1 pt-2 px-2">
-                <CardTitle className="text-sm font-semibold">Revenue Trend</CardTitle>
-              </CardHeader>
-              <CardContent className="p-2">
+            <div className="bg-white border border-gray-200 rounded">
+              <div className="pb-1 pt-2 px-2 border-b border-gray-200">
+                <h3 className="text-sm font-semibold">Revenue Trend</h3>
+              </div>
+              <div className="p-2">
                 {revenueData.length > 0 ? (
                   <div className="overflow-x-auto border rounded-lg print-table-wrapper">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="h-7">
-                          <TableHead className="px-2 py-1 text-xs">Date</TableHead>
-                          <TableHead className="px-2 py-1 text-xs text-right">Revenue (RWF)</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
+                    <table className="w-full">
+                      <thead>
+                        <tr className="h-7 border-b border-gray-200">
+                          <th className="px-2 py-1 text-xs text-left">Date</th>
+                          <th className="px-2 py-1 text-xs text-right">Revenue (RWF)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
                         {revenueData.map((item, index) => (
-                          <TableRow key={index}>
-                            <TableCell className="px-2 py-1 text-xs">{item.date}</TableCell>
-                            <TableCell className="px-2 py-1 text-xs text-right font-medium">
+                          <tr key={index} className="border-b border-gray-100">
+                            <td className="px-2 py-1 text-xs">{item.date}</td>
+                            <td className="px-2 py-1 text-xs text-right font-medium">
                               {item.revenue.toLocaleString()}
-                            </TableCell>
-                          </TableRow>
+                            </td>
+                          </tr>
                         ))}
-                      </TableBody>
-                    </Table>
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
                   <div className="flex items-center justify-center h-[150px]">
-                    <p className="text-xs text-muted-foreground">No data available</p>
+                    <p className="text-xs text-gray-500">No data available</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card>
-              <CardHeader className="pb-1 pt-2 px-2">
-                <CardTitle className="text-sm font-semibold">Category Distribution</CardTitle>
-              </CardHeader>
-              <CardContent className="p-2">
+            <div className="bg-white border border-gray-200 rounded">
+              <div className="pb-1 pt-2 px-2 border-b border-gray-200">
+                <h3 className="text-sm font-semibold">Category Distribution</h3>
+              </div>
+              <div className="p-2">
                 {categoryData.length > 0 ? (
                   <div className="overflow-x-auto border rounded-lg print-table-wrapper">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="h-7">
-                          <TableHead className="px-2 py-1 text-xs">Category</TableHead>
-                          <TableHead className="px-2 py-1 text-xs text-right">Quantity</TableHead>
-                          <TableHead className="px-2 py-1 text-xs text-right">Revenue (RWF)</TableHead>
-                          <TableHead className="px-2 py-1 text-xs text-right">Percentage</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
+                    <table className="w-full">
+                      <thead>
+                        <tr className="h-7 border-b border-gray-200">
+                          <th className="px-2 py-1 text-xs text-left">Category</th>
+                          <th className="px-2 py-1 text-xs text-right">Quantity</th>
+                          <th className="px-2 py-1 text-xs text-right">Revenue (RWF)</th>
+                          <th className="px-2 py-1 text-xs text-right">Percentage</th>
+                        </tr>
+                      </thead>
+                      <tbody>
                         {categoryData.map((item, index) => {
                           const total = categoryData.reduce((sum, cat) => sum + cat.value, 0);
                           const percentage = total > 0 ? ((item.value / total) * 100).toFixed(1) : 0;
                           return (
-                            <TableRow key={index}>
-                              <TableCell className="px-2 py-1 text-xs">{item.name}</TableCell>
-                              <TableCell className="px-2 py-1 text-xs text-right font-medium">
+                            <tr key={index} className="border-b border-gray-100">
+                              <td className="px-2 py-1 text-xs">{item.name}</td>
+                              <td className="px-2 py-1 text-xs text-right font-medium">
                                 {item.value}
-                              </TableCell>
-                              <TableCell className="px-2 py-1 text-xs text-right font-medium">
+                              </td>
+                              <td className="px-2 py-1 text-xs text-right font-medium">
                                 {(item.revenue || 0).toLocaleString()}
-                              </TableCell>
-                              <TableCell className="px-2 py-1 text-xs text-right font-medium">
+                              </td>
+                              <td className="px-2 py-1 text-xs text-right font-medium">
                                 {percentage}%
-                              </TableCell>
-                            </TableRow>
+                              </td>
+                            </tr>
                           );
                         })}
-                      </TableBody>
-                    </Table>
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
                   <div className="flex items-center justify-center h-[150px]">
-                    <p className="text-xs text-muted-foreground">No data available</p>
+                    <p className="text-xs text-gray-500">No data available</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
             </div>
           </div>
         </>

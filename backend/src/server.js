@@ -53,12 +53,14 @@ const authRoutes = require('./routes/auth.routes');
 const ordersRoutes = require('./routes/orders.routes');
 const menuItemsRoutes = require('./routes/menuItems.routes');
 const imagesRoutes = require('./routes/images.routes');
+const carRentalRoutes = require('./routes/carRental.routes');
 
 // Service routes
 app.use('/api/v1/stays', staysRoutes);
 app.use('/api/v1/eating-out/setup', restaurantSetupRoutes);
 app.use('/api/v1/restaurants', restaurantsRoutes);
 app.use('/api/v1/tours', toursRoutes);
+app.use('/api/v1/car-rental', carRentalRoutes);
 
 // Restaurant management routes
 app.use('/api/v1/orders', ordersRoutes);

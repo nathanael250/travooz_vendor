@@ -50,7 +50,7 @@ export default function VendorLanding() {
       name: 'Car',
       icon: Car,
       description: 'List your car rental or transportation services',
-      route: '/activity',
+      route: '/car-rental/list-your-car-rental',
       color: '#A855F7' // purple-500
     },
     {
@@ -274,6 +274,11 @@ export default function VendorLanding() {
                 <li>
                   <button onClick={() => handleCategoryClick('/tours/list-your-tour')} className="hover:text-white transition-colors">
                     Tour Package
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => handleCategoryClick('/car-rental/list-your-car-rental')} className="hover:text-white transition-colors">
+                    Car Rental
                   </button>
                 </li>
                 <li>

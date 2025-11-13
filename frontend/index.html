@@ -11,13 +11,14 @@
       let googleMapsLoadAttempts = 0;
       const MAX_LOAD_ATTEMPTS = 3;
       
-      function initMap() {
+      // Store the actual initMap function
+      const actualInitMap = function() {
         // Google Maps API is loaded and ready
         // The React component will detect window.google.maps automatically
         console.log('Google Maps API loaded successfully');
         window.googleMapsLoaded = true;
         window.googleMapsLoadError = null;
-      }
+      };
       
       // Global error handler for Google Maps API
       function handleGoogleMapsError(error) {
@@ -34,7 +35,7 @@
       // Load Google Maps with retry logic
       function loadGoogleMaps() {
         if (window.google && window.google.maps) {
-          initMap();
+          actualInitMap();
           return;
         }
         
@@ -81,14 +82,11 @@
         }, 15000); // 15 second timeout
         
         // Wrap initMap to clear timeout when callback fires
-        // Store original initMap if it exists
-        const originalInitMap = window.initMap;
+        // Make window.initMap call the actual function without recursion
         window.initMap = function() {
           clearTimeout(callbackTimeout);
-          // Call the actual initMap function (defined above)
-          if (typeof initMap === 'function') {
-            initMap();
-          }
+          // Call the actual initMap function (stored above)
+          actualInitMap();
         };
         
         // Remove any existing script to avoid duplicates

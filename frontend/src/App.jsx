@@ -53,15 +53,30 @@ import StaysFinance from './pages/stays/Finance';
 
 // Restaurant Dashboard Pages
 import RestaurantDashboard from './pages/restaurant/Dashboard';
+import RestaurantPOS from './pages/restaurant/POS';
 import Restaurants from './pages/restaurant/Restaurants';
 import RestaurantOrders from './pages/restaurant/Orders';
 import RestaurantMenuItems from './pages/restaurant/MenuItems';
+import RestaurantReports from './pages/restaurant/Reports';
+import RestaurantAPIDocs from './pages/restaurant/APIDocs';
 import RestaurantDashboardLayout from './components/restaurant/RestaurantDashboardLayout';
 
 // Tour Package Setup Pages
 import ListYourTour from './pages/tours/ListYourTour';
 import ListYourTourStep2 from './pages/tours/ListYourTourStep2';
 import ListYourTourStep3 from './pages/tours/ListYourTourStep3';
+
+// Car Rental Setup Pages
+import ListYourCarRental from './pages/car-rental/ListYourCarRental';
+import ListYourCarRentalStep2 from './pages/car-rental/ListYourCarRentalStep2';
+import ListYourCarRentalStep3 from './pages/car-rental/ListYourCarRentalStep3';
+import CarRentalBusinessDetailsStep from './pages/car-rental/BusinessDetailsStep';
+import CarRentalTaxPaymentStep from './pages/car-rental/TaxPaymentStep';
+import ReviewCarRentalDataStep from './pages/car-rental/ReviewCarRentalDataStep';
+import CarRentalAgreementStep from './pages/car-rental/AgreementStep';
+import CarRentalSetupComplete from './pages/car-rental/SetupComplete';
+import CarRentalDashboardLayout from './components/car-rental/CarRentalDashboardLayout';
+import CarRentalDashboardOverview from './pages/car-rental/dashboard/DashboardOverview';
 import TourEmailVerification from './pages/tours/EmailVerification';
 import BusinessOwnerInfoStep from './pages/tours/BusinessOwnerInfoStep';
 import ProveIdentityStep from './pages/tours/ProveIdentityStep';
@@ -165,15 +180,23 @@ function App() {
           <Route path="/restaurant" element={<RestaurantDashboardLayout />}>
             <Route index element={<Navigate to="/restaurant/dashboard" replace />} />
             <Route path="dashboard" element={<RestaurantDashboard />} />
+            <Route path="pos" element={<RestaurantPOS />} />
             <Route path="restaurants" element={<Restaurants />} />
-            <Route path="orders" element={<RestaurantOrders />} />
             <Route path="menu-items" element={<RestaurantMenuItems />} />
+            <Route path="orders" element={<RestaurantOrders />} />
+            <Route path="reports" element={<RestaurantReports />} />
+            <Route path="api-docs" element={<RestaurantAPIDocs />} />
           </Route>
 
           {/* Tour Package Listing Flow */}
           <Route path="/tours/list-your-tour" element={<ListYourTour />} />
           <Route path="/tours/list-your-tour/step-2" element={<ListYourTourStep2 />} />
           <Route path="/tours/list-your-tour/step-3" element={<ListYourTourStep3 />} />
+
+          {/* Car Rental Listing Flow */}
+          <Route path="/car-rental/list-your-car-rental" element={<ListYourCarRental />} />
+          <Route path="/car-rental/list-your-car-rental/step-2" element={<ListYourCarRentalStep2 />} />
+          <Route path="/car-rental/list-your-car-rental/step-3" element={<ListYourCarRentalStep3 />} />
 
           {/* Tour Package Setup Flow */}
           <Route path="/tours/setup/email-verification" element={<TourEmailVerification />} />
@@ -186,6 +209,30 @@ function App() {
 
           {/* Tour Login */}
           <Route path="/tours/login" element={<ToursLogin />} />
+
+          {/* Car Rental Setup Flow */}
+          <Route path="/car-rental/setup/business-details" element={<CarRentalBusinessDetailsStep />} />
+          <Route path="/car-rental/setup/tax-payment" element={<CarRentalTaxPaymentStep />} />
+          <Route path="/car-rental/setup/review" element={<ReviewCarRentalDataStep />} />
+          <Route path="/car-rental/setup/agreement" element={<CarRentalAgreementStep />} />
+          <Route path="/car-rental/setup/complete" element={<CarRentalSetupComplete />} />
+
+          {/* Car Rental Dashboard - Nested Routes with Layout */}
+          <Route path="/car-rental/dashboard" element={<CarRentalDashboardLayout />}>
+            <Route index element={<CarRentalDashboardOverview />} />
+            <Route path="cars" element={<div className="p-6"><h1 className="text-2xl font-bold">My Cars</h1><p className="text-gray-600 mt-2">Car management page coming soon...</p></div>} />
+            <Route path="availability" element={<div className="p-6"><h1 className="text-2xl font-bold">Availability & Calendar</h1><p className="text-gray-600 mt-2">Availability management page coming soon...</p></div>} />
+            <Route path="pricing" element={<div className="p-6"><h1 className="text-2xl font-bold">Pricing & Rates</h1><p className="text-gray-600 mt-2">Pricing management page coming soon...</p></div>} />
+            <Route path="bookings" element={<div className="p-6"><h1 className="text-2xl font-bold">Bookings</h1><p className="text-gray-600 mt-2">Bookings management page coming soon...</p></div>} />
+            <Route path="locations" element={<div className="p-6"><h1 className="text-2xl font-bold">Locations</h1><p className="text-gray-600 mt-2">Locations management page coming soon...</p></div>} />
+            <Route path="analytics" element={<div className="p-6"><h1 className="text-2xl font-bold">Reports & Analytics</h1><p className="text-gray-600 mt-2">Analytics page coming soon...</p></div>} />
+            <Route path="reviews" element={<div className="p-6"><h1 className="text-2xl font-bold">Reviews & Ratings</h1><p className="text-gray-600 mt-2">Reviews page coming soon...</p></div>} />
+            <Route path="finance" element={<div className="p-6"><h1 className="text-2xl font-bold">Finance</h1><p className="text-gray-600 mt-2">Finance page coming soon...</p></div>} />
+            <Route path="payments" element={<div className="p-6"><h1 className="text-2xl font-bold">Payments</h1><p className="text-gray-600 mt-2">Payments page coming soon...</p></div>} />
+            <Route path="settings" element={<div className="p-6"><h1 className="text-2xl font-bold">Account Settings</h1><p className="text-gray-600 mt-2">Settings page coming soon...</p></div>} />
+            <Route path="security" element={<div className="p-6"><h1 className="text-2xl font-bold">Security & Access</h1><p className="text-gray-600 mt-2">Security page coming soon...</p></div>} />
+            <Route path="support" element={<div className="p-6"><h1 className="text-2xl font-bold">Support & Help</h1><p className="text-gray-600 mt-2">Support page coming soon...</p></div>} />
+          </Route>
 
           {/* Tour Package Creation Flow - Standalone Pages */}
           <Route path="/tours/dashboard/packages/create/:packageId?" element={<CreateTourPackage />} />

@@ -2,20 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation, NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
-  Store,
-  ShoppingBag,
-  Utensils,
-  ShoppingCart,
-  FileText,
+  Car,
+  Calendar,
+  DollarSign,
   BookOpen,
+  BarChart3,
+  Star,
+  Settings,
+  Shield,
+  FileText,
+  HelpCircle,
   Menu,
   LogOut,
   Bell,
-  User as UserIcon
+  User as UserIcon,
+  MapPin,
+  CreditCard
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const RestaurantDashboardLayout = () => {
+const CarRentalDashboardLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -30,7 +36,7 @@ const RestaurantDashboardLayout = () => {
       const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
       
       if (!userData || !token) {
-        navigate('/restaurant/login', { replace: true });
+        navigate('/car-rental/list-your-car-rental', { replace: true });
         return;
       }
 
@@ -39,7 +45,7 @@ const RestaurantDashboardLayout = () => {
         setUser(parsedUser);
       } catch (error) {
         console.error('Error checking auth:', error);
-        navigate('/restaurant/login', { replace: true });
+        navigate('/car-rental/list-your-car-rental', { replace: true });
       }
     };
 
@@ -68,18 +74,26 @@ const RestaurantDashboardLayout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
+    localStorage.removeItem('car_rental_business_id');
+    localStorage.removeItem('car_rental_setup_data');
     toast.success('Logged out successfully');
-    navigate('/restaurant/login');
+    navigate('/car-rental/list-your-car-rental');
   };
 
   const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/restaurant/dashboard', category: 'Main' },
-    { icon: ShoppingCart, label: 'POS', path: '/restaurant/pos', category: 'Main' },
-    { icon: Store, label: 'Restaurants', path: '/restaurant/restaurants', category: 'Main' },
-    { icon: Utensils, label: 'Menu Items', path: '/restaurant/menu-items', category: 'Operations' },
-    { icon: ShoppingBag, label: 'Orders', path: '/restaurant/orders', category: 'Operations' },
-    { icon: FileText, label: 'Reports', path: '/restaurant/reports', category: 'Analytics' },
-    { icon: BookOpen, label: 'API Docs', path: '/restaurant/api-docs', category: 'Documentation' },
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/car-rental/dashboard', category: 'Main' },
+    { icon: Car, label: 'My Cars', path: '/car-rental/dashboard/cars', category: 'Main' },
+    { icon: Calendar, label: 'Availability & Calendar', path: '/car-rental/dashboard/availability', category: 'Main' },
+    { icon: DollarSign, label: 'Pricing & Rates', path: '/car-rental/dashboard/pricing', category: 'Main' },
+    { icon: BookOpen, label: 'Bookings', path: '/car-rental/dashboard/bookings', category: 'Operations' },
+    { icon: MapPin, label: 'Locations', path: '/car-rental/dashboard/locations', category: 'Operations' },
+    { icon: BarChart3, label: 'Reports & Analytics', path: '/car-rental/dashboard/analytics', category: 'Analytics' },
+    { icon: Star, label: 'Reviews & Ratings', path: '/car-rental/dashboard/reviews', category: 'Analytics' },
+    { icon: FileText, label: 'Finance', path: '/car-rental/dashboard/finance', category: 'Financial' },
+    { icon: CreditCard, label: 'Payments', path: '/car-rental/dashboard/payments', category: 'Financial' },
+    { icon: Settings, label: 'Account Settings', path: '/car-rental/dashboard/settings', category: 'Settings' },
+    { icon: Shield, label: 'Security & Access', path: '/car-rental/dashboard/security', category: 'Settings' },
+    { icon: HelpCircle, label: 'Support & Help', path: '/car-rental/dashboard/support', category: 'Support' },
   ];
 
   return (
@@ -97,10 +111,10 @@ const RestaurantDashboardLayout = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0 justify-center w-full">
               <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
-                <Utensils className="h-5 w-5 text-white" />
+                <Car className="h-5 w-5 text-white" />
               </div>
               {(sidebarOpen || (!isMobile && sidebarExpanded)) && (
-                <span className="text-lg font-semibold whitespace-nowrap">Restaurant</span>
+                <span className="text-lg font-semibold whitespace-nowrap">Car Rental</span>
               )}
             </div>
             {isMobile && sidebarOpen && (
@@ -122,7 +136,6 @@ const RestaurantDashboardLayout = () => {
           <nav className="px-2 pb-4">
             {menuItems.map((item) => {
               const Icon = item.icon;
-              const isActive = location.pathname === item.path;
               
               return (
                 <NavLink
@@ -155,7 +168,7 @@ const RestaurantDashboardLayout = () => {
           </button>
           {(sidebarOpen || (!isMobile && sidebarExpanded)) && user && (
             <div className="mt-2 text-xs text-gray-500 text-center">
-              {user.email || 'Restaurant Vendor'}
+              {user.email || 'Car Rental Vendor'}
             </div>
           )}
         </div>
@@ -189,8 +202,8 @@ const RestaurantDashboardLayout = () => {
               <Menu className="h-5 w-5 text-gray-700" />
             </button>
             <div className="flex items-center gap-2">
-              <Utensils className="h-6 w-6" style={{ color: '#3CAF54' }} />
-              <span className="text-lg font-semibold text-gray-900">Restaurant Dashboard</span>
+              <Car className="h-6 w-6" style={{ color: '#3CAF54' }} />
+              <span className="text-lg font-semibold text-gray-900">Car Rental Dashboard</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -213,5 +226,5 @@ const RestaurantDashboardLayout = () => {
   );
 };
 
-export default RestaurantDashboardLayout;
+export default CarRentalDashboardLayout;
 

@@ -374,10 +374,10 @@ const APIDocs = () => {
   ];
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', fontSize: '12px' }}>
-      <div style={{ marginBottom: '20px' }}>
-        <h1 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '5px' }}>API Documentation</h1>
-        <p style={{ fontSize: '12px', marginBottom: '15px' }}>Complete API reference for developers</p>
+    <div className="p-6 font-sans text-sm">
+      <div className="mb-5">
+        <h1 className="text-lg font-bold mb-1">API Documentation</h1>
+        <p className="text-sm mb-4">Complete API reference for developers</p>
       </div>
 
       {apiEndpoints.map((category, categoryIndex) => (

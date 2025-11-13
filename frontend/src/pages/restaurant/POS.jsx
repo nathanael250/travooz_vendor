@@ -1,14 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { restaurantsAPI, menuItemsAPI, ordersAPI, publicAPI } from "@/lib/api";
-import { toast } from "sonner";
+import { restaurantsAPI, menuItemsAPI, ordersAPI } from '../../services/restaurantDashboardService';
+import toast from 'react-hot-toast';
 import { 
   ShoppingCart, 
   Trash2, 
@@ -20,50 +13,17 @@ import {
   CreditCard,
   X
 } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-
-interface Restaurant {
-  id;
-  name;
-  available_seats;
-}
-
-interface MenuItem {
-  id;
-  name;
-  description | null;
-  price;
-  category;
-  available;
-}
-
-interface CartItem extends MenuItem {
-  quantity;
-}
-
 const POS = () => {
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [restaurants, setRestaurants] = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState("");
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [filteredMenuItems, setFilteredMenuItems] = useState<MenuItem[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [orderType, setOrderType] = useState<"dine-in" | "delivery">("dine-in");
+  const [menuItems, setMenuItems] = useState([]);
+  const [filteredMenuItems, setFilteredMenuItems] = useState([]);
+  const [cart, setCart] = useState([]);
+  const [orderType, setOrderType] = useState("dine-in");
   const [customerCount, setCustomerCount] = useState(1);
   const [customerLocation, setCustomerLocation] = useState("");
   const [deliveryPerson, setDeliveryPerson] = useState("");
-  const [deliveryPersons, setDeliveryPersons] = useState<Array<{ id; name; phone? }>>([]);
+  const [deliveryPersons, setDeliveryPersons] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -78,11 +38,10 @@ const POS = () => {
 
   const fetchDeliveryPersons = async () => {
     try {
-      const data = await publicAPI.getDeliveryPersons('active');
-      setDeliveryPersons(Array.isArray(data) ? data : []);
+      // TODO: Implement delivery persons API
+      setDeliveryPersons([]);
     } catch (error) {
       console.error('Failed to fetch delivery persons:', error);
-      // Set empty array on error to prevent crashes
       setDeliveryPersons([]);
     }
   };
@@ -142,7 +101,7 @@ const POS = () => {
     }
   };
 
-  const addToCart = (item: MenuItem) => {
+  const addToCart = (item) => {
     const existingItem = cart.find(i => i.id === item.id);
     
     if (existingItem) {
@@ -196,7 +155,7 @@ const POS = () => {
       }
 
       setSelectedRestaurant(order.restaurant_id);
-      setOrderType(order.order_type as "dine-in" | "delivery");
+      setOrderType(order.order_type || "dine-in");
       setCustomerCount(order.customer_count);
       setCustomerLocation(order.customer_location || "");
       setDeliveryPerson(order.delivery_person || "");
@@ -204,7 +163,7 @@ const POS = () => {
       await fetchMenuItems(order.restaurant_id);
 
       setTimeout(() => {
-        const cartItems: CartItem[] = (order.order_items || []).map((item) => ({
+        const cartItems = (order.order_items || []).map((item) => ({
           ...item.menu_items,
           id: item.menu_item_id,
           quantity: item.quantity,
@@ -364,13 +323,13 @@ const POS = () => {
   const selectedRestaurantData = restaurants.find(r => r.id === selectedRestaurant);
 
   return (
-    <div className="p-2 space-y-2 bg-background min-h-screen">
+    <div className="p-6 space-y-4">
       {/* Header */}
       {cart.length > 0 && (
         <div className="flex items-center justify-end">
-          <Badge variant="secondary" className="text-xs px-2 py-0.5">
+          <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded">
             {getCartItemCount()} {getCartItemCount() === 1 ? 'item' : 'items'}
-          </Badge>
+          </span>
         </div>
       )}
 
@@ -379,102 +338,103 @@ const POS = () => {
         <div className="lg:col-span-2 space-y-2 min-w-0">
           {/* Restaurant Selection */}
           {restaurants.length > 1 && (
-            <Card className="rounded-none">
-              <CardHeader className="pb-1.5 pt-2 px-2">
-                <CardTitle className="text-xs">
+            <div className="bg-white border border-gray-200 rounded">
+              <div className="pb-1.5 pt-2 px-2 border-b border-gray-200">
+                <h3 className="text-xs font-medium">
                   Restaurant
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-2 pb-2">
-                <Select value={selectedRestaurant} onValueChange={setSelectedRestaurant}>
-                  <SelectTrigger className="w-full h-8 text-xs">
-                    <SelectValue placeholder="Choose a restaurant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {restaurants.map(restaurant => (
-                      <SelectItem key={restaurant.id} value={restaurant.id} className="text-xs">
-                        <div className="flex items-center justify-between w-full">
-                          <span>{restaurant.name}</span>
-                          <Badge variant="outline" className="ml-2 text-[10px] h-4">
-                            {restaurant.available_seats} seats
-                          </Badge>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
+                </h3>
+              </div>
+              <div className="px-2 pb-2">
+                <select 
+                  value={selectedRestaurant} 
+                  onChange={(e) => setSelectedRestaurant(e.target.value)}
+                  className="w-full h-8 text-xs border border-gray-300 rounded px-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="">Choose a restaurant</option>
+                  {restaurants.map(restaurant => (
+                    <option key={restaurant.id} value={restaurant.id}>
+                      {restaurant.name} ({restaurant.available_seats} seats)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           )}
           
           {/* Show selected restaurant info when only one restaurant */}
           {restaurants.length === 1 && selectedRestaurant && (
-            <Card className="rounded-none">
-              <CardHeader className="pb-1.5 pt-2 px-2">
-                <CardTitle className="text-xs">
+            <div className="bg-white border border-gray-200 rounded">
+              <div className="pb-1.5 pt-2 px-2 border-b border-gray-200">
+                <h3 className="text-xs font-medium">
                   Restaurant
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-2 pb-2">
-                <div className="flex items-center justify-between p-1.5 bg-muted rounded-none">
+                </h3>
+              </div>
+              <div className="px-2 pb-2">
+                <div className="flex items-center justify-between p-1.5 bg-gray-100 rounded">
                   <span className="font-medium text-xs">{restaurants[0].name}</span>
-                  <Badge variant="outline" className="text-[10px] h-4">
+                  <span className="text-[10px] h-4 px-1.5 py-0.5 border border-gray-300 rounded bg-white">
                     {restaurants[0].available_seats} seats
-                  </Badge>
+                  </span>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
           {/* Menu Items */}
           {selectedRestaurant && (
-            <Card className="rounded-none">
-              <CardHeader className="pb-1.5 pt-2 px-2">
+            <div className="bg-white border border-gray-200 rounded">
+              <div className="pb-1.5 pt-2 px-2 border-b border-gray-200">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-xs">Menu Items</CardTitle>
+                  <h3 className="text-xs font-medium">Menu Items</h3>
                   {selectedRestaurantData && (
-                    <Badge variant="outline" className="text-[10px]">
+                    <span className="text-[10px] px-1.5 py-0.5 border border-gray-300 rounded bg-white">
                       {menuItems.length} items
-                    </Badge>
+                    </span>
                   )}
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-2 px-2 pb-2">
+              </div>
+              <div className="space-y-2 px-2 pb-2">
                 {/* Search Bar */}
                 <div className="relative">
-                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                  <Input
+                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
+                  <input
+                    type="text"
                     placeholder="Search menu items..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-7 h-8 text-xs"
+                    className="pl-7 h-8 text-xs w-full border border-gray-300 rounded px-2 focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                   {searchQuery && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0.5 top-1/2 transform -translate-y-1/2 h-5 w-5"
+                    <button
+                      className="absolute right-0.5 top-1/2 transform -translate-y-1/2 h-5 w-5 flex items-center justify-center hover:bg-gray-100 rounded"
                       onClick={() => setSearchQuery("")}
                     >
                       <X className="h-2.5 w-2.5" />
-                    </Button>
+                    </button>
                   )}
                 </div>
 
                 {categories.length > 0 ? (
-                  <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
-                    <TabsList className="inline-flex w-auto mb-2 h-7">
-                      <TabsTrigger value="all" className="text-[10px] px-2 py-1">
+                  <div className="w-full">
+                    <div className="inline-flex w-auto mb-2 h-7 gap-1 border border-gray-200 rounded p-0.5 bg-gray-50">
+                      <button
+                        onClick={() => setSelectedCategory("all")}
+                        className={`text-[10px] px-2 py-1 rounded ${selectedCategory === "all" ? "bg-white shadow-sm" : ""}`}
+                      >
                         All
-                      </TabsTrigger>
+                      </button>
                       {categories.map(category => (
-                        <TabsTrigger key={category} value={category} className="text-[10px] px-2 py-1">
+                        <button
+                          key={category}
+                          onClick={() => setSelectedCategory(category)}
+                          className={`text-[10px] px-2 py-1 rounded ${selectedCategory === category ? "bg-white shadow-sm" : ""}`}
+                        >
                           {category}
-                        </TabsTrigger>
+                        </button>
                       ))}
-                    </TabsList>
+                    </div>
 
-                    <TabsContent value="all">
+                    {selectedCategory === "all" && (
                       <div className="grid gap-1 sm:grid-cols-3">
                         {filteredMenuItems.length > 0 ? (
                           filteredMenuItems.map(item => {
@@ -500,40 +460,36 @@ const POS = () => {
                                 </div>
                                 {quantity > 0 ? (
                                   <div className="flex items-center gap-0.5 ml-1">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
+                                    <button
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         updateQuantity(item.id, -1);
                                       }}
-                                      className="h-5 w-5 p-0"
+                                      className="h-5 w-5 p-0 border border-gray-300 rounded hover:bg-gray-100 flex items-center justify-center"
                                     >
                                       <Minus className="w-2 h-2" />
-                                    </Button>
+                                    </button>
                                     <span className="text-[9px] font-medium w-4 text-center">{quantity}</span>
-                                    <Button
-                                      size="sm"
+                                    <button
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         addToCart(item);
                                       }}
-                                      className="h-5 w-5 p-0 bg-primary hover:bg-primary/90"
+                                      className="h-5 w-5 p-0 bg-green-600 hover:bg-green-700 text-white rounded flex items-center justify-center"
                                     >
                                       <Plus className="w-2 h-2" />
-                                    </Button>
+                                    </button>
                                   </div>
                                 ) : (
-                                  <Button
-                                    size="sm"
+                                  <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       addToCart(item);
                                     }}
-                                    className="ml-1 h-5 w-5 p-0 bg-primary hover:bg-primary/90"
+                                    className="ml-1 h-5 w-5 p-0 bg-green-600 hover:bg-green-700 text-white rounded flex items-center justify-center"
                                   >
                                     <Plus className="w-2 h-2" />
-                                  </Button>
+                                  </button>
                                 )}
                               </div>
                             );
@@ -544,12 +500,12 @@ const POS = () => {
                           </div>
                         )}
                       </div>
-                    </TabsContent>
+                    )}
 
                     {categories.map(category => {
                       const categoryItems = filteredMenuItems.filter(item => item.category === category);
                       return (
-                        <TabsContent key={category} value={category}>
+                        selectedCategory === category && (
                           <div className="grid gap-1 sm:grid-cols-3">
                             {categoryItems.length > 0 ? (
                               categoryItems.map(item => {
@@ -575,40 +531,36 @@ const POS = () => {
                                     </div>
                                     {quantity > 0 ? (
                                       <div className="flex items-center gap-0.5 ml-1">
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
+                                        <button
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             updateQuantity(item.id, -1);
                                           }}
-                                          className="h-5 w-5 p-0"
+                                          className="h-5 w-5 p-0 border border-gray-300 rounded hover:bg-gray-100 flex items-center justify-center"
                                         >
                                           <Minus className="w-2 h-2" />
-                                        </Button>
+                                        </button>
                                         <span className="text-[9px] font-medium w-4 text-center">{quantity}</span>
-                                        <Button
-                                          size="sm"
+                                        <button
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             addToCart(item);
                                           }}
-                                          className="h-5 w-5 p-0 bg-primary hover:bg-primary/90"
+                                          className="h-5 w-5 p-0 bg-green-600 hover:bg-green-700 text-white rounded flex items-center justify-center"
                                         >
                                           <Plus className="w-2 h-2" />
-                                        </Button>
+                                        </button>
                                       </div>
                                     ) : (
-                                      <Button
-                                        size="sm"
+                                      <button
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           addToCart(item);
                                         }}
-                                        className="ml-1 h-5 w-5 p-0 bg-primary hover:bg-primary/90"
+                                        className="ml-1 h-5 w-5 p-0 bg-green-600 hover:bg-green-700 text-white rounded flex items-center justify-center"
                                       >
                                         <Plus className="w-2 h-2" />
-                                      </Button>
+                                      </button>
                                     )}
                                   </div>
                                 );
@@ -619,54 +571,52 @@ const POS = () => {
                               </div>
                             )}
                           </div>
-                        </TabsContent>
+                        )
                       );
                     })}
-                  </Tabs>
+                  </div>
                 ) : (
-                  <div className="text-center py-8 text-sm text-muted-foreground">
+                  <div className="text-center py-8 text-sm text-gray-500">
                     {searchQuery ? "No items found" : "No menu items available"}
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
           {!selectedRestaurant && (
-            <Card className="rounded-none">
-              <CardContent className="py-8 text-center">
-                <p className="text-xs text-muted-foreground">Please select a restaurant to view menu items</p>
-              </CardContent>
-            </Card>
+            <div className="bg-white border border-gray-200 rounded">
+              <div className="py-8 text-center">
+                <p className="text-xs text-gray-500">Please select a restaurant to view menu items</p>
+              </div>
+            </div>
           )}
         </div>
 
         {/* Right Section - Cart & Order Details */}
         <div className="space-y-2 min-w-0">
-          <Card className="sticky top-2 overflow-hidden rounded-none">
-            <CardHeader className="pb-1.5 pt-2 px-2">
+          <div className="sticky top-2 overflow-hidden bg-white border border-gray-200 rounded">
+            <div className="pb-1.5 pt-2 px-2 border-b border-gray-200">
               <div className="flex items-center justify-between gap-2 min-w-0">
-                <CardTitle className="text-xs flex items-center gap-1 min-w-0">
+                <h3 className="text-xs font-medium flex items-center gap-1 min-w-0">
                   <ShoppingCart className="h-3 w-3 flex-shrink-0" />
                   <span className="truncate">Order Cart</span>
-                </CardTitle>
+                </h3>
                 {cart.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <button
                     onClick={clearCart}
-                    className="h-5 text-[9px] text-destructive hover:text-destructive flex-shrink-0"
+                    className="h-5 text-[9px] text-red-600 hover:text-red-700 flex-shrink-0 px-2"
                   >
                     Clear
-                  </Button>
+                  </button>
                 )}
               </div>
-            </CardHeader>
-            <CardContent className="space-y-2 min-w-0 px-2 pb-2">
+            </div>
+            <div className="space-y-2 min-w-0 px-2 pb-2">
               {/* Cart Items */}
               <div className="space-y-1">
-                <Label className="text-[10px] font-semibold">Items ({getCartItemCount()})</Label>
-                <ScrollArea className="h-[150px] pr-1">
+                <label className="text-[10px] font-semibold block">Items ({getCartItemCount()})</label>
+                <div className="h-[150px] pr-1 overflow-y-auto">
                   <div className="space-y-1">
                     {cart.length > 0 ? (
                       cart.map(item => (
@@ -681,31 +631,25 @@ const POS = () => {
                             </p>
                           </div>
                           <div className="flex items-center gap-0.5">
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-5 w-5"
+                            <button
+                              className="h-5 w-5 border border-gray-300 rounded hover:bg-gray-100 flex items-center justify-center"
                               onClick={() => updateQuantity(item.id, -1)}
                             >
                               <Minus className="w-2 h-2" />
-                            </Button>
+                            </button>
                             <span className="w-4 text-center text-[9px] font-medium">{item.quantity}</span>
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-5 w-5"
+                            <button
+                              className="h-5 w-5 border border-gray-300 rounded hover:bg-gray-100 flex items-center justify-center"
                               onClick={() => updateQuantity(item.id, 1)}
                             >
                               <Plus className="w-2 h-2" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-5 w-5 text-destructive hover:text-destructive"
+                            </button>
+                            <button
+                              className="h-5 w-5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded flex items-center justify-center"
                               onClick={() => removeFromCart(item.id)}
                             >
                               <Trash2 className="w-2 h-2" />
-                            </Button>
+                            </button>
                           </div>
                         </div>
                       ))
@@ -716,44 +660,44 @@ const POS = () => {
                       </div>
                     )}
                   </div>
-                </ScrollArea>
+                </div>
               </div>
 
               {/* Order Type */}
-              <Separator />
+              <div className="border-t border-gray-200 my-2"></div>
               <div className="space-y-1 min-w-0">
-                <Label className="text-[10px]">Order Type</Label>
-                <Select value={orderType} onValueChange={(value) => {
-                  setOrderType(value);
-                  // Reset delivery person and location when switching to dine-in
-                  if (value === "dine-in") {
-                    setDeliveryPerson("");
-                    setCustomerLocation("");
-                  }
-                }}>
-                  <SelectTrigger className="h-7 w-full min-w-0 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="dine-in" className="text-xs">Dine-In</SelectItem>
-                    <SelectItem value="delivery" className="text-xs">Delivery</SelectItem>
-                  </SelectContent>
-                </Select>
+                <label className="text-[10px] block">Order Type</label>
+                <select 
+                  value={orderType} 
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setOrderType(value);
+                    // Reset delivery person and location when switching to dine-in
+                    if (value === "dine-in") {
+                      setDeliveryPerson("");
+                      setCustomerLocation("");
+                    }
+                  }}
+                  className="h-7 w-full min-w-0 text-xs border border-gray-300 rounded px-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="dine-in">Dine-In</option>
+                  <option value="delivery">Delivery</option>
+                </select>
               </div>
 
               {/* Customer Count for Dine-In */}
               {orderType === "dine-in" && (
                 <div className="space-y-1 min-w-0">
-                  <Label className="text-[10px] flex items-center gap-1">
+                  <label className="text-[10px] flex items-center gap-1 block">
                     <Users className="h-2.5 w-2.5" />
                     Number of Customers
-                  </Label>
-                  <Input
+                  </label>
+                  <input
                     type="number"
                     min="1"
                     value={customerCount}
                     onChange={(e) => setCustomerCount(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="h-7 w-full min-w-0 text-xs"
+                    className="h-7 w-full min-w-0 text-xs border border-gray-300 rounded px-2 focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                   {selectedRestaurantData && (
                     <p className="text-[9px] text-muted-foreground">
@@ -766,45 +710,39 @@ const POS = () => {
               {/* Delivery Person for Delivery */}
               {orderType === "delivery" && (
                 <div className="space-y-1 min-w-0">
-                  <Label className="text-[10px]">Delivery Person</Label>
-                  <Select 
-                    value={deliveryPerson || undefined} 
-                    onValueChange={(value) => setDeliveryPerson(value === "none" ? "" : value)}
+                  <label className="text-[10px] block">Delivery Person</label>
+                  <select 
+                    value={deliveryPerson || ""} 
+                    onChange={(e) => setDeliveryPerson(e.target.value === "none" ? "" : e.target.value)}
+                    className="h-7 w-full min-w-0 text-xs border border-gray-300 rounded px-2 focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
-                    <SelectTrigger className="h-7 w-full min-w-0 text-xs">
-                      <SelectValue placeholder="Select delivery person" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none" className="text-xs">None</SelectItem>
-                      {deliveryPersons.length > 0 ? (
-                        deliveryPersons.map((person) => (
-                          <SelectItem key={person.id} value={person.name} className="text-xs">
-                            {person.name} {person.phone ? `(${person.phone})` : ''}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="loading" disabled className="text-xs text-muted-foreground">
-                          No delivery persons available
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
+                    <option value="none">None</option>
+                    {deliveryPersons.length > 0 ? (
+                      deliveryPersons.map((person) => (
+                        <option key={person.id} value={person.name}>
+                          {person.name} {person.phone ? `(${person.phone})` : ''}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>No delivery persons available</option>
+                    )}
+                  </select>
                 </div>
               )}
 
               {/* Order Summary */}
               {cart.length > 0 && (
                 <>
-                  <Separator />
+                  <div className="border-t border-gray-200 my-2"></div>
                   <div className="space-y-1">
                     <div className="flex justify-between items-center gap-2 text-[10px] min-w-0">
-                      <span className="text-muted-foreground flex-shrink-0">Subtotal:</span>
+                      <span className="text-gray-500 flex-shrink-0">Subtotal:</span>
                       <span className="font-medium truncate">frw {calculateSubtotal().toLocaleString()}</span>
                     </div>
-                    <Separator />
+                    <div className="border-t border-gray-200 my-1"></div>
                     <div className="flex justify-between items-center gap-2 text-xs font-bold min-w-0">
                       <span className="flex-shrink-0">Total:</span>
-                      <span className="text-secondary truncate">frw {calculateTotal().toLocaleString()}</span>
+                      <span className="text-green-600 truncate">frw {calculateTotal().toLocaleString()}</span>
                     </div>
                   </div>
                 </>
@@ -812,22 +750,19 @@ const POS = () => {
 
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-1.5 mt-2">
-                <Button
-                  variant="outline"
-                  className="flex-1 min-w-0 h-7 text-xs rounded-none"
+                <button
+                  className="flex-1 min-w-0 h-7 text-xs border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleHoldOrderClick}
                   disabled={loading || cart.length === 0}
-                  size="sm"
                 >
                   Hold Order
-                </Button>
-                <Button
-                  className="flex-1 min-w-0 bg-primary hover:bg-primary/90 h-7 text-xs rounded-none"
+                </button>
+                <button
+                  className="flex-1 min-w-0 bg-green-600 hover:bg-green-700 text-white h-7 text-xs rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
                   onClick={handlePlaceOrderClick}
                   disabled={loading || cart.length === 0}
-                  size="sm"
                 >
-                  <CreditCard className="w-2.5 h-2.5 mr-1 flex-shrink-0" />
+                  <CreditCard className="w-2.5 h-2.5 flex-shrink-0" />
                   <span className="truncate">
                     {loading ? "Saving..." : (
                       <>
@@ -836,60 +771,74 @@ const POS = () => {
                       </>
                     )}
                   </span>
-                </Button>
+                </button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Place Order Confirmation Dialog */}
-      <AlertDialog open={showPlaceOrderDialog} onOpenChange={setShowPlaceOrderDialog}>
-        <AlertDialogContent className="!rounded-none max-w-sm p-4 sm:!rounded-none">
-          <AlertDialogHeader className="pb-2">
-            <AlertDialogTitle className="text-sm">Confirm Place Order</AlertDialogTitle>
-            <AlertDialogDescription className="text-xs">
-              Are you sure you want to place this order? This will complete the order and charge the customer.
-              <div className="mt-1.5 font-semibold text-foreground">
-                Total: frw {calculateTotal().toLocaleString()}
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-1.5 pt-2">
-            <AlertDialogCancel className="rounded-none h-7 text-xs">Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handlePlaceOrder}
-              className="bg-primary hover:bg-primary/90 rounded-none h-7 text-xs"
-            >
-              Place Order
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {showPlaceOrderDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded max-w-sm p-4 w-full mx-4">
+            <div className="pb-2">
+              <h3 className="text-sm font-semibold mb-2">Confirm Place Order</h3>
+              <p className="text-xs text-gray-600">
+                Are you sure you want to place this order? This will complete the order and charge the customer.
+                <div className="mt-1.5 font-semibold text-gray-900">
+                  Total: frw {calculateTotal().toLocaleString()}
+                </div>
+              </p>
+            </div>
+            <div className="flex gap-1.5 pt-2">
+              <button
+                onClick={() => setShowPlaceOrderDialog(false)}
+                className="flex-1 h-7 text-xs border border-gray-300 rounded hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePlaceOrder}
+                className="flex-1 h-7 text-xs bg-green-600 hover:bg-green-700 text-white rounded"
+              >
+                Place Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hold Order Confirmation Dialog */}
-      <AlertDialog open={showHoldOrderDialog} onOpenChange={setShowHoldOrderDialog}>
-        <AlertDialogContent className="!rounded-none max-w-sm p-4 sm:!rounded-none">
-          <AlertDialogHeader className="pb-2">
-            <AlertDialogTitle className="text-sm">Confirm Hold Order</AlertDialogTitle>
-            <AlertDialogDescription className="text-xs">
-              Are you sure you want to hold this order? The order will be saved as pending and can be resumed later.
-              <div className="mt-1.5 font-semibold text-foreground">
-                Total: frw {calculateTotal().toLocaleString()}
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-1.5 pt-2">
-            <AlertDialogCancel className="rounded-none h-7 text-xs">Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleHoldOrder}
-              className="bg-primary hover:bg-primary/90 rounded-none h-7 text-xs"
-            >
-              Hold Order
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {showHoldOrderDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded max-w-sm p-4 w-full mx-4">
+            <div className="pb-2">
+              <h3 className="text-sm font-semibold mb-2">Confirm Hold Order</h3>
+              <p className="text-xs text-gray-600">
+                Are you sure you want to hold this order? The order will be saved as pending and can be resumed later.
+                <div className="mt-1.5 font-semibold text-gray-900">
+                  Total: frw {calculateTotal().toLocaleString()}
+                </div>
+              </p>
+            </div>
+            <div className="flex gap-1.5 pt-2">
+              <button
+                onClick={() => setShowHoldOrderDialog(false)}
+                className="flex-1 h-7 text-xs border border-gray-300 rounded hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleHoldOrder}
+                className="flex-1 h-7 text-xs bg-green-600 hover:bg-green-700 text-white rounded"
+              >
+                Hold Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
