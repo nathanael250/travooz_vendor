@@ -50,6 +50,7 @@ class ToursPackage {
         this.pickup_transportation = data.pickup_transportation || null;
         this.availability_type = data.availability_type || null;
         this.pricing_type = data.pricing_type || null;
+        this.price_per_person = data.price_per_person || null;
         
         this.status = data.status || 'draft';
         this.created_at = data.created_at || null;
@@ -86,8 +87,8 @@ class ToursPackage {
                     customer_arrival_type, pickup_type, pickup_timing,
                     pickup_confirmation, pickup_time, pickup_description,
                     drop_off_type, pickup_transportation,
-                    availability_type, pricing_type, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    availability_type, pricing_type, price_per_person, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     toNull(this.tour_business_id),
                     this.name, // Required field - don't convert to null
@@ -128,6 +129,7 @@ class ToursPackage {
                     toNull(this.pickup_transportation),
                     toNull(this.availability_type),
                     toNull(this.pricing_type),
+                    toNull(this.price_per_person),
                     (this.status && this.status !== '') ? this.status : 'draft'
                 ]
             );
@@ -159,7 +161,7 @@ class ToursPackage {
                     customer_arrival_type = ?, pickup_type = ?, pickup_timing = ?,
                     pickup_confirmation = ?, pickup_time = ?, pickup_description = ?,
                     drop_off_type = ?, pickup_transportation = ?,
-                    availability_type = ?, pricing_type = ?, status = ?,
+                    availability_type = ?, pricing_type = ?, price_per_person = ?, status = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE package_id = ?`,
                 [
@@ -201,6 +203,7 @@ class ToursPackage {
                     toNull(this.pickup_transportation),
                     toNull(this.availability_type),
                     toNull(this.pricing_type),
+                    toNull(this.price_per_person),
                     (this.status && this.status !== '') ? this.status : 'draft',
                     this.package_id
                 ]
@@ -252,30 +255,20 @@ class ToursPackage {
                 [tourBusinessId]
             );
 
-            // Get pricing information for each package
-            const packagesWithPricing = await Promise.all(results.map(async (row) => {
-                // Get minimum price from pricing tiers
-                const pricingInfo = await executeQuery(
-                    `SELECT MIN(customer_pays) as min_price, MAX(customer_pays) as max_price, currency
-                     FROM tours_package_pricing_tiers tpt
-                     INNER JOIN tours_package_schedules tps ON tpt.schedule_id = tps.schedule_id
-                     WHERE tps.package_id = ?
-                     GROUP BY currency
-                     ORDER BY min_price ASC
-                     LIMIT 1`,
-                    [row.package_id]
-                );
-
-                const priceInfo = pricingInfo.length > 0 ? pricingInfo[0] : null;
+            // Map results to include price_per_person (new simple pricing)
+            const packagesWithPricing = results.map((row) => {
+                const pricePerPerson = row.price_per_person ? parseFloat(row.price_per_person) : null;
                 
                 return {
                     ...row,
-                    price: priceInfo ? parseFloat(priceInfo.min_price) : null,
-                    min_price: priceInfo ? parseFloat(priceInfo.min_price) : null,
-                    max_price: priceInfo ? parseFloat(priceInfo.max_price) : null,
-                    currency: priceInfo ? priceInfo.currency : 'RWF'
+                    price: pricePerPerson,
+                    price_per_person: pricePerPerson,
+                    pricePerPerson: pricePerPerson, // Also include camelCase for frontend compatibility
+                    min_price: pricePerPerson, // For backward compatibility
+                    max_price: pricePerPerson, // For backward compatibility
+                    currency: 'RWF'
                 };
-            }));
+            });
 
             return packagesWithPricing.map(row => {
                 const booleanFields = [
@@ -292,6 +285,8 @@ class ToursPackage {
                 const packageInstance = new ToursPackage(row);
                 // Preserve pricing fields
                 packageInstance.price = row.price;
+                packageInstance.price_per_person = row.price_per_person;
+                packageInstance.pricePerPerson = row.pricePerPerson;
                 packageInstance.min_price = row.min_price;
                 packageInstance.max_price = row.max_price;
                 packageInstance.currency = row.currency;

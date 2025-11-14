@@ -97,32 +97,84 @@ class ToursBooking {
     }
 
     static async findByBusinessId(tourBusinessId, filters = {}) {
-        let sql = 'SELECT * FROM tours_bookings WHERE tour_business_id = ?';
+        // First, check if tours_bookings table exists and has any data
+        try {
+            const tableCheck = await executeQuery(
+                'SELECT COUNT(*) as count FROM tours_bookings WHERE tour_business_id = ?',
+                [tourBusinessId]
+            );
+            console.log(`🔍 Direct count from tours_bookings for business ${tourBusinessId}:`, tableCheck[0]?.count || 0);
+        } catch (error) {
+            console.error('⚠️ Error checking tours_bookings table:', error.message);
+        }
+
+        // Join with bookings table to get booking reference and ensure we get all bookings
+        let sql = `
+            SELECT 
+                tb.*,
+                b.booking_reference,
+                b.service_type,
+                b.special_requests as booking_special_requests,
+                b.created_at as booking_created_at
+            FROM tours_bookings tb
+            LEFT JOIN bookings b ON tb.booking_id = b.booking_id
+            WHERE tb.tour_business_id = ?
+        `;
         const params = [tourBusinessId];
 
+        // Filter by status - prioritize tours_bookings.status, fallback to bookings.status
         if (filters.status && filters.status !== 'all') {
-            sql += ' AND status = ?';
-            params.push(filters.status);
+            sql += ' AND (tb.status = ? OR (tb.status IS NULL AND b.status = ?))';
+            params.push(filters.status, filters.status);
         }
 
         if (filters.startDate) {
-            sql += ' AND tour_date >= ?';
+            sql += ' AND tb.tour_date >= ?';
             params.push(filters.startDate);
         }
 
         if (filters.endDate) {
-            sql += ' AND tour_date <= ?';
+            sql += ' AND tb.tour_date <= ?';
             params.push(filters.endDate);
         }
 
-        sql += ' ORDER BY booking_date DESC';
+        sql += ' ORDER BY COALESCE(tb.booking_date, b.created_at, tb.tour_date) DESC';
 
         if (filters.limit) {
             sql += ' LIMIT ?';
             params.push(filters.limit);
         }
 
+        console.log('🔍 Executing query:', sql);
+        console.log('🔍 Query params:', params);
+        
         const results = await executeQuery(sql, params);
+        
+        console.log(`📊 Query returned ${results.length} results`);
+        if (results.length > 0) {
+            console.log('📊 First booking sample:', {
+                booking_id: results[0].booking_id,
+                tour_business_id: results[0].tour_business_id,
+                package_id: results[0].package_id,
+                customer_name: results[0].customer_name,
+                status: results[0].status
+            });
+        } else {
+            // If no results, check if there are any bookings at all for this business
+            const allBookingsCheck = await executeQuery(
+                'SELECT booking_id, tour_business_id, package_id FROM tours_bookings LIMIT 5',
+                []
+            );
+            console.log('🔍 Sample of all bookings in tours_bookings:', allBookingsCheck);
+            
+            // Also check what tour_business_ids exist
+            const businessIdsCheck = await executeQuery(
+                'SELECT DISTINCT tour_business_id FROM tours_bookings',
+                []
+            );
+            console.log('🔍 All tour_business_ids in tours_bookings:', businessIdsCheck.map(b => b.tour_business_id));
+        }
+        
         return results.map(row => new ToursBooking(row));
     }
 

@@ -243,34 +243,55 @@ class ClientDiscoveryService {
         max_price,
         category,
         limit = 20,
-        offset = 0
+        offset = 0,
+        include_draft = false // Allow including draft packages for development
       } = filters;
+
+      // First, let's check what packages exist in the database
+      const allPackages = await executeQuery(
+        `SELECT tp.package_id, tp.name, tp.status as package_status, tb.tour_business_id, tb.tour_business_name, tb.status as business_status
+         FROM tours_packages tp
+         JOIN tours_businesses tb ON tp.tour_business_id = tb.tour_business_id
+         LIMIT 10`
+      );
+      console.log('🔍 All packages in database:', allPackages);
+
+      // Build status condition - for production, only show active packages from approved businesses
+      // For development, we can show draft packages too
+      let statusCondition = "tp.status = 'active' AND tb.status = 'approved'";
+      if (include_draft || process.env.NODE_ENV === 'development') {
+        // In development, show packages that are either active or draft, from approved or pending businesses
+        statusCondition = "(tp.status IN ('active', 'draft') AND tb.status IN ('approved', 'pending_review'))";
+        console.log('🔧 Development mode: Including draft packages');
+      }
 
       let query = `
         SELECT 
           tp.package_id,
           tp.name,
-          tp.description,
-          tp.duration,
-          tp.duration_unit,
-          tp.price_per_person,
-          tp.max_participants,
+          tp.short_description as description,
+          tp.full_description,
+          tp.duration_value as duration,
+          tp.duration_type as duration_unit,
+          tp.pricing_type,
+          tp.max_group_size as max_participants,
           tp.category,
           tp.status,
+          tp.price_per_person,
           tb.tour_business_id,
-          tb.business_name,
+          tb.tour_business_name as business_name,
           tb.location as business_location
         FROM tours_packages tp
-        JOIN tours_business tb ON tp.tour_business_id = tb.tour_business_id
-        WHERE tp.status = 'active' AND tb.status = 'approved'
+        JOIN tours_businesses tb ON tp.tour_business_id = tb.tour_business_id
+        WHERE ${statusCondition}
       `;
 
       const params = [];
 
       if (location) {
-        query += ` AND (tb.location LIKE ? OR tb.city LIKE ?)`;
+        query += ` AND tb.location LIKE ?`;
         const locationParam = `%${location}%`;
-        params.push(locationParam, locationParam);
+        params.push(locationParam);
       }
 
       if (category) {
@@ -297,7 +318,7 @@ class ClientDiscoveryService {
           WHERE tb2.tour_date = ? 
           AND b.status IN ('pending', 'confirmed')
           GROUP BY tb2.package_id
-          HAVING SUM(tb2.number_of_participants) >= tp.max_participants
+          HAVING SUM(tb2.number_of_participants) >= tp.max_group_size
         )`;
         params.push(tour_date);
       }
@@ -305,15 +326,48 @@ class ClientDiscoveryService {
       query += ` ORDER BY tp.price_per_person ASC LIMIT ? OFFSET ?`;
       params.push(limit, offset);
 
+      console.log('🔍 Executing query:', query.substring(0, 200) + '...');
+      console.log('🔍 Query params:', params);
+      
       const tours = await executeQuery(query, params);
+      
+      console.log(`✅ Found ${tours.length} tour packages matching criteria`);
 
       // Get images for each tour
+      // First ensure the table exists
+      try {
+        await executeQuery(`
+          CREATE TABLE IF NOT EXISTS tour_package_images (
+            image_id INT AUTO_INCREMENT PRIMARY KEY,
+            package_id INT NOT NULL,
+            image_url VARCHAR(500) NOT NULL,
+            image_name VARCHAR(255) DEFAULT NULL,
+            image_size INT DEFAULT NULL,
+            image_type VARCHAR(100) DEFAULT NULL,
+            display_order INT DEFAULT 0,
+            is_primary TINYINT(1) DEFAULT 0,
+            created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_package_id (package_id),
+            INDEX idx_display_order (display_order)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+      } catch (error) {
+        // Table might already exist, ignore error
+        console.log('Note: tour_package_images table check:', error.message);
+      }
+      
       for (const tour of tours) {
-        const images = await executeQuery(
-          `SELECT photo_url FROM tour_package_photos WHERE package_id = ? LIMIT 5`,
-          [tour.package_id]
-        );
-        tour.images = images.map(img => img.photo_url);
+        try {
+          const images = await executeQuery(
+            `SELECT image_url as photo_url FROM tour_package_images WHERE package_id = ? ORDER BY display_order, is_primary DESC LIMIT 5`,
+            [tour.package_id]
+          );
+          tour.images = images && images.length > 0 ? images.map(img => img.photo_url) : [];
+          console.log(`📸 Package ${tour.package_id}: Found ${tour.images.length} images`);
+        } catch (error) {
+          console.error(`❌ Error getting images for package ${tour.package_id}:`, error);
+          tour.images = [];
+        }
       }
 
       return tours;
@@ -329,9 +383,9 @@ class ClientDiscoveryService {
   async getTourPackageById(tourId) {
     try {
       const tours = await executeQuery(
-        `SELECT tp.*, tb.business_name, tb.location as business_location, tb.city
-         FROM tour_packages tp
-         JOIN tours_business tb ON tp.tour_business_id = tb.tour_business_id
+        `SELECT tp.*, tp.price_per_person, tb.tour_business_name as business_name, tb.location as business_location
+         FROM tours_packages tp
+         JOIN tours_businesses tb ON tp.tour_business_id = tb.tour_business_id
          WHERE tp.package_id = ? AND tp.status = 'active' AND tb.status = 'approved'`,
         [tourId]
       );
@@ -342,12 +396,34 @@ class ClientDiscoveryService {
 
       const tour = tours[0];
 
-      // Get images
+      // Get images - ensure table exists first
+      try {
+        await executeQuery(`
+          CREATE TABLE IF NOT EXISTS tour_package_images (
+            image_id INT AUTO_INCREMENT PRIMARY KEY,
+            package_id INT NOT NULL,
+            image_url VARCHAR(500) NOT NULL,
+            image_name VARCHAR(255) DEFAULT NULL,
+            image_size INT DEFAULT NULL,
+            image_type VARCHAR(100) DEFAULT NULL,
+            display_order INT DEFAULT 0,
+            is_primary TINYINT(1) DEFAULT 0,
+            created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_package_id (package_id),
+            INDEX idx_display_order (display_order)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+      } catch (error) {
+        // Table might already exist, ignore error
+        console.log('Note: tour_package_images table check:', error.message);
+      }
+      
       const images = await executeQuery(
-        `SELECT photo_url FROM tour_package_photos WHERE package_id = ?`,
+        `SELECT image_url as photo_url FROM tour_package_images WHERE package_id = ? ORDER BY display_order, is_primary DESC`,
         [tourId]
       );
-      tour.images = images.map(img => img.photo_url);
+      tour.images = images && images.length > 0 ? images.map(img => img.photo_url) : [];
+      console.log(`📸 Package ${tourId}: Found ${tour.images.length} images`);
 
       // Get itinerary
       const itinerary = await executeQuery(

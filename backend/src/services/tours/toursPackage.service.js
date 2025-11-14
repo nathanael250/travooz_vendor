@@ -4,11 +4,70 @@ const toursCommissionService = require('./toursCommission.service');
 
 class ToursPackageService {
     /**
+     * Ensure tour_package_images table exists
+     */
+    async ensureTourPackageImagesTable() {
+        try {
+            await executeQuery(`
+                CREATE TABLE IF NOT EXISTS tour_package_images (
+                    image_id INT AUTO_INCREMENT PRIMARY KEY,
+                    package_id INT NOT NULL,
+                    image_url VARCHAR(500) NOT NULL,
+                    image_name VARCHAR(255) DEFAULT NULL,
+                    image_size INT DEFAULT NULL,
+                    image_type VARCHAR(100) DEFAULT NULL,
+                    display_order INT DEFAULT 0,
+                    is_primary TINYINT(1) DEFAULT 0,
+                    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_package_id (package_id),
+                    INDEX idx_display_order (display_order),
+                    FOREIGN KEY (package_id) REFERENCES tours_packages(package_id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            `);
+            console.log('✅ tour_package_images table ensured');
+        } catch (error) {
+            console.error('❌ Error ensuring tour_package_images table:', error);
+            // Don't throw - table might already exist with different structure
+        }
+    }
+
+    /**
+     * Ensure price_per_person column exists in tours_packages table
+     */
+    async ensurePricePerPersonColumn() {
+        try {
+            // Check if column exists
+            const columns = await executeQuery(`
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND TABLE_NAME = 'tours_packages' 
+                AND COLUMN_NAME = 'price_per_person'
+            `);
+            
+            if (columns.length === 0) {
+                // Add the column
+                await executeQuery(`
+                    ALTER TABLE tours_packages 
+                    ADD COLUMN price_per_person DECIMAL(10,2) DEFAULT NULL 
+                    AFTER pricing_type
+                `);
+                console.log('✅ Added price_per_person column to tours_packages table');
+            }
+        } catch (error) {
+            console.error('❌ Error ensuring price_per_person column:', error);
+            // Don't throw - column might already exist
+        }
+    }
+    /**
      * Save or update tour package with all related data
      * Follows the same pattern as stays system - receives data from controller and handles transformation
      */
     async savePackage(packageData, packageId = null) {
         try {
+            // Ensure price_per_person column exists
+            await this.ensurePricePerPersonColumn();
+            
             // Transform frontend camelCase to database snake_case (like stays system does)
             const transformedData = {
                 tour_business_id: packageData.tour_business_id,
@@ -54,6 +113,11 @@ class ToursPackageService {
                 pickup_transportation: packageData.pickupTransportation || packageData.pickup_transportation,
                 availability_type: packageData.availabilityType || packageData.availability_type,
                 pricing_type: packageData.pricingType || packageData.pricing_type,
+                price_per_person: (packageData.pricePerPerson !== undefined && packageData.pricePerPerson !== null && packageData.pricePerPerson !== '') 
+                    ? packageData.pricePerPerson 
+                    : (packageData.price_per_person !== undefined && packageData.price_per_person !== null && packageData.price_per_person !== '') 
+                        ? packageData.price_per_person 
+                        : undefined, // Use undefined to indicate "not provided" - will preserve existing value in update
                 status: packageData.status || 'draft'
             };
 
@@ -73,6 +137,10 @@ class ToursPackageService {
                         console.log(`⚠️ Package ${packageId} belongs to different business. Updating anyway.`);
                     }
                     // Update existing package
+                    // Preserve price_per_person if not provided in update
+                    if (transformedData.price_per_person === undefined) {
+                        transformedData.price_per_person = packageRecord.price_per_person;
+                    }
                     Object.assign(packageRecord, transformedData);
                     await packageRecord.update();
                 }
@@ -119,8 +187,12 @@ class ToursPackageService {
             }
 
             // Step 4: Photos
-            if (packageData.photos) {
+            // Only save photos if the photos field is explicitly provided
+            // If photos field is undefined, preserve existing photos
+            if (packageData.photos !== undefined) {
                 await this.savePhotos(pkgId, packageData.photos);
+            } else {
+                console.log('📸 Photos field not provided - preserving existing photos');
             }
 
             // Step 5: Options related data
@@ -183,8 +255,16 @@ class ToursPackageService {
                         exceptions_share_capacity: packageData.exceptionsShareCapacity !== undefined ? packageData.exceptionsShareCapacity : true
                     } : null,
                     // Include pricing tiers
-                    pricingTiers: packageData.pricingTiers || []
+                    pricingTiers: packageData.pricingTiers || packageData.pricing_tiers || []
                 };
+                
+                console.log('📅 Schedule data to save:', {
+                    schedule_name: schedule.schedule_name,
+                    has_pricing_tiers: !!(schedule.pricingTiers && schedule.pricingTiers.length > 0),
+                    pricing_tiers_count: schedule.pricingTiers ? schedule.pricingTiers.length : 0,
+                    pricing_tiers_sample: schedule.pricingTiers && schedule.pricingTiers.length > 0 ? schedule.pricingTiers[0] : null
+                });
+                
                 await this.saveSchedules(pkgId, [schedule]);
             }
 
@@ -498,66 +578,108 @@ class ToursPackageService {
 
     // Step 4: Photos
     async savePhotos(packageId, photos) {
-        await executeQuery('DELETE FROM tours_package_photos WHERE package_id = ?', [packageId]);
+        console.log(`📸 savePhotos called for package ${packageId} with ${photos ? photos.length : 0} photos`);
+        
+        // Ensure table exists
+        await this.ensureTourPackageImagesTable();
+        
+        await executeQuery('DELETE FROM tour_package_images WHERE package_id = ?', [packageId]);
         if (photos && photos.length > 0) {
+            let savedCount = 0;
             for (let i = 0; i < photos.length; i++) {
                 const photo = photos[i];
                 
-                // Handle different photo formats (like stays system)
+                // Handle different photo formats
                 let photoUrl = null;
                 let photoName = null;
                 let photoSize = null;
                 let photoType = null;
+                let displayOrder = i;
+                let isPrimary = i === 0 ? 1 : 0;
                 
                 if (typeof photo === 'string') {
-                    // Direct URL string
+                    // Direct URL string (file path or URL)
                     photoUrl = photo;
+                    console.log(`📷 Photo ${i}: String format - ${photo}`);
                 } else if (photo && typeof photo === 'object') {
-                    // Object with photo data
-                    photoUrl = photo.photo_url || photo.url || photo.image_url || photo.imageUrl || null;
-                    photoName = photo.photo_name || photo.name || photo.fileName || null;
-                    photoSize = photo.photo_size || photo.size || photo.fileSize || null;
-                    photoType = photo.photo_type || photo.type || photo.fileType || photo.mimeType || null;
+                    // Object with photo data (from multer or existing photos)
+                    photoUrl = photo.photo_url || photo.url || photo.image_url || photo.imageUrl || photo.photoUrl || null;
+                    photoName = photo.photo_name || photo.name || photo.fileName || photo.file_name || photo.originalname || null;
+                    photoSize = photo.photo_size || photo.size || photo.fileSize || photo.file_size || null;
+                    photoType = photo.photo_type || photo.type || photo.fileType || photo.file_type || photo.mimeType || photo.mime_type || null;
+                    displayOrder = photo.display_order !== undefined ? photo.display_order : i;
+                    isPrimary = photo.is_primary !== undefined ? photo.is_primary : (i === 0 ? 1 : 0);
                     
-                    // If it's a File object, we can't save it directly - need URL
-                    // Frontend should convert File to base64 or upload first
-                    if (photo instanceof File || (photo.name && photo.size && !photoUrl)) {
-                        console.warn(`⚠️ Photo at index ${i} is a File object. File objects must be uploaded first to get a URL.`);
-                        // Skip File objects - they need to be uploaded first
-                        continue;
-                    }
+                    console.log(`📷 Photo ${i}: Object format`, {
+                        photoUrl,
+                        photoName,
+                        photoSize,
+                        photoType,
+                        displayOrder,
+                        isPrimary
+                    });
+                } else {
+                    console.warn(`⚠️ Photo at index ${i} has unexpected format:`, typeof photo, photo);
+                    continue;
                 }
                 
-                // Only save if we have a valid URL (data URL, http/https URL, or non-empty string)
+                // Only save if we have a valid file path or URL
+                // Accept: file paths starting with /uploads/, http/https URLs, or relative paths
                 if (photoUrl && 
                     photoUrl !== '{}' && 
                     photoUrl !== 'null' && 
                     photoUrl !== 'undefined' &&
-                    (photoUrl.startsWith('data:') || photoUrl.startsWith('http://') || photoUrl.startsWith('https://') || photoUrl.trim() !== '')) {
-                    await executeQuery(
-                        `INSERT INTO tours_package_photos 
-                        (package_id, photo_url, photo_name, photo_size, photo_type, display_order, is_primary)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                        [
-                            packageId,
-                            photoUrl,
-                            photoName,
-                            photoSize,
-                            photoType,
-                            i,
-                            i === 0 ? 1 : 0 // First photo is primary
-                        ]
-                    );
+                    photoUrl.trim() !== '' &&
+                    (photoUrl.startsWith('/uploads/') || 
+                     photoUrl.startsWith('http://') || 
+                     photoUrl.startsWith('https://') ||
+                     photoUrl.startsWith('uploads/'))) {
+                    try {
+                        await executeQuery(
+                            `INSERT INTO tour_package_images 
+                            (package_id, image_url, image_name, image_size, image_type, display_order, is_primary)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                            [
+                                packageId,
+                                photoUrl,
+                                photoName,
+                                photoSize,
+                                photoType,
+                                displayOrder,
+                                isPrimary
+                            ]
+                        );
+                        savedCount++;
+                        console.log(`✅ Saved photo ${i} for package ${packageId}: ${photoUrl}`);
+                    } catch (error) {
+                        console.error(`❌ Error saving photo ${i} for package ${packageId}:`, error);
+                    }
                 } else {
-                    console.warn(`⚠️ Skipping photo at index ${i} - no valid URL found:`, photo);
+                    console.warn(`⚠️ Skipping photo at index ${i} - invalid file path. PhotoUrl:`, photoUrl);
                 }
             }
+            console.log(`📸 savePhotos completed: ${savedCount} photos saved out of ${photos.length} for package ${packageId}`);
+        } else {
+            console.log(`📸 No photos to save for package ${packageId}`);
         }
     }
 
     async getPhotos(packageId) {
+        // Ensure table exists
+        await this.ensureTourPackageImagesTable();
+        
         const results = await executeQuery(
-            'SELECT * FROM tours_package_photos WHERE package_id = ? ORDER BY display_order',
+            `SELECT 
+                image_id as photo_id,
+                package_id,
+                image_url as photo_url,
+                image_name as photo_name,
+                image_size as photo_size,
+                image_type as photo_type,
+                display_order,
+                is_primary,
+                created_at
+             FROM tour_package_images WHERE package_id = ? ORDER BY display_order`,
             [packageId]
         );
         return results;
@@ -687,8 +809,12 @@ class ToursPackageService {
                 }
                 
                 // Save pricing tiers if provided (with commission calculation)
-                if (schedule.pricingTiers || schedule.pricing_tiers) {
-                    await this.savePricingTiers(scheduleId, schedule.pricingTiers || schedule.pricing_tiers);
+                const pricingTiersToSave = schedule.pricingTiers || schedule.pricing_tiers;
+                if (pricingTiersToSave && pricingTiersToSave.length > 0) {
+                    console.log(`💰 Saving ${pricingTiersToSave.length} pricing tiers for schedule ${scheduleId}:`, pricingTiersToSave);
+                    await this.savePricingTiers(scheduleId, pricingTiersToSave);
+                } else {
+                    console.log(`⚠️ No pricing tiers provided for schedule ${scheduleId}`);
                 }
                 
                 // Save capacity if provided
@@ -921,6 +1047,13 @@ class ToursPackageService {
 
     // Step 5: Pricing Tiers (with commission calculation)
     async savePricingTiers(scheduleId, pricingTiers) {
+        console.log(`💰 savePricingTiers called for schedule ${scheduleId} with ${pricingTiers ? pricingTiers.length : 0} tiers`);
+        
+        if (!scheduleId) {
+            console.error('❌ No scheduleId provided to savePricingTiers');
+            return;
+        }
+        
         await executeQuery('DELETE FROM tours_package_pricing_tiers WHERE schedule_id = ?', [scheduleId]);
         
         if (pricingTiers && pricingTiers.length > 0) {
@@ -928,9 +1061,23 @@ class ToursPackageService {
             const commission = await toursCommissionService.getActiveCommission();
             const commissionPercentage = commission ? commission.commission_percentage : 0;
             
+            console.log(`💰 Commission info:`, {
+                has_commission: !!commission,
+                commission_percentage: commissionPercentage,
+                commission_structure: commission?.commission_structure
+            });
+            
+            let savedCount = 0;
             for (let i = 0; i < pricingTiers.length; i++) {
                 const tier = pricingTiers[i];
-                const customerPays = parseFloat(tier.customer_pays || tier.customerPays || tier.price || 0);
+                console.log(`💰 Processing tier ${i + 1}:`, tier);
+                
+                const customerPays = parseFloat(tier.customer_pays || tier.customerPays || tier.price || tier.customerPays || 0);
+                
+                if (customerPays === 0) {
+                    console.warn(`⚠️ Tier ${i + 1} has customer_pays = 0, skipping`);
+                    continue;
+                }
                 
                 // Calculate vendor payout using commission
                 let vendorPayout = customerPays;
@@ -944,24 +1091,43 @@ class ToursPackageService {
                     vendorPayout = customerPays - fixed - percentage;
                 }
                 
-                await executeQuery(
-                    `INSERT INTO tours_package_pricing_tiers 
-                    (schedule_id, participant_range, min_participants, max_participants, 
-                     customer_pays, commission_percentage, price_per_participant, currency, display_order)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                        scheduleId,
-                        tier.participant_range || tier.range || null,
-                        tier.min_participants || tier.minParticipants || null,
-                        tier.max_participants || tier.maxParticipants || null,
-                        customerPays,
-                        commissionPercentage,
-                        vendorPayout, // price_per_participant = vendor payout
-                        tier.currency || 'RWF',
-                        i
-                    ]
-                );
+                const minParticipants = tier.min_participants || tier.minParticipants || tier.min || 1;
+                const maxParticipants = tier.max_participants || tier.maxParticipants || tier.max || null;
+                
+                try {
+                    await executeQuery(
+                        `INSERT INTO tours_package_pricing_tiers 
+                        (schedule_id, participant_range, min_participants, max_participants, 
+                         customer_pays, commission_percentage, price_per_participant, currency, display_order)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [
+                            scheduleId,
+                            tier.participant_range || tier.range || `${minParticipants}-${maxParticipants || 'unlimited'}`,
+                            minParticipants,
+                            maxParticipants,
+                            customerPays,
+                            commissionPercentage,
+                            vendorPayout, // price_per_participant = vendor payout
+                            tier.currency || 'RWF',
+                            i
+                        ]
+                    );
+                    savedCount++;
+                    console.log(`✅ Saved pricing tier ${i + 1}:`, {
+                        schedule_id: scheduleId,
+                        min_participants: minParticipants,
+                        max_participants: maxParticipants,
+                        customer_pays: customerPays,
+                        vendor_payout: vendorPayout
+                    });
+                } catch (error) {
+                    console.error(`❌ Error saving pricing tier ${i + 1}:`, error);
+                    throw error;
+                }
             }
+            console.log(`💰 Successfully saved ${savedCount} out of ${pricingTiers.length} pricing tiers for schedule ${scheduleId}`);
+        } else {
+            console.log(`⚠️ No pricing tiers to save for schedule ${scheduleId}`);
         }
     }
 

@@ -117,6 +117,8 @@ export default function ListYourTourStep3() {
 
         // Create tour business listing (user already exists)
         const result = await tourPackageSetupService.createTourListing({
+          // Include user_id for logged-in users
+          user_id: user.user_id || user.id,
           // Tour business data only (user is already logged in)
           tourBusinessName: step2Data.tourBusinessName,
           tourType: step2Data.tourType,

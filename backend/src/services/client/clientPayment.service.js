@@ -61,7 +61,7 @@ class ClientPaymentService {
             );
           } else if (serviceType === 'tour_package') {
             await executeQuery(
-              `UPDATE tour_bookings SET status = 'confirmed' WHERE booking_id = ?`,
+              `UPDATE tours_bookings SET status = 'confirmed', payment_status = 'paid' WHERE booking_id = ?`,
               [transaction.booking_id]
             );
           } else if (serviceType === 'restaurant_table') {

@@ -21,39 +21,41 @@ class ToursBusinessService {
             let userId = data.user_id;
             
             // Check if we need to create a user (no userId AND have email/password)
+            // Normalize email and password - treat empty strings as undefined
+            const email = data.email && typeof data.email === 'string' ? data.email.trim() : null;
+            const password = data.password && typeof data.password === 'string' ? data.password.trim() : null;
+            
             const needsUserCreation = !userId && 
-                                     data.email && 
-                                     data.password && 
-                                     typeof data.email === 'string' && 
-                                     typeof data.password === 'string' &&
-                                     data.email.trim().length > 0 && 
-                                     data.password.trim().length > 0;
+                                     email && 
+                                     password && 
+                                     email.length > 0 && 
+                                     password.length > 0;
             
             console.log('🔍 User creation check:', {
                 hasUserId: !!userId,
-                hasEmail: !!data.email,
-                hasPassword: !!data.password,
-                emailTrimmed: data.email ? data.email.trim() : '',
-                passwordLength: data.password ? data.password.length : 0,
+                hasEmail: !!email,
+                hasPassword: !!password,
+                emailValue: email || '',
+                passwordLength: password ? password.length : 0,
                 needsUserCreation: needsUserCreation
             });
             
             if (needsUserCreation) {
-                console.log('✅ Creating user account for email:', data.email);
+                console.log('✅ Creating user account for email:', email);
                 
                 // Check if user already exists in tours_users table
                 let existingUser;
                 try {
                     existingUser = await executeQuery(
                         `SELECT user_id FROM tours_users WHERE email = ?`,
-                        [data.email]
+                        [email]
                     );
                 } catch (tableError) {
                     // If tours_users table doesn't exist, try stays_users as fallback
                     console.warn('tours_users table not found, trying stays_users:', tableError.message);
                     existingUser = await executeQuery(
                         `SELECT user_id FROM stays_users WHERE email = ?`,
-                        [data.email]
+                        [email]
                     );
                 }
 
@@ -62,10 +64,10 @@ class ToursBusinessService {
                     console.log(`✅ Found existing user with ID: ${userId}`);
                 } else {
                     // Create new user account - try tours_users first, fallback to stays_users
-                    const hashedPassword = await bcrypt.hash(data.password, 10);
+                    const hashedPassword = await bcrypt.hash(password, 10);
                     
                     // Combine first_name and last_name into a single name field
-                    const fullName = [data.firstName || '', data.lastName || ''].filter(Boolean).join(' ').trim() || data.email.split('@')[0];
+                    const fullName = [data.firstName || '', data.lastName || ''].filter(Boolean).join(' ').trim() || email.split('@')[0];
                     
                     let userResult;
                     try {
@@ -78,7 +80,7 @@ class ToursBusinessService {
                             [
                                 'vendor',
                                 fullName,
-                                data.email,
+                                email,
                                 data.countryCode && data.phone ? `${data.countryCode}${data.phone}` : data.phone || null,
                                 hashedPassword,
                                 null, // address
@@ -99,7 +101,7 @@ class ToursBusinessService {
                             [
                                 'vendor',
                                 fullName,
-                                data.email,
+                                email,
                                 data.countryCode && data.phone ? `${data.countryCode}${data.phone}` : data.phone || null,
                                 hashedPassword,
                                 null, // address
@@ -124,20 +126,21 @@ class ToursBusinessService {
             if (!userId) {
                 console.error('❌ User ID validation failed:', {
                     providedUserId: data.user_id,
-                    providedEmail: data.email,
-                    providedPassword: data.password ? '***' : null,
-                    emailExists: !!data.email,
-                    passwordExists: !!data.password,
-                    emailValue: data.email,
-                    passwordLength: data.password ? data.password.length : 0
+                    providedEmail: email,
+                    providedPassword: password ? '***' : null,
+                    emailExists: !!email,
+                    passwordExists: !!password,
+                    emailValue: email,
+                    passwordLength: password ? password.length : 0
                 });
                 throw new Error('User ID is required. Please provide user_id or email/password to create a new user account. Received data: ' + JSON.stringify({
-                    hasEmail: !!data.email,
-                    hasPassword: !!data.password,
-                    email: data.email,
-                    passwordLength: data.password ? data.password.length : 0,
+                    hasEmail: !!email,
+                    hasPassword: !!password,
+                    email: email || null,
+                    passwordLength: password ? password.length : 0,
                     firstName: data.firstName,
-                    lastName: data.lastName
+                    lastName: data.lastName,
+                    user_id: data.user_id || null
                 }));
             }
             

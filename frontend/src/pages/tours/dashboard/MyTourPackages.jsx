@@ -254,8 +254,10 @@ const MyTourPackages = () => {
                   const packageName = pkg.title || pkg.name || 'Unnamed Package';
                   const category = pkg.category || 'N/A';
                   const duration = pkg.duration_value ? `${pkg.duration_value} ${pkg.duration_type || 'hours'}` : 'N/A';
-                  const price = pkg.price || pkg.min_price 
-                    ? `${(pkg.price || pkg.min_price).toLocaleString()} ${pkg.currency || 'RWF'}${pkg.max_price && pkg.max_price !== pkg.min_price ? ` - ${pkg.max_price.toLocaleString()}` : ''}`
+                  // Check for price_per_person first (new simple pricing), then fallback to old pricing fields
+                  const priceValue = pkg.price_per_person || pkg.pricePerPerson || pkg.price || pkg.min_price;
+                  const price = priceValue 
+                    ? `${parseFloat(priceValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${pkg.currency || 'RWF'}`
                     : 'Price not set';
                   
                   return (

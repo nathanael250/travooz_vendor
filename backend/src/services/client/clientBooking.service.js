@@ -2,6 +2,34 @@ const { executeQuery } = require('../../../config/database');
 
 class ClientBookingService {
   /**
+   * Ensure bookings table exists
+   */
+  async ensureBookingsTable() {
+    try {
+      await executeQuery(`
+        CREATE TABLE IF NOT EXISTS bookings (
+          booking_id INT AUTO_INCREMENT PRIMARY KEY,
+          service_type ENUM('stay','tour_package','restaurant','car_rental') NOT NULL,
+          total_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+          status ENUM('pending','confirmed','cancelled','completed') DEFAULT 'pending',
+          payment_status ENUM('pending','paid','refunded','failed') DEFAULT 'pending',
+          booking_reference VARCHAR(100) UNIQUE NOT NULL,
+          booking_source VARCHAR(50) DEFAULT 'website',
+          special_requests TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_service_type (service_type),
+          INDEX idx_status (status),
+          INDEX idx_booking_reference (booking_reference)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+    } catch (error) {
+      console.error('Error ensuring bookings table:', error);
+      // Table might already exist, continue
+    }
+  }
+
+  /**
    * Ensure payment_transactions table exists
    */
   async ensurePaymentTransactionsTable() {
@@ -154,6 +182,8 @@ class ClientBookingService {
    */
   async createTourBooking(bookingData) {
     try {
+      console.log('📥 Received booking request:', bookingData);
+      
       const {
         tour_package_id,
         tour_date,
@@ -168,38 +198,156 @@ class ClientBookingService {
       // Validate required fields
       if (!tour_package_id || !tour_date || !number_of_participants || 
           !customer_name || !customer_email || !customer_phone) {
+        console.error('❌ Missing required fields:', {
+          tour_package_id: !!tour_package_id,
+          tour_date: !!tour_date,
+          number_of_participants: !!number_of_participants,
+          customer_name: !!customer_name,
+          customer_email: !!customer_email,
+          customer_phone: !!customer_phone
+        });
         throw new Error('Missing required booking fields');
       }
 
-      // Get tour package details
-      const tourPackage = await executeQuery(
-        `SELECT * FROM tours_packages WHERE package_id = ? AND status = 'active'`,
+      console.log(`🔍 Checking tour package ${tour_package_id}...`);
+      
+      // Get tour package details with pricing - first check if package exists at all
+      const packageCheck = await executeQuery(
+        `SELECT package_id, status, name FROM tours_packages WHERE package_id = ?`,
         [tour_package_id]
       );
+      
+      console.log(`📊 Package check result:`, {
+        found: packageCheck && packageCheck.length > 0,
+        count: packageCheck ? packageCheck.length : 0,
+        data: packageCheck && packageCheck.length > 0 ? packageCheck[0] : null
+      });
 
-      if (!tourPackage || tourPackage.length === 0) {
+      if (!packageCheck || packageCheck.length === 0) {
+        console.error(`❌ Tour package ${tour_package_id} does not exist`);
         throw new Error('Tour package not found or not available');
       }
 
+      const packageStatus = packageCheck[0].status;
+      const packageName = packageCheck[0].name;
+      
+      console.log(`🔍 Tour package ${tour_package_id} found:`, {
+        package_id: tour_package_id,
+        name: packageName,
+        status: packageStatus
+      });
+
+      // Get tour package details with pricing
+      // In development, allow draft/pending packages; in production, only active
+      const allowedStatuses = process.env.NODE_ENV === 'production' 
+        ? ['active']
+        : ['active', 'draft', 'pending'];
+      
+      const placeholders = allowedStatuses.map(() => '?').join(',');
+      const queryParams = [tour_package_id, ...allowedStatuses];
+      
+      console.log(`🔍 Querying tour package:`, {
+        package_id: tour_package_id,
+        allowed_statuses: allowedStatuses,
+        query_params: queryParams
+      });
+      
+      const tourPackage = await executeQuery(
+        `SELECT 
+          tp.*,
+          tp.tour_business_id,
+          tp.max_group_size as max_participants,
+          tp.price_per_person
+        FROM tours_packages tp
+        WHERE tp.package_id = ? AND tp.status IN (${placeholders})`,
+        queryParams
+      );
+
+      console.log(`📦 Query result:`, {
+        found: tourPackage && tourPackage.length > 0,
+        count: tourPackage ? tourPackage.length : 0,
+        package_data: tourPackage && tourPackage.length > 0 ? {
+          package_id: tourPackage[0].package_id,
+          name: tourPackage[0].name,
+          status: tourPackage[0].status,
+          price_per_person: tourPackage[0].price_per_person
+        } : null
+      });
+
+      if (!tourPackage || tourPackage.length === 0) {
+        console.error(`❌ Tour package ${tour_package_id} exists but status is '${packageStatus}' (not allowed for bookings)`);
+        const allowedStatusesMsg = process.env.NODE_ENV === 'production' ? "'active'" : "'active', 'draft', or 'pending'";
+        throw new Error(`Tour package not available. Current status: ${packageStatus}. Package must be ${allowedStatusesMsg} for bookings.`);
+      }
+
       const tour = tourPackage[0];
+      
+      // Use simple price_per_person from tours_packages table
+      let pricePerPerson = parseFloat(tour.price_per_person || 0);
+      
+      if (pricePerPerson === 0) {
+        console.warn(`⚠️ No price_per_person set for tour package ${tour_package_id}`);
+      }
+      
+      // Add price_per_person to tour object for consistency
+      tour.price_per_person = pricePerPerson;
+      
+      console.log('📦 Tour package retrieved:', {
+        package_id: tour.package_id,
+        tour_business_id: tour.tour_business_id,
+        max_participants: tour.max_participants || tour.max_group_size,
+        price_per_person: pricePerPerson,
+        number_of_participants: number_of_participants
+      });
+
+      // Ensure bookings table exists
+      await this.ensureBookingsTable();
 
       // Check availability - join with bookings table
       const existingBookings = await executeQuery(
-        `SELECT SUM(tb.number_of_participants) as total FROM tours_bookings tb
+        `SELECT COALESCE(SUM(tb.number_of_participants), 0) as total 
+         FROM tours_bookings tb
          JOIN bookings b ON tb.booking_id = b.booking_id
-         WHERE tb.package_id = ? AND tb.tour_date = ? 
+         WHERE tb.package_id = ? AND DATE(tb.tour_date) = DATE(?) 
          AND b.status IN ('pending', 'confirmed')`,
         [tour_package_id, tour_date]
       );
 
-      const availableSpots = (tour.max_participants || 0) - (existingBookings[0].total || 0);
-      if (number_of_participants > availableSpots) {
-        throw new Error('Not enough spots available for selected date');
+      const maxParticipants = parseInt(tour.max_participants || tour.max_group_size || 0);
+      const bookedParticipants = parseInt(existingBookings[0]?.total || 0);
+      const availableSpots = maxParticipants - bookedParticipants;
+      
+      console.log(`📊 Tour availability check:`, {
+        package_id: tour_package_id,
+        tour_date,
+        max_participants: maxParticipants,
+        max_group_size: tour.max_group_size,
+        booked_participants: bookedParticipants,
+        available_spots: availableSpots,
+        requested_participants: number_of_participants,
+        existing_bookings_query: existingBookings[0]
+      });
+      
+      if (maxParticipants === 0) {
+        console.warn(`⚠️ Warning: max_group_size is 0 or not set for package ${tour_package_id}. Allowing booking anyway.`);
+        // If max_group_size is not set, allow the booking (unlimited capacity)
+      } else if (number_of_participants > availableSpots) {
+        throw new Error(`Not enough spots available for selected date. Available: ${availableSpots}, Requested: ${number_of_participants}. Max capacity: ${maxParticipants}, Already booked: ${bookedParticipants}`);
       }
 
-      // Calculate total amount
-      const pricePerPerson = parseFloat(tour.price_per_person || 0);
+      // Calculate total amount (price_per_person is already set above)
       const totalAmount = pricePerPerson * number_of_participants;
+      
+      if (totalAmount === 0) {
+        console.warn(`⚠️ Warning: Total amount is 0 for tour package ${tour_package_id}. Price per person: ${pricePerPerson}, Participants: ${number_of_participants}`);
+        console.warn(`⚠️ This usually means pricing tiers are not set up for this tour package.`);
+      }
+      
+      console.log(`💰 Booking amount calculation:`, {
+        price_per_person: pricePerPerson,
+        number_of_participants: number_of_participants,
+        total_amount: totalAmount
+      });
 
       // Generate booking reference
       const bookingReference = `TOUR-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
@@ -215,15 +363,43 @@ class ClientBookingService {
 
       const bookingId = bookingResult.insertId;
 
+      // Get tour business ID
+      const tourBusinessId = tour.tour_business_id || tour.vendor_id;
+      if (!tourBusinessId) {
+        console.error('❌ Tour business ID not found in tour object:', {
+          package_id: tour.package_id,
+          tour_business_id: tour.tour_business_id,
+          vendor_id: tour.vendor_id,
+          available_keys: Object.keys(tour)
+        });
+        throw new Error('Tour business ID not found');
+      }
+
+      console.log('💾 Creating tour booking:', {
+        booking_id: bookingId,
+        package_id: tour_package_id,
+        tour_business_id: tourBusinessId,
+        tour_date,
+        number_of_participants,
+        total_amount: totalAmount
+      });
+
       // Create tour booking - use tours_bookings table
-      await executeQuery(
+      const bookingDate = new Date().toISOString().split('T')[0]; // Current date as YYYY-MM-DD
+      const insertResult = await executeQuery(
         `INSERT INTO tours_bookings (
-          booking_id, package_id, tour_business_id, tour_date, number_of_participants,
-          customer_name, customer_email, customer_phone, total_amount, status, payment_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [bookingId, tour_package_id, tour.vendor_id || tour.tour_business_id, tour_date, number_of_participants,
-         customer_name, customer_email, customer_phone, totalAmount, 'pending', 'pending']
+          booking_id, package_id, tour_business_id, booking_date, tour_date, number_of_participants,
+          customer_name, customer_email, customer_phone, total_amount, status, payment_status, currency
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [bookingId, tour_package_id, tourBusinessId, bookingDate, tour_date, number_of_participants,
+         customer_name, customer_email, customer_phone, totalAmount, 'pending', 'pending', 'RWF']
       );
+      
+      console.log('✅ Tour booking created successfully:', {
+        tours_booking_id: insertResult.insertId || 'N/A',
+        booking_id: bookingId,
+        tour_business_id: tourBusinessId
+      });
 
       // Ensure payment_transactions table exists
       await this.ensurePaymentTransactionsTable();

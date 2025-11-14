@@ -117,8 +117,8 @@ const CreateTourPackage = () => {
     minParticipants: '', // Minimum participants per time slot
     maxParticipants: '', // Maximum participants per time slot
     exceptionsShareCapacity: true, // Whether exceptions share capacity
-    // Pricing Tiers (for Step 5, Substep 3, Tab 4)
-    pricingTiers: [] // Array of { minParticipants, maxParticipants, customerPays, commissionPercentage, pricePerParticipant }
+    // Simple Price (for Step 5, Substep 3, Tab 4)
+    pricePerPerson: '' // Simple price per person (same for all)
   });
   const [locationSearch, setLocationSearch] = useState('');
   const [tagInput, setTagInput] = useState('');
@@ -449,54 +449,72 @@ const CreateTourPackage = () => {
   // Initialize Google Places Autocomplete for locations
   const initializeLocationAutocomplete = () => {
     if (!locationInputRef.current || !window.google || !window.google.maps || !window.google.maps.places) {
+      console.log('Autocomplete initialization skipped:', {
+        hasInputRef: !!locationInputRef.current,
+        hasGoogle: !!window.google,
+        hasMaps: !!(window.google && window.google.maps),
+        hasPlaces: !!(window.google && window.google.maps && window.google.maps.places)
+      });
       return;
     }
 
-    const autocomplete = new window.google.maps.places.Autocomplete(locationInputRef.current, {
-      types: ['(cities)', 'establishment', 'geocode'], // Cities, places, and addresses
-      fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components']
-    });
+    // Clean up existing autocomplete if it exists
+    if (autocompleteRef.current) {
+      window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      autocompleteRef.current = null;
+    }
 
-    autocompleteRef.current = autocomplete;
-
-    // Listen for place selection
-    autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace();
-      
-      if (!place.geometry) {
-        return;
-      }
-
-      // Create location object
-      const locationInfo = {
-        id: place.place_id || `location_${Date.now()}`,
-        name: place.name || place.formatted_address,
-        formatted_address: place.formatted_address,
-        place_id: place.place_id,
-        lat: place.geometry.location.lat(),
-        lng: place.geometry.location.lng(),
-        address_components: place.address_components
-      };
-
-      // Check if location already exists
-      setFormData(prev => {
-        const exists = prev.locations.some(loc => 
-          loc.place_id === locationInfo.place_id || 
-          loc.formatted_address === locationInfo.formatted_address
-        );
-
-        if (!exists) {
-          return {
-            ...prev,
-            locations: [...prev.locations, locationInfo]
-          };
-        }
-        return prev;
+    try {
+      const autocomplete = new window.google.maps.places.Autocomplete(locationInputRef.current, {
+        types: ['(cities)', 'establishment', 'geocode'], // Cities, places, and addresses
+        fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components']
       });
 
-      // Clear search input
-      setLocationSearch('');
-    });
+      autocompleteRef.current = autocomplete;
+      console.log('Google Places Autocomplete initialized successfully');
+
+      // Listen for place selection
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        
+        if (!place.geometry) {
+          console.warn('Selected place has no geometry');
+          return;
+        }
+
+        // Create location object
+        const locationInfo = {
+          id: place.place_id || `location_${Date.now()}`,
+          name: place.name || place.formatted_address,
+          formatted_address: place.formatted_address,
+          place_id: place.place_id,
+          lat: place.geometry.location.lat(),
+          lng: place.geometry.location.lng(),
+          address_components: place.address_components
+        };
+
+        // Check if location already exists
+        setFormData(prev => {
+          const exists = prev.locations.some(loc => 
+            loc.place_id === locationInfo.place_id || 
+            loc.formatted_address === locationInfo.formatted_address
+          );
+
+          if (!exists) {
+            return {
+              ...prev,
+              locations: [...prev.locations, locationInfo]
+            };
+          }
+          return prev;
+        });
+
+        // Clear search input
+        setLocationSearch('');
+      });
+    } catch (error) {
+      console.error('Error initializing Google Places Autocomplete:', error);
+    }
   };
 
   // Load Google Maps script - check if already loaded or wait for it
@@ -504,6 +522,15 @@ const CreateTourPackage = () => {
   useEffect(() => {
     // Only run this effect when we're on the locations sub-step
     if (currentStep !== 1 || currentSubStep !== 3) {
+      // Clean up autocomplete when leaving this step
+      if (autocompleteRef.current) {
+        try {
+          window.google?.maps?.event?.clearInstanceListeners(autocompleteRef.current);
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+        autocompleteRef.current = null;
+      }
       return;
     }
 
@@ -512,17 +539,20 @@ const CreateTourPackage = () => {
       console.error('Google Maps API requires billing to be enabled. Please enable billing in your Google Cloud Console.');
     };
 
-    // Check if Google Maps is already loaded
+    // Check if Google Maps is already loaded and input is available
     const checkGoogleMaps = () => {
-      if (window.google && window.google.maps && window.google.maps.places) {
+      if (window.google && window.google.maps && window.google.maps.places && locationInputRef.current) {
         setIsGoogleMapsLoaded(true);
-        initializeLocationAutocomplete();
+        // Use setTimeout to ensure the input is fully rendered
+        setTimeout(() => {
+          initializeLocationAutocomplete();
+        }, 100);
         return true;
       }
       return false;
     };
 
-    // If already loaded, initialize immediately
+    // If already loaded, initialize immediately (with a small delay to ensure input is rendered)
     if (checkGoogleMaps()) {
       return;
     }
@@ -539,6 +569,8 @@ const CreateTourPackage = () => {
       clearInterval(checkInterval);
       if (!window.google || !window.google.maps) {
         console.error('Failed to load Google Maps. Please check your API key and network connection.');
+      } else if (!locationInputRef.current) {
+        console.warn('Google Maps loaded but input field not available yet');
       }
     }, 10000);
 
@@ -548,6 +580,33 @@ const CreateTourPackage = () => {
       delete window.gm_authFailure;
     };
   }, [currentStep, currentSubStep]);
+
+  // Re-initialize autocomplete when input field becomes available or is focused
+  useEffect(() => {
+    if (currentStep === 1 && currentSubStep === 3 && isGoogleMapsLoaded && locationInputRef.current) {
+      // Re-initialize when input is focused to ensure autocomplete works
+      const input = locationInputRef.current;
+      const handleFocus = () => {
+        // Only initialize if autocomplete doesn't exist and Google Maps is ready
+        if (!autocompleteRef.current && window.google && window.google.maps && window.google.maps.places) {
+          console.log('Re-initializing autocomplete on focus');
+          initializeLocationAutocomplete();
+        }
+      };
+
+      // Also try to initialize immediately if not already initialized
+      if (!autocompleteRef.current && window.google && window.google.maps && window.google.maps.places) {
+        setTimeout(() => {
+          initializeLocationAutocomplete();
+        }, 50);
+      }
+
+      input.addEventListener('focus', handleFocus);
+      return () => {
+        input.removeEventListener('focus', handleFocus);
+      };
+    }
+  }, [currentStep, currentSubStep, isGoogleMapsLoaded]);
 
   // Load existing package data on mount
   useEffect(() => {
@@ -711,7 +770,7 @@ const CreateTourPackage = () => {
     const hasInclusions = data.whatsIncluded || data.guideType;
     const hasExtraInfo = data.knowBeforeYouGo || (data.notSuitableFor && data.notSuitableFor.length > 0);
     const hasPhotos = data.photos && data.photos.length >= 4;
-    const hasOptions = data.availabilityType && data.pricingType && data.pricingTiers && data.pricingTiers.length > 0;
+    const hasOptions = data.availabilityType && data.pricingType && data.pricePerPerson && parseFloat(data.pricePerPerson) > 0;
     
     return hasBasicInfo && hasInclusions && hasExtraInfo && hasPhotos && hasOptions;
   };
@@ -733,45 +792,38 @@ const CreateTourPackage = () => {
         return;
       }
       
-      // Prepare data for backend - convert File objects to base64
-      const photosToSave = await Promise.all(
-        formData.photos.map(async (photo) => {
-          if (photo instanceof File) {
-            // Convert File to base64 data URL
-            return new Promise((resolve) => {
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                resolve({
-                  photo_url: reader.result,
-                  photo_name: photo.name,
-                  photo_size: photo.size,
-                  photo_type: photo.type
-                });
-              };
-              reader.onerror = () => {
-                console.error('Error reading file:', photo.name);
-                resolve(null);
-              };
-              reader.readAsDataURL(photo);
-            });
-          } else if (typeof photo === 'string') {
-            // Already a URL string
-            return photo;
-          } else if (photo && typeof photo === 'object') {
-            // Already an object with photo data
-            return photo;
-          }
-          return null;
-        })
-      );
+      // Prepare data for backend - keep File objects as-is for file upload
+      // Separate File objects from existing photo URLs/objects
+      const photoFiles = [];
+      const existingPhotos = [];
+      
+      formData.photos.forEach((photo) => {
+        if (photo instanceof File) {
+          // Keep File objects as-is - they'll be uploaded via FormData
+          photoFiles.push(photo);
+        } else if (typeof photo === 'string') {
+          // Existing photo URL - preserve it
+          existingPhotos.push({
+            photo_url: photo,
+            photo_name: null,
+            photo_size: null,
+            photo_type: null
+          });
+        } else if (photo && typeof photo === 'object' && photo.photo_url) {
+          // Existing photo object - preserve it
+          existingPhotos.push(photo);
+        }
+      });
 
       // Check if package is complete and set status accordingly
       const packageComplete = isPackageComplete(formData);
       const statusToSave = packageComplete ? 'active' : (formData.status || 'draft');
 
+      // Combine existing photos with new File objects
+      // File objects will be sent via FormData, existing photos as JSON
       const dataToSave = {
         ...formData,
-        photos: photosToSave.filter(p => p !== null),
+        photos: [...existingPhotos, ...photoFiles], // Mix of existing photo objects and File objects
         tour_business_id: businessId,
         status: statusToSave
       };
@@ -780,7 +832,9 @@ const CreateTourPackage = () => {
         businessId, 
         packageId, 
         hasName: !!formData.name, 
-        photosCount: photosToSave.length,
+        photoFilesCount: photoFiles.length,
+        existingPhotosCount: existingPhotos.length,
+        totalPhotosCount: dataToSave.photos.length,
         isComplete: packageComplete,
         status: statusToSave
       });
@@ -2603,33 +2657,60 @@ const CreateTourPackage = () => {
 
                 {formData.photos.length > 0 && (
                   <div className="grid grid-cols-3 gap-4">
-                    {formData.photos.map((photo, index) => (
-                      <div key={index} className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                        {photo instanceof File ? (
-                          <img
-                            src={URL.createObjectURL(photo)}
-                            alt={`Photo ${index + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <img
-                            src={photo}
-                            alt={`Photo ${index + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({
-                            ...prev,
-                            photos: prev.photos.filter((_, i) => i !== index)
-                          }))}
-                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
+                    {formData.photos.map((photo, index) => {
+                      // Get photo URL - handle File objects, string URLs, or photo objects
+                      let photoUrl = null;
+                      if (photo instanceof File) {
+                        photoUrl = URL.createObjectURL(photo);
+                      } else if (typeof photo === 'string') {
+                        photoUrl = photo;
+                      } else if (photo && typeof photo === 'object') {
+                        photoUrl = photo.photo_url || photo.image_url || photo.url || photo.imageUrl;
+                      }
+                      
+                      // Get API base URL for relative paths
+                      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+                      if (photoUrl && photoUrl.startsWith('/uploads/') && apiBaseUrl) {
+                        photoUrl = `${apiBaseUrl}${photoUrl}`;
+                      }
+                      
+                      return (
+                        <div key={index} className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                          {photoUrl ? (
+                            <img
+                              src={photoUrl}
+                              alt={`Photo ${index + 1}`}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                // Use a data URI instead of external placeholder to avoid network issues
+                                e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI2YzZjRmNiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5Y2EzYWYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5JbWFnZSBub3QgZm91bmQ8L3RleHQ+PC9zdmc+';
+                                e.target.onerror = null; // Prevent infinite loop
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400">
+                              <span>No image</span>
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Clean up object URL if it's a File
+                              if (photo instanceof File && photoUrl) {
+                                URL.revokeObjectURL(photoUrl);
+                              }
+                              setFormData(prev => ({
+                                ...prev,
+                                photos: prev.photos.filter((_, i) => i !== index)
+                              }));
+                            }}
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -3966,146 +4047,57 @@ const CreateTourPackage = () => {
                           <h3 className="text-lg font-semibold text-gray-900 mb-4">
                             Set the price for your activity
                           </h3>
-                          <div className="overflow-x-auto">
-                            <table className="w-full border-collapse">
-                              <thead>
-                                <tr className="border-b border-gray-300">
-                                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Number of people</th>
-                                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Customer pays (RWF)</th>
-                                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Commission</th>
-                                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Price per participant (RWF)</th>
-                                  <th className="w-20"></th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(!formData.pricingTiers || formData.pricingTiers.length === 0) && (
-                                  <tr>
-                                    <td colSpan="5" className="py-8 text-center text-gray-500">
-                                      No pricing tiers added yet. Click "Add Tier" to create one.
-                                    </td>
-                                  </tr>
-                                )}
-                                {(formData.pricingTiers || []).map((tier, index) => {
-                                  const customerPays = parseFloat(tier.customerPays || 0);
-                                  const commissionPercentage = commission?.commission_percentage || tier.commissionPercentage || 15;
-                                  const pricePerParticipant = customerPays > 0 
-                                    ? (customerPays * (1 - commissionPercentage / 100)).toFixed(2)
-                                    : '0.00';
-                                  
-                                  return (
-                                    <tr key={index} className="border-b border-gray-200">
-                                      <td className="py-3 px-4">
-                                        <div className="flex items-center gap-2">
-                                          <input
-                                            type="number"
-                                            min="1"
-                                            placeholder="From"
-                                            value={tier.minParticipants || ''}
-                                            onChange={(e) => {
-                                              const updatedTiers = [...(formData.pricingTiers || [])];
-                                              updatedTiers[index].minParticipants = e.target.value;
-                                              setFormData(prev => ({ ...prev, pricingTiers: updatedTiers }));
-                                            }}
-                                            className="w-20 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#3CAF54]"
-                                          />
-                                          <span className="text-gray-500">to</span>
-                                          <input
-                                            type="number"
-                                            min="1"
-                                            placeholder="To"
-                                            value={tier.maxParticipants || ''}
-                                            onChange={(e) => {
-                                              const updatedTiers = [...(formData.pricingTiers || [])];
-                                              updatedTiers[index].maxParticipants = e.target.value;
-                                              setFormData(prev => ({ ...prev, pricingTiers: updatedTiers }));
-                                            }}
-                                            className="w-20 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#3CAF54]"
-                                          />
-                                        </div>
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        <div className="flex items-center gap-2">
-                                          <input
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            placeholder="0.00"
-                                            value={tier.customerPays || ''}
-                                            onChange={(e) => {
-                                              const updatedTiers = [...(formData.pricingTiers || [])];
-                                              updatedTiers[index].customerPays = e.target.value;
-                                              setFormData(prev => ({ ...prev, pricingTiers: updatedTiers }));
-                                            }}
-                                            className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#3CAF54]"
-                                          />
-                                          <span className="text-sm text-gray-600">RWF</span>
-                                        </div>
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        <div className="flex items-center gap-2">
-                                          <input
-                                            type="number"
-                                            min="0"
-                                            max="100"
-                                            step="0.01"
-                                            value={commissionPercentage}
-                                            readOnly
-                                            className="flex-1 px-3 py-2 border border-gray-300 rounded bg-gray-50 text-gray-700"
-                                          />
-                                          <span className="text-sm text-gray-600">%</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-1">From database</p>
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        <div className="flex items-center gap-2">
-                                          <input
-                                            type="text"
-                                            value={pricePerParticipant}
-                                            readOnly
-                                            disabled
-                                            className="flex-1 px-3 py-2 border border-gray-300 rounded bg-gray-50 text-gray-700"
-                                          />
-                                          <span className="text-sm text-gray-600">RWF</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-1">Auto-calculated</p>
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const updatedTiers = (formData.pricingTiers || []).filter((_, i) => i !== index);
-                                            setFormData(prev => ({ ...prev, pricingTiers: updatedTiers }));
-                                          }}
-                                          className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                        >
-                                          <X className="h-4 w-4" />
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const newTier = {
-                                  minParticipants: '',
-                                  maxParticipants: '',
-                                  customerPays: '',
-                                  commissionPercentage: commission?.commission_percentage || 15,
-                                  pricePerParticipant: '0.00'
-                                };
-                                setFormData(prev => ({ 
-                                  ...prev, 
-                                  pricingTiers: [...(prev.pricingTiers || []), newTier] 
-                                }));
-                              }}
-                              className="mt-4 px-4 py-2 text-[#3CAF54] hover:bg-green-50 rounded-lg transition-colors text-sm font-medium flex items-center gap-2"
-                            >
-                              <Plus className="h-4 w-4" />
-                              Add Tier
-                            </button>
+                          <p className="text-sm text-gray-600 mb-6">
+                            Enter a single price per person. This price will apply to all participants regardless of group size.
+                          </p>
+                          
+                          <div className="max-w-md">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Price per person (RWF)
+                            </label>
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={formData.pricePerPerson || ''}
+                                onChange={(e) => setFormData(prev => ({ ...prev, pricePerPerson: e.target.value }))}
+                                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent"
+                              />
+                              <span className="text-sm font-medium text-gray-700">RWF</span>
+                            </div>
+                            
+                            {commission && (
+                              <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                <div className="space-y-2">
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-gray-600">Customer pays:</span>
+                                    <span className="font-medium text-gray-900">
+                                      {formData.pricePerPerson ? parseFloat(formData.pricePerPerson).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'} RWF
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-gray-600">Commission ({commission.commission_percentage}%):</span>
+                                    <span className="font-medium text-gray-700">
+                                      {formData.pricePerPerson ? (parseFloat(formData.pricePerPerson) * (commission.commission_percentage / 100)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'} RWF
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-sm pt-2 border-t border-gray-300">
+                                    <span className="font-medium text-gray-900">You receive:</span>
+                                    <span className="font-semibold text-[#3CAF54]">
+                                      {formData.pricePerPerson ? (parseFloat(formData.pricePerPerson) * (1 - commission.commission_percentage / 100)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'} RWF
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {!formData.pricePerPerson || parseFloat(formData.pricePerPerson) <= 0 ? (
+                              <p className="mt-2 text-sm text-amber-600">
+                                Please enter a valid price per person
+                              </p>
+                            ) : null}
                           </div>
                         </div>
                       </div>

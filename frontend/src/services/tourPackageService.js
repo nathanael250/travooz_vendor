@@ -2,6 +2,8 @@ import apiClient from './apiClient';
 
 /**
  * Save tour package (create or update)
+ * If photos are File objects, sends as FormData with multipart/form-data
+ * Otherwise sends as JSON
  */
 export const saveTourPackage = async (packageData, packageId = null) => {
   try {
@@ -11,8 +13,70 @@ export const saveTourPackage = async (packageData, packageId = null) => {
     
     const method = packageId ? 'put' : 'post';
     
-    const response = await apiClient[method](url, packageData);
-    return response.data;
+    // Check if there are File objects in photos array
+    const hasFilePhotos = packageData.photos && Array.isArray(packageData.photos) && 
+      packageData.photos.some(photo => photo instanceof File);
+    
+    // Also check if we need to send as FormData even without files (for proper handling of existing photos)
+    const hasPhotos = packageData.photos && Array.isArray(packageData.photos) && packageData.photos.length > 0;
+    
+    if (hasFilePhotos || (hasPhotos && packageId)) {
+      // Use FormData if there are files OR if updating with existing photos
+      // Use FormData for file uploads
+      const formData = new FormData();
+      
+      // Separate photos (File objects) from other data
+      const photos = packageData.photos.filter(photo => photo instanceof File);
+      const existingPhotos = packageData.photos.filter(photo => !(photo instanceof File));
+      
+      // Append all non-photo fields
+      Object.keys(packageData).forEach(key => {
+        if (key !== 'photos') {
+          const value = packageData[key];
+          if (value !== undefined && value !== null) {
+            if (Array.isArray(value)) {
+              // For arrays, stringify them
+              formData.append(key, JSON.stringify(value));
+            } else if (typeof value === 'object') {
+              // For objects, stringify them
+              formData.append(key, JSON.stringify(value));
+            } else {
+              formData.append(key, value);
+            }
+          }
+        }
+      });
+      
+      // Append existing photos as JSON (to preserve them)
+      if (existingPhotos.length > 0) {
+        formData.append('existingPhotos', JSON.stringify(existingPhotos));
+        console.log('📸 Sending existing photos:', existingPhotos.length, existingPhotos.map(p => p.photo_url || p.image_url || p));
+      }
+      
+      // Append photo files (only File objects) - multer expects 'photos' field for files
+      photos.forEach((photo, index) => {
+        formData.append('photos', photo);
+        console.log(`📸 Appending photo file ${index}:`, photo.name);
+      });
+      
+      // If no files but we have existing photos, send them separately
+      // Don't append to 'photos' field as that's reserved for File objects in multer
+      if (photos.length === 0 && existingPhotos.length > 0) {
+        // existingPhotos is already appended above, and photosArray too
+        console.log('📸 No new files, only existing photos to preserve');
+      }
+      
+      const response = await apiClient[method](url, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } else {
+      // Send as JSON if no File objects
+      const response = await apiClient[method](url, packageData);
+      return response.data;
+    }
   } catch (error) {
     console.error('Error saving tour package:', error);
     throw error;
@@ -99,8 +163,19 @@ export const transformApiDataToFormData = (apiData) => {
     emergencyPhone: apiData.emergency_phone || '',
     voucherInformation: apiData.voucher_information || '',
     
-    // Step 4
-    photos: apiData.photos || [],
+    // Step 4 - Transform photos to consistent format
+    photos: (apiData.photos || []).map(photo => {
+      // If photo is already an object with photo_url, keep it
+      if (photo && typeof photo === 'object' && photo.photo_url) {
+        return photo;
+      }
+      // If photo is a string URL, convert to object
+      if (typeof photo === 'string') {
+        return { photo_url: photo };
+      }
+      // Otherwise return as-is
+      return photo;
+    }),
     
     // Step 5
     optionReferenceCode: apiData.option_reference_code || '',
@@ -148,7 +223,7 @@ export const transformApiDataToFormData = (apiData) => {
       ? apiData.schedules?.[0]?.capacity?.exceptions_share_capacity 
       : true,
     // Pricing Tiers
-    pricingTiers: apiData.schedules?.[0]?.pricingTiers || apiData.schedules?.[0]?.pricing_tiers || []
+    pricePerPerson: apiData.price_per_person || apiData.pricePerPerson || ''
   };
 };
 

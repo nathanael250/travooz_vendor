@@ -56,6 +56,37 @@ const upload = multer({
     }
 });
 
+// Configure multer for tour package photo uploads
+const tourPackagePhotoStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(__dirname, '../../uploads/tours/packages');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'tour-package-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const tourPackagePhotoUpload = multer({ 
+    storage: tourPackagePhotoStorage,
+    limits: { 
+        fileSize: 10 * 1024 * 1024, // 10MB file size limit
+        files: 20 // Maximum 20 files per request
+    },
+    fileFilter: (req, file, cb) => {
+        // Check if file is an image
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed!'), false);
+        }
+    }
+});
+
 // Auth routes (no authentication required)
 router.post('/auth/login', toursAuthController.login);
 router.get('/auth/profile', authenticate, toursAuthController.getProfile);
@@ -93,8 +124,8 @@ router.post('/setup/submit', authenticate, toursSetupSubmissionController.submit
 router.get('/setup/submission-status', authenticate, toursSetupSubmissionController.getSubmissionStatus);
 
 // Tour package routes
-router.post('/packages', authenticate, toursPackageController.savePackage);
-router.put('/packages/:packageId', authenticate, toursPackageController.savePackage);
+router.post('/packages', authenticate, tourPackagePhotoUpload.array('photos', 20), toursPackageController.savePackage);
+router.put('/packages/:packageId', authenticate, tourPackagePhotoUpload.array('photos', 20), toursPackageController.savePackage);
 router.get('/packages/:id', authenticate, toursPackageController.getPackage);
 router.get('/packages/business/:businessId', authenticate, toursPackageController.getPackagesByBusiness);
 router.delete('/packages/:id', authenticate, toursPackageController.deletePackage);
