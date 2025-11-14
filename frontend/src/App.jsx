@@ -77,6 +77,20 @@ import CarRentalAgreementStep from './pages/car-rental/AgreementStep';
 import CarRentalSetupComplete from './pages/car-rental/SetupComplete';
 import CarRentalDashboardLayout from './components/car-rental/CarRentalDashboardLayout';
 import CarRentalDashboardOverview from './pages/car-rental/dashboard/DashboardOverview';
+import CarRentalCars from './pages/car-rental/dashboard/Cars';
+import CarRentalDrivers from './pages/car-rental/dashboard/Drivers';
+import CarRentalAvailability from './pages/car-rental/dashboard/Availability';
+import CarRentalPricing from './pages/car-rental/dashboard/Pricing';
+import CarRentalBookings from './pages/car-rental/dashboard/Bookings';
+import CarRentalLocations from './pages/car-rental/dashboard/Locations';
+import CarRentalAnalytics from './pages/car-rental/dashboard/Analytics';
+import CarRentalReviews from './pages/car-rental/dashboard/Reviews';
+import CarRentalFinance from './pages/car-rental/dashboard/Finance';
+import CarRentalPayments from './pages/car-rental/dashboard/Payments';
+import CarRentalSettings from './pages/car-rental/dashboard/Settings';
+import CarRentalSecurity from './pages/car-rental/dashboard/Security';
+import CarRentalSupport from './pages/car-rental/dashboard/Support';
+import CarRentalLogin from './pages/car-rental/Login';
 import TourEmailVerification from './pages/tours/EmailVerification';
 import BusinessOwnerInfoStep from './pages/tours/BusinessOwnerInfoStep';
 import ProveIdentityStep from './pages/tours/ProveIdentityStep';
@@ -107,6 +121,11 @@ import ViewTourPackage from './pages/tours/dashboard/ViewTourPackage';
 
 // Admin Pages
 import TourApprovals from './pages/admin/TourApprovals';
+import AdminLogin from './pages/admin/AdminLogin';
+import AdminDashboard from './pages/admin/AdminDashboard';
+
+// API Documentation (Public)
+import APIDocumentation from './pages/api-docs/APIDocumentation';
 
 function App() {
   return (
@@ -210,6 +229,9 @@ function App() {
           {/* Tour Login */}
           <Route path="/tours/login" element={<ToursLogin />} />
 
+          {/* Car Rental Login */}
+          <Route path="/car-rental/login" element={<CarRentalLogin />} />
+
           {/* Car Rental Setup Flow */}
           <Route path="/car-rental/setup/business-details" element={<CarRentalBusinessDetailsStep />} />
           <Route path="/car-rental/setup/tax-payment" element={<CarRentalTaxPaymentStep />} />
@@ -220,18 +242,19 @@ function App() {
           {/* Car Rental Dashboard - Nested Routes with Layout */}
           <Route path="/car-rental/dashboard" element={<CarRentalDashboardLayout />}>
             <Route index element={<CarRentalDashboardOverview />} />
-            <Route path="cars" element={<div className="p-6"><h1 className="text-2xl font-bold">My Cars</h1><p className="text-gray-600 mt-2">Car management page coming soon...</p></div>} />
-            <Route path="availability" element={<div className="p-6"><h1 className="text-2xl font-bold">Availability & Calendar</h1><p className="text-gray-600 mt-2">Availability management page coming soon...</p></div>} />
-            <Route path="pricing" element={<div className="p-6"><h1 className="text-2xl font-bold">Pricing & Rates</h1><p className="text-gray-600 mt-2">Pricing management page coming soon...</p></div>} />
-            <Route path="bookings" element={<div className="p-6"><h1 className="text-2xl font-bold">Bookings</h1><p className="text-gray-600 mt-2">Bookings management page coming soon...</p></div>} />
-            <Route path="locations" element={<div className="p-6"><h1 className="text-2xl font-bold">Locations</h1><p className="text-gray-600 mt-2">Locations management page coming soon...</p></div>} />
-            <Route path="analytics" element={<div className="p-6"><h1 className="text-2xl font-bold">Reports & Analytics</h1><p className="text-gray-600 mt-2">Analytics page coming soon...</p></div>} />
-            <Route path="reviews" element={<div className="p-6"><h1 className="text-2xl font-bold">Reviews & Ratings</h1><p className="text-gray-600 mt-2">Reviews page coming soon...</p></div>} />
-            <Route path="finance" element={<div className="p-6"><h1 className="text-2xl font-bold">Finance</h1><p className="text-gray-600 mt-2">Finance page coming soon...</p></div>} />
-            <Route path="payments" element={<div className="p-6"><h1 className="text-2xl font-bold">Payments</h1><p className="text-gray-600 mt-2">Payments page coming soon...</p></div>} />
-            <Route path="settings" element={<div className="p-6"><h1 className="text-2xl font-bold">Account Settings</h1><p className="text-gray-600 mt-2">Settings page coming soon...</p></div>} />
-            <Route path="security" element={<div className="p-6"><h1 className="text-2xl font-bold">Security & Access</h1><p className="text-gray-600 mt-2">Security page coming soon...</p></div>} />
-            <Route path="support" element={<div className="p-6"><h1 className="text-2xl font-bold">Support & Help</h1><p className="text-gray-600 mt-2">Support page coming soon...</p></div>} />
+            <Route path="cars" element={<CarRentalCars />} />
+            <Route path="drivers" element={<CarRentalDrivers />} />
+            <Route path="availability" element={<CarRentalAvailability />} />
+            <Route path="pricing" element={<CarRentalPricing />} />
+            <Route path="bookings" element={<CarRentalBookings />} />
+            <Route path="locations" element={<CarRentalLocations />} />
+            <Route path="analytics" element={<CarRentalAnalytics />} />
+            <Route path="reviews" element={<CarRentalReviews />} />
+            <Route path="finance" element={<CarRentalFinance />} />
+            <Route path="payments" element={<CarRentalPayments />} />
+            <Route path="settings" element={<CarRentalSettings />} />
+            <Route path="security" element={<CarRentalSecurity />} />
+            <Route path="support" element={<CarRentalSupport />} />
           </Route>
 
           {/* Tour Package Creation Flow - Standalone Pages */}
@@ -259,8 +282,14 @@ function App() {
           <Route path="/tours/dashboard/old" element={<TourDashboard />} />
 
           {/* Admin Pages */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/admin/tour-approvals" element={<TourApprovals />} />
           <Route path="/admin/tour-approvals/:id" element={<TourApprovals />} />
+
+          {/* Public API Documentation */}
+          <Route path="/api-docs" element={<APIDocumentation />} />
+          <Route path="/api/documentation" element={<APIDocumentation />} />
 
           {/* Catch all - redirect to vendor landing */}
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -49,7 +49,7 @@ export default function ServiceSelection() {
       name: 'Car Rental',
       icon: Car,
       description: 'Manage your car rental services',
-      loginRoute: '/car-rental/list-your-car-rental',
+      loginRoute: '/car-rental/login',
       registerRoute: '/car-rental/list-your-car-rental',
       color: '#A855F7'
     },

@@ -36,7 +36,7 @@ const CarRentalDashboardLayout = () => {
       const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
       
       if (!userData || !token) {
-        navigate('/car-rental/list-your-car-rental', { replace: true });
+        navigate('/car-rental/login', { replace: true });
         return;
       }
 
@@ -45,7 +45,7 @@ const CarRentalDashboardLayout = () => {
         setUser(parsedUser);
       } catch (error) {
         console.error('Error checking auth:', error);
-        navigate('/car-rental/list-your-car-rental', { replace: true });
+        navigate('/car-rental/login', { replace: true });
       }
     };
 
@@ -83,6 +83,7 @@ const CarRentalDashboardLayout = () => {
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/car-rental/dashboard', category: 'Main' },
     { icon: Car, label: 'My Cars', path: '/car-rental/dashboard/cars', category: 'Main' },
+    { icon: UserIcon, label: 'Drivers', path: '/car-rental/dashboard/drivers', category: 'Main' },
     { icon: Calendar, label: 'Availability & Calendar', path: '/car-rental/dashboard/availability', category: 'Main' },
     { icon: DollarSign, label: 'Pricing & Rates', path: '/car-rental/dashboard/pricing', category: 'Main' },
     { icon: BookOpen, label: 'Bookings', path: '/car-rental/dashboard/bookings', category: 'Operations' },

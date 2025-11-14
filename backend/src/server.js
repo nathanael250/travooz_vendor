@@ -54,6 +54,9 @@ const ordersRoutes = require('./routes/orders.routes');
 const menuItemsRoutes = require('./routes/menuItems.routes');
 const imagesRoutes = require('./routes/images.routes');
 const carRentalRoutes = require('./routes/carRental.routes');
+const adminAccountsRoutes = require('./routes/adminAccounts.routes');
+const adminAuthRoutes = require('./routes/adminAuth.routes');
+const clientRoutes = require('./routes/client.routes');
 
 // Service routes
 app.use('/api/v1/stays', staysRoutes);
@@ -61,6 +64,9 @@ app.use('/api/v1/eating-out/setup', restaurantSetupRoutes);
 app.use('/api/v1/restaurants', restaurantsRoutes);
 app.use('/api/v1/tours', toursRoutes);
 app.use('/api/v1/car-rental', carRentalRoutes);
+
+// Client-facing public APIs (no authentication required)
+app.use('/api/v1/client', clientRoutes);
 
 // Restaurant management routes
 app.use('/api/v1/orders', ordersRoutes);
@@ -70,7 +76,10 @@ app.use('/api/v1/images', imagesRoutes);
 // Auth routes (for restaurants and general authentication)
 app.use('/api/v1/auth', authRoutes);
 
-// Admin routes
+// Admin routes - mount public auth routes first (no authentication required)
+app.use('/api/v1/admin', adminAuthRoutes);
+// Protected admin routes (require authentication)
+app.use('/api/v1/admin', adminAccountsRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/admin/restaurants', adminRestaurantRoutes);
 app.use('/api/v1/admin/tours', adminToursRoutes);

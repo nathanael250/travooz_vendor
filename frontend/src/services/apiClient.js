@@ -19,6 +19,7 @@ apiClient.interceptors.request.use((config) => {
     'auth/signup',
     'auth/refresh-token',
     'tours/auth/login', // Tours login endpoint
+    'admin/auth/login', // Admin login endpoint
     'categories',
     'subcategories'
   ];
@@ -31,9 +32,14 @@ apiClient.interceptors.request.use((config) => {
   // Only add token for non-public endpoints
   if (!isPublicEndpoint) {
     // Check all possible token keys to support different apps
-    const token = localStorage.getItem('token') || 
-                  localStorage.getItem('auth_token') || 
-                  localStorage.getItem('stays_token');
+    // Admin token takes priority for admin routes
+    const isAdminRoute = config.url && config.url.includes('/admin/');
+    const token = isAdminRoute 
+      ? localStorage.getItem('admin_token') || localStorage.getItem('token') || localStorage.getItem('auth_token')
+      : localStorage.getItem('token') || 
+        localStorage.getItem('auth_token') || 
+        localStorage.getItem('stays_token') ||
+        localStorage.getItem('admin_token');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
@@ -52,7 +58,8 @@ apiClient.interceptors.response.use(
     // BUT: Don't clear tokens or redirect for login endpoints (they return 401 on invalid credentials)
     const isLoginEndpoint = config?.url?.includes('/auth/login') || 
                            config?.url?.includes('/tours/auth/login') ||
-                           config?.url?.includes('/stays/auth/login');
+                           config?.url?.includes('/stays/auth/login') ||
+                           config?.url?.includes('/admin/auth/login');
     
     if (response && response.status === 401 && !isLoginEndpoint) {
       // Only clear token for non-login endpoints (token expired on protected routes)
