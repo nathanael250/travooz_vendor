@@ -9,7 +9,7 @@ const formatDate = (date) => {
   const d = new Date(date);
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${months[d.getMonth()]} ${d.getDate().toString().padStart(2, '0')}, ${d.getFullYear()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-};
+  };
 
 const OrderDetails = () => {
   const { id } = useParams();
@@ -388,17 +388,17 @@ const OrderDetails = () => {
                 <p className="text-xs font-medium text-gray-600">Order Type</p>
                 <p className="text-sm font-semibold mt-1 capitalize">
                   {order.order_type?.replace('_', ' ') || 'N/A'}
-                </p>
-              </div>
+                  </p>
+                </div>
 
-              {order.customer_name && (
+                {order.customer_name && (
                 <div>
                   <p className="text-xs font-medium text-gray-600">Customer Name</p>
                   <p className="text-sm font-semibold mt-1">{order.customer_name}</p>
-                </div>
-              )}
+                  </div>
+                )}
 
-              {order.customer_phone && (
+                {order.customer_phone && (
                 <div>
                   <p className="text-xs font-medium text-gray-600">Phone Number</p>
                   <p className="text-sm font-semibold mt-1">{order.customer_phone}</p>
@@ -490,9 +490,9 @@ const OrderDetails = () => {
                           </span>
                         </div>
                       )}
-                    </div>
-                  )}
-                  
+                  </div>
+                )}
+
                   {!order.table_booking && order.number_of_guests && (
                     <div>
                       <p className="text-xs font-medium text-gray-600">Number of Guests</p>
@@ -531,8 +531,8 @@ const OrderDetails = () => {
                       {order.delivery_boy_id ? 'Change' : 'Assign'}
                     </button>
                   </div>
-                </div>
-              )}
+                  </div>
+                )}
 
               {order.special_instructions && (
                 <div>

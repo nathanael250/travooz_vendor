@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const { testConnection } = require('../config/database');
@@ -26,15 +27,43 @@ const extraOrigins = (process.env.CORS_ORIGIN || '')
 
 const allowedOrigins = Array.from(new Set([...defaultOrigins, ...extraOrigins]));
 
+// Normalize origins (remove trailing slashes)
+const normalizedOrigins = allowedOrigins.map(origin => origin.replace(/\/+$/, ''));
+
 app.use(cors({
   origin: (origin, callback) => {
+    // Log the incoming origin for debugging
+    console.log('CORS check - Origin:', origin);
+    console.log('CORS check - Allowed origins:', normalizedOrigins);
+    
     // Allow requests with no origin (like mobile apps or curl)
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin) {
       return callback(null, true);
     }
-    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    
+    // Normalize the incoming origin (remove trailing slash)
+    const normalizedOrigin = origin.replace(/\/+$/, '');
+    
+    // Check if origin is allowed
+    if (normalizedOrigins.includes(normalizedOrigin)) {
+      return callback(null, true);
+    }
+    
+    // In development, also allow any localhost origin
+    if (normalizedOrigin.includes('localhost')) {
+      console.log('CORS: Allowing localhost origin:', normalizedOrigin);
+      return callback(null, true);
+    }
+    
+    console.error(`CORS: Origin ${normalizedOrigin} not allowed`);
+    return callback(new Error(`Origin ${normalizedOrigin} not allowed by CORS`));
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 app.use(morgan('dev'));
 // Increase body parser limit to handle base64-encoded images (50MB)
@@ -42,7 +71,24 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Serve static files from uploads directory with CORS headers
+const uploadsPath = path.join(__dirname, '../uploads');
+const absoluteUploadsPath = path.resolve(uploadsPath);
+
+// Log uploads path for debugging
+console.log('📁 Uploads directory path:', absoluteUploadsPath);
+console.log('📁 Uploads directory exists:', fs.existsSync(absoluteUploadsPath));
+
+// Ensure uploads directory exists
+if (!fs.existsSync(absoluteUploadsPath)) {
+  console.warn('⚠️  Uploads directory does not exist, creating it...');
+  fs.mkdirSync(absoluteUploadsPath, { recursive: true });
+}
+
 app.use('/uploads', (req, res, next) => {
+  // Log upload requests for debugging
+  console.log('📤 Static file request:', req.method, req.path);
+  console.log('📤 Full URL:', req.originalUrl);
+  
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type');
@@ -50,7 +96,26 @@ app.use('/uploads', (req, res, next) => {
     return res.sendStatus(200);
   }
   next();
-}, express.static(path.join(__dirname, '../uploads')));
+}, express.static(absoluteUploadsPath, {
+  // Add fallthrough to allow 404 handling if file doesn't exist
+  fallthrough: true,
+  // Add index option to prevent directory listing
+  index: false
+}));
+
+// Add a catch-all for /uploads to log if static middleware didn't handle it
+app.use('/uploads', (req, res, next) => {
+  const requestedPath = path.join(absoluteUploadsPath, req.path);
+  console.log('🔍 Checking if file exists:', requestedPath);
+  console.log('🔍 File exists:', fs.existsSync(requestedPath));
+  
+  if (fs.existsSync(requestedPath) && fs.statSync(requestedPath).isFile()) {
+    return res.sendFile(requestedPath);
+  }
+  
+  console.error('❌ File not found:', requestedPath);
+  next();
+});
 
 // Health check
 app.get('/health', (req, res) => {
