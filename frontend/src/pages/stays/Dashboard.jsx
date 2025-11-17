@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { 
   LogOut, Home, Settings, Building2, Mail, AlertCircle, 
   Menu, Bell, Calendar, DollarSign, BarChart3, 
@@ -167,19 +168,58 @@ export default function StaysDashboard() {
     navigate('/stays/login');
   };
 
+  const normalizeUser = (rawUser) => {
+    if (!rawUser) return null;
+    const userId = rawUser.user_id || rawUser.userId || rawUser.id;
+    const email = rawUser.email || rawUser.user_email;
+    const name =
+      rawUser.name ||
+      rawUser.full_name ||
+      [rawUser.first_name, rawUser.last_name].filter(Boolean).join(' ') ||
+      rawUser.username ||
+      rawUser.email ||
+      'User';
+
+    return {
+      userId,
+      email,
+      name,
+      emailVerified:
+        rawUser.email_verified ||
+        rawUser.emailVerified ||
+        rawUser.is_email_verified ||
+        false,
+    };
+  };
+
   const handleContinueSetup = () => {
+    const currentUser = user || staysAuthService.getCurrentUser();
+    const normalizedUser = normalizeUser(currentUser);
+
+    if (!normalizedUser || !normalizedUser.userId) {
+      toast.error('Session expired or user information missing. Please log in again to continue setup.');
+      navigate('/stays/login', { replace: true });
+      return;
+    }
+
     // Get propertyId from properties or localStorage
     const propertyId = properties.length > 0 
       ? (properties[0].property_id || properties[0].propertyId)
-      : parseInt(localStorage.getItem('stays_property_id') || '0');
+      : parseInt(localStorage.getItem('stays_property_id') || '0', 10);
+
+    if (!propertyId || Number.isNaN(propertyId)) {
+      toast.error('We could not determine which property to finish setting up. Please start the setup again.');
+      navigate('/stays/list-your-property/start');
+      return;
+    }
 
     // Redirect to appropriate setup step based on what's incomplete
-    if (!user?.email_verified) {
+    if (!normalizedUser.emailVerified) {
       navigate('/stays/list-your-property/verify-email', {
         state: {
-          userId: user.user_id,
-          email: user.email,
-          userName: user.name,
+          userId: normalizedUser.userId,
+          email: normalizedUser.email,
+          userName: normalizedUser.name,
           propertyId
         }
       });
@@ -190,63 +230,63 @@ export default function StaysDashboard() {
       if (!steps.step2_contract) {
         navigate('/stays/setup/contract', {
           state: {
-            userId: user.user_id,
-            email: user.email,
-            userName: user.name,
+            userId: normalizedUser.userId,
+            email: normalizedUser.email,
+            userName: normalizedUser.name,
             propertyId
           }
         });
       } else if (!steps.step3_policies) {
         navigate('/stays/setup/policies', {
           state: {
-            userId: user.user_id,
-            email: user.email,
-            userName: user.name,
+            userId: normalizedUser.userId,
+            email: normalizedUser.email,
+            userName: normalizedUser.name,
             propertyId
           }
         });
       } else if (!steps.step4_amenities) {
         navigate('/stays/setup/amenities', {
           state: {
-            userId: user.user_id,
-            email: user.email,
-            userName: user.name,
+            userId: normalizedUser.userId,
+            email: normalizedUser.email,
+            userName: normalizedUser.name,
             propertyId
           }
         });
       } else if (!steps.step5_rooms) {
         navigate('/stays/setup/rooms', {
           state: {
-            userId: user.user_id,
-            email: user.email,
-            userName: user.name,
+            userId: normalizedUser.userId,
+            email: normalizedUser.email,
+            userName: normalizedUser.name,
             propertyId
           }
         });
       } else if (!steps.step8_images) {
         navigate('/stays/setup/images', {
           state: {
-            userId: user.user_id,
-            email: user.email,
-            userName: user.name,
+            userId: normalizedUser.userId,
+            email: normalizedUser.email,
+            userName: normalizedUser.name,
             propertyId
           }
         });
       } else if (!steps.step9_taxes) {
         navigate('/stays/setup/taxes', {
           state: {
-            userId: user.user_id,
-            email: user.email,
-            userName: user.name,
+            userId: normalizedUser.userId,
+            email: normalizedUser.email,
+            userName: normalizedUser.name,
             propertyId
           }
         });
       } else if (!steps.step10_connectivity) {
         navigate('/stays/setup/connectivity', {
           state: {
-            userId: user.user_id,
-            email: user.email,
-            userName: user.name,
+            userId: normalizedUser.userId,
+            email: normalizedUser.email,
+            userName: normalizedUser.name,
             propertyId
           }
         });
@@ -254,9 +294,9 @@ export default function StaysDashboard() {
         // All steps complete, go to review
         navigate('/stays/setup/review', {
           state: {
-            userId: user.user_id,
-            email: user.email,
-            userName: user.name,
+            userId: normalizedUser.userId,
+            email: normalizedUser.email,
+            userName: normalizedUser.name,
             propertyId
           }
         });
@@ -267,18 +307,18 @@ export default function StaysDashboard() {
       if (!contractAccepted) {
         navigate('/stays/setup/contract', {
           state: {
-            userId: user.user_id,
-            email: user.email,
-            userName: user.name,
+            userId: normalizedUser.userId,
+            email: normalizedUser.email,
+            userName: normalizedUser.name,
             propertyId
           }
         });
       } else {
         navigate('/stays/setup/policies', {
           state: {
-            userId: user.user_id,
-            email: user.email,
-            userName: user.name,
+            userId: normalizedUser.userId,
+            email: normalizedUser.email,
+            userName: normalizedUser.name,
             propertyId
           }
         });
