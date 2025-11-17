@@ -106,15 +106,35 @@ app.use('/uploads', (req, res, next) => {
 // Add a catch-all for /uploads to log if static middleware didn't handle it
 app.use('/uploads', (req, res, next) => {
   const requestedPath = path.join(absoluteUploadsPath, req.path);
-  console.log('🔍 Checking if file exists:', requestedPath);
+  console.log('🔍 Static middleware fallthrough - checking file:', requestedPath);
   console.log('🔍 File exists:', fs.existsSync(requestedPath));
   
-  if (fs.existsSync(requestedPath) && fs.statSync(requestedPath).isFile()) {
-    return res.sendFile(requestedPath);
+  if (fs.existsSync(requestedPath)) {
+    const stats = fs.statSync(requestedPath);
+    if (stats.isFile()) {
+      console.log('✅ Serving file:', requestedPath);
+      return res.sendFile(requestedPath);
+    } else if (stats.isDirectory()) {
+      console.log('⚠️  Path is a directory, not a file');
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Directory listing not allowed' 
+      });
+    }
   }
   
   console.error('❌ File not found:', requestedPath);
-  next();
+  console.error('❌ Requested path:', req.path);
+  console.error('❌ Uploads directory:', absoluteUploadsPath);
+  
+  // Return 404 with more details
+  res.status(404).json({
+    success: false,
+    message: 'File not found',
+    requestedPath: req.path,
+    uploadsDirectory: absoluteUploadsPath,
+    fullPath: requestedPath
+  });
 });
 
 // Health check
@@ -132,6 +152,40 @@ app.get('/health/db', async (req, res) => {
   res.json({ 
     status: isConnected ? 'connected' : 'disconnected',
     database: process.env.DB_NAME || 'travooz_database'
+  });
+});
+
+// Uploads directory diagnostic endpoint
+app.get('/health/uploads', (req, res) => {
+  const uploadsInfo = {
+    uploadsPath: absoluteUploadsPath,
+    exists: fs.existsSync(absoluteUploadsPath),
+    isDirectory: fs.existsSync(absoluteUploadsPath) ? fs.statSync(absoluteUploadsPath).isDirectory() : false,
+    readable: fs.existsSync(absoluteUploadsPath) ? (() => {
+      try {
+        fs.accessSync(absoluteUploadsPath, fs.constants.R_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    })() : false
+  };
+  
+  // Try to list some files in restaurants directory
+  const restaurantsPath = path.join(absoluteUploadsPath, 'restaurants');
+  if (fs.existsSync(restaurantsPath)) {
+    try {
+      const files = fs.readdirSync(restaurantsPath);
+      uploadsInfo.restaurantsFiles = files.slice(0, 10); // First 10 files
+      uploadsInfo.restaurantsFileCount = files.length;
+    } catch (error) {
+      uploadsInfo.restaurantsError = error.message;
+    }
+  }
+  
+  res.json({
+    success: true,
+    ...uploadsInfo
   });
 });
 
