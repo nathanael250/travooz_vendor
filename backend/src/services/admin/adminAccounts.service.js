@@ -1,5 +1,13 @@
 const { executeQuery } = require('../../../config/database');
 
+const getStatusList = (status) => {
+    if (!status || status === 'all') return null;
+    if (status === 'pending_review') return ['pending_review', 'pending'];
+    return [status];
+};
+
+const getDefaultPendingStatuses = () => ['pending_review', 'pending'];
+
 class AdminAccountsService {
     /**
      * Get all accounts awaiting approval from all services
@@ -9,6 +17,7 @@ class AdminAccountsService {
         try {
             const { status = 'pending_review', search = '', page = 1, limit = 10, service_type = 'all' } = filters;
             const offset = (parseInt(page) - 1) * parseInt(limit);
+            const statusList = getStatusList(status) || getDefaultPendingStatuses();
 
             // Get pending accounts from all services
             const accounts = [];
@@ -16,8 +25,6 @@ class AdminAccountsService {
             // 1. Car Rental Accounts
             if (service_type === 'all' || service_type === 'car_rental') {
                 try {
-                    // Get all car rental accounts that are pending approval
-                    // Primary source: car_rental_setup_submissions table (created when user submits)
                     let carRentalQuery = `
                         SELECT 
                             crb.car_rental_business_id as account_id,
@@ -35,11 +42,16 @@ class AdminAccountsService {
                         JOIN car_rental_users cu ON crb.user_id = cu.user_id
                         LEFT JOIN car_rental_setup_submissions crss ON crb.car_rental_business_id = crss.car_rental_business_id
                         LEFT JOIN car_rental_setup_progress crsp ON crb.car_rental_business_id = crsp.car_rental_business_id
-                        WHERE COALESCE(crss.status, crsp.status, crb.status) = ?
-                        AND crb.status NOT IN ('approved', 'rejected')
+                        WHERE crb.status NOT IN ('approved', 'rejected')
                         AND (crsp.status IS NULL OR crsp.status NOT IN ('approved', 'rejected'))
                     `;
-                    const carRentalParams = [status];
+                    const carRentalParams = [];
+
+                    if (statusList) {
+                        const placeholders = statusList.map(() => '?').join(',');
+                        carRentalQuery += ` AND COALESCE(crss.status, crsp.status, crb.status) IN (${placeholders})`;
+                        carRentalParams.push(...statusList);
+                    }
 
                     if (search) {
                         carRentalQuery += ' AND (crb.business_name LIKE ? OR cu.name LIKE ? OR cu.email LIKE ?)';
@@ -73,9 +85,15 @@ class AdminAccountsService {
                         FROM tours_setup_submissions tss
                         JOIN tours_businesses tb ON tss.tour_business_id = tb.tour_business_id
                         JOIN tours_users tu ON tss.user_id = tu.user_id
-                        WHERE tss.status = ?
+                        WHERE 1=1
                     `;
-                    const toursParams = [status];
+                    const toursParams = [];
+
+                    if (statusList) {
+                        const placeholders = statusList.map(() => '?').join(',');
+                        toursQuery += ` AND tss.status IN (${placeholders})`;
+                        toursParams.push(...statusList);
+                    }
 
                     if (search) {
                         toursQuery += ' AND (tb.tour_business_name LIKE ? OR tu.name LIKE ? OR tu.email LIKE ?)';
@@ -99,18 +117,22 @@ class AdminAccountsService {
                             sp.property_id as account_id,
                             'stays' as service_type,
                             sp.property_name as business_name,
-                            sp.city as location,
+                            COALESCE(
+                                sp.city,
+                                sp.location,
+                                JSON_UNQUOTE(JSON_EXTRACT(sp.location_data, '$.formatted_address'))
+                            ) as location,
                             sp.status,
                             sp.created_at as submitted_at,
-                            su.name as owner_name,
-                            su.email as owner_email,
-                            su.phone as owner_phone,
+                            COALESCE(su.name, 'N/A') as owner_name,
+                            COALESCE(su.email, 'N/A') as owner_email,
+                            COALESCE(su.phone, NULL) as owner_phone,
                             sp.status as submission_status
                         FROM stays_properties sp
-                        JOIN stays_users su ON sp.user_id = su.user_id
-                        WHERE sp.status = 'pending_review' OR sp.status = 'pending'
+                        LEFT JOIN stays_users su ON sp.user_id = su.user_id
+                        WHERE sp.status IN (${getDefaultPendingStatuses().map(() => '?').join(',')})
                     `;
-                    const staysParams = [];
+                    const staysParams = [...getDefaultPendingStatuses()];
 
                     if (search) {
                         staysQuery += ' AND (sp.property_name LIKE ? OR su.name LIKE ? OR su.email LIKE ?)';
@@ -144,9 +166,15 @@ class AdminAccountsService {
                             r.status as submission_status
                         FROM restaurants r
                         LEFT JOIN restaurant_users ru ON CAST(r.user_id AS UNSIGNED) = ru.user_id
-                        WHERE r.status = 'pending' OR r.status = 'pending_review'
+                        WHERE 1=1
                     `;
                     const restaurantParams = [];
+
+                    if (statusList) {
+                        const placeholders = statusList.map(() => '?').join(',');
+                        restaurantQuery += ` AND r.status IN (${placeholders})`;
+                        restaurantParams.push(...statusList);
+                    }
 
                     if (search) {
                         restaurantQuery += ' AND (r.name LIKE ? OR ru.name LIKE ? OR ru.email LIKE ?)';
@@ -208,17 +236,20 @@ class AdminAccountsService {
                 }
             };
 
+            const defaultPending = getDefaultPendingStatuses();
+
             // Count car rental pending accounts
             try {
+                const placeholders = defaultPending.map(() => '?').join(',');
                 const carRentalPending = await executeQuery(
                     `SELECT COUNT(*) as count 
                      FROM car_rental_businesses crb
                      LEFT JOIN car_rental_setup_submissions crss ON crb.car_rental_business_id = crss.car_rental_business_id
                      LEFT JOIN car_rental_setup_progress crsp ON crb.car_rental_business_id = crsp.car_rental_business_id
-                     WHERE COALESCE(crss.status, crsp.status, crb.status) = 'pending_review'
+                     WHERE COALESCE(crss.status, crsp.status, crb.status) IN (${placeholders})
                      AND crb.status NOT IN ('approved', 'rejected')
                      AND (crsp.status IS NULL OR crsp.status NOT IN ('approved', 'rejected'))`
-                );
+                    , defaultPending);
                 stats.pending_review += carRentalPending[0]?.count || 0;
                 stats.by_service.car_rental += carRentalPending[0]?.count || 0;
             } catch (err) {
@@ -227,9 +258,10 @@ class AdminAccountsService {
 
             // Count tours pending accounts
             try {
+                const placeholders = defaultPending.map(() => '?').join(',');
                 const toursPending = await executeQuery(
-                    `SELECT COUNT(*) as count FROM tours_setup_submissions WHERE status = 'pending_review'`
-                );
+                    `SELECT COUNT(*) as count FROM tours_setup_submissions WHERE status IN (${placeholders})`
+                , defaultPending);
                 stats.pending_review += toursPending[0]?.count || 0;
                 stats.by_service.tours += toursPending[0]?.count || 0;
             } catch (err) {
@@ -238,8 +270,10 @@ class AdminAccountsService {
 
             // Count stays pending accounts
             try {
+                const placeholders = defaultPending.map(() => '?').join(',');
                 const staysPending = await executeQuery(
-                    `SELECT COUNT(*) as count FROM stays_properties WHERE status = 'pending_review' OR status = 'pending'`
+                    `SELECT COUNT(*) as count FROM stays_properties WHERE status IN (${placeholders})`,
+                    defaultPending
                 );
                 stats.pending_review += staysPending[0]?.count || 0;
                 stats.by_service.stays += staysPending[0]?.count || 0;
@@ -249,9 +283,10 @@ class AdminAccountsService {
 
             // Count restaurant pending accounts
             try {
+                const placeholders = defaultPending.map(() => '?').join(',');
                 const restaurantPending = await executeQuery(
-                    `SELECT COUNT(*) as count FROM restaurants WHERE status = 'pending' OR status = 'pending_review'`
-                );
+                    `SELECT COUNT(*) as count FROM restaurants WHERE status IN (${placeholders})`
+                , defaultPending);
                 stats.pending_review += restaurantPending[0]?.count || 0;
                 stats.by_service.restaurant += restaurantPending[0]?.count || 0;
             } catch (err) {

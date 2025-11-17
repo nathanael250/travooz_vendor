@@ -42,84 +42,65 @@ class ClientDiscoveryService {
     try {
       const {
         location,
-        check_in_date,
-        check_out_date,
-        guests,
-        min_price,
-        max_price,
-        amenities,
         property_type,
+        guests,
         limit = 20,
         offset = 0
       } = filters;
 
+      const limitValue = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+      const offsetValue = Math.max(parseInt(offset, 10) || 0, 0);
+
       let query = `
-        SELECT DISTINCT
-          h.homestay_id as property_id,
-          h.name,
-          h.description,
-          h.address,
-          h.city,
-          h.country,
-          h.latitude,
-          h.longitude,
-          h.property_type,
-          h.star_rating,
-          h.status,
-          MIN(rt.room_price_per_night) as min_price,
-          MAX(rt.room_price_per_night) as max_price
-        FROM homestays h
-        LEFT JOIN room_types rt ON h.homestay_id = rt.homestay_id
-        WHERE h.status = 'active' AND h.is_approved = 1
+        SELECT
+          sp.property_id,
+          sp.property_name AS name,
+        NULL AS description,
+          sp.location,
+          sp.location_data,
+          sp.property_type,
+          sp.number_of_rooms,
+          sp.currency,
+          sp.status,
+          sp.created_at
+        FROM stays_properties sp
+        WHERE sp.status = 'approved'
       `;
 
       const params = [];
 
       if (location) {
-        query += ` AND (h.city LIKE ? OR h.address LIKE ? OR h.country LIKE ?)`;
+        query += ` AND (sp.location LIKE ? OR JSON_EXTRACT(sp.location_data, '$.formatted_address') LIKE ?)`;
         const locationParam = `%${location}%`;
-        params.push(locationParam, locationParam, locationParam);
+        params.push(locationParam, locationParam);
       }
 
       if (property_type) {
-        query += ` AND h.property_type = ?`;
+        query += ` AND sp.property_type = ?`;
         params.push(property_type);
       }
 
-      if (check_in_date && check_out_date) {
-        // Check availability - exclude properties with conflicting bookings
-        query += ` AND h.homestay_id NOT IN (
-          SELECT DISTINCT rb.homestay_id
-          FROM room_bookings rb
-          JOIN bookings b ON rb.booking_id = b.booking_id
-          WHERE b.status IN ('pending', 'confirmed')
-          AND ((rb.check_in_date < ? AND rb.check_out_date > ?) OR
-               (rb.check_in_date < ? AND rb.check_out_date > ?))
-        )`;
-        params.push(check_out_date, check_in_date, check_in_date, check_out_date);
+      if (guests) {
+        query += ` AND (sp.number_of_rooms IS NULL OR sp.number_of_rooms >= ?)`;
+        params.push(parseInt(guests, 10) || 1);
       }
 
-      query += ` GROUP BY h.homestay_id`;
-
-      if (min_price) {
-        query += ` HAVING min_price >= ?`;
-        params.push(min_price);
-      }
-
-      if (max_price) {
-        query += ` HAVING max_price <= ?`;
-        params.push(max_price);
-      }
-
-      query += ` ORDER BY h.star_rating DESC, min_price ASC LIMIT ? OFFSET ?`;
-      params.push(limit, offset);
+      query += ` ORDER BY sp.created_at DESC LIMIT ? OFFSET ?`;
+      params.push(limitValue, offsetValue);
 
       const properties = await executeQuery(query, params);
 
-      // Get images for each property
       for (const property of properties) {
+        if (property.location_data) {
+          try {
+            property.location_data = JSON.parse(property.location_data);
+          } catch (err) {
+            property.location_data = null;
+          }
+        }
+
         const images = await executeQuery(
-          `SELECT image_url FROM homestay_images WHERE homestay_id = ? LIMIT 5`,
+          `SELECT image_url FROM stays_property_images WHERE property_id = ? ORDER BY image_order ASC LIMIT 5`,
           [property.property_id]
         );
         property.images = images.map(img => img.image_url);
@@ -138,7 +119,7 @@ class ClientDiscoveryService {
   async getPropertyById(propertyId) {
     try {
       const properties = await executeQuery(
-        `SELECT * FROM homestays WHERE homestay_id = ? AND status = 'active' AND is_approved = 1`,
+        `SELECT *, NULL as description FROM stays_properties WHERE property_id = ? AND status = 'approved'`,
         [propertyId]
       );
 
@@ -148,26 +129,37 @@ class ClientDiscoveryService {
 
       const property = properties[0];
 
-      // Get images
+      if (property.location_data) {
+        try {
+          property.location_data = JSON.parse(property.location_data);
+        } catch (err) {
+          property.location_data = null;
+        }
+      }
+
       const images = await executeQuery(
-        `SELECT image_url FROM homestay_images WHERE homestay_id = ?`,
+        `SELECT image_url FROM stays_property_images WHERE property_id = ? ORDER BY image_order ASC`,
         [propertyId]
       );
       property.images = images.map(img => img.image_url);
 
-      // Get amenities
       const amenities = await executeQuery(
-        `SELECT amenity_name FROM homestay_amenities WHERE homestay_id = ?`,
+        `SELECT * FROM stays_property_amenities WHERE property_id = ?`,
         [propertyId]
       );
-      property.amenities = amenities.map(a => a.amenity_name);
+      property.amenities = amenities;
 
-      // Get room types
-      const roomTypes = await executeQuery(
-        `SELECT * FROM room_types WHERE homestay_id = ? AND status = 'active'`,
+      const rooms = await executeQuery(
+        `SELECT * FROM stays_rooms WHERE property_id = ?`,
         [propertyId]
       );
-      property.room_types = roomTypes;
+      property.rooms = rooms;
+
+      const policies = await executeQuery(
+        `SELECT * FROM stays_property_policies WHERE property_id = ?`,
+        [propertyId]
+      );
+      property.policies = policies;
 
       return property;
     } catch (error) {
@@ -247,6 +239,9 @@ class ClientDiscoveryService {
         include_draft = false // Allow including draft packages for development
       } = filters;
 
+      const limitValue = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+      const offsetValue = Math.max(parseInt(offset, 10) || 0, 0);
+
       // First, let's check what packages exist in the database
       const allPackages = await executeQuery(
         `SELECT tp.package_id, tp.name, tp.status as package_status, tb.tour_business_id, tb.tour_business_name, tb.status as business_status
@@ -323,8 +318,7 @@ class ClientDiscoveryService {
         params.push(tour_date);
       }
 
-      query += ` ORDER BY tp.price_per_person ASC LIMIT ? OFFSET ?`;
-      params.push(limit, offset);
+      query += ` ORDER BY tp.price_per_person ASC LIMIT ${limitValue} OFFSET ${offsetValue}`;
 
       console.log('🔍 Executing query:', query.substring(0, 200) + '...');
       console.log('🔍 Query params:', params);
@@ -426,11 +420,20 @@ class ClientDiscoveryService {
       console.log(`📸 Package ${tourId}: Found ${tour.images.length} images`);
 
       // Get itinerary
-      const itinerary = await executeQuery(
-        `SELECT * FROM tour_package_itinerary WHERE package_id = ? ORDER BY day_number`,
-        [tourId]
-      );
-      tour.itinerary = itinerary;
+      try {
+        const itinerary = await executeQuery(
+          `SELECT * FROM tour_package_itinerary WHERE package_id = ? ORDER BY day_number`,
+          [tourId]
+        );
+        tour.itinerary = itinerary;
+      } catch (error) {
+        if (error.code === 'ER_NO_SUCH_TABLE') {
+          console.warn('tour_package_itinerary table not found, returning empty itinerary');
+          tour.itinerary = [];
+        } else {
+          throw error;
+        }
+      }
 
       return tour;
     } catch (error) {
@@ -465,9 +468,14 @@ class ClientDiscoveryService {
         [tourId, tourDate]
       );
 
-      const bookedParticipants = existingBookings[0].total || 0;
-      const maxParticipants = tour.max_participants || 0;
-      const availableSpots = maxParticipants - bookedParticipants;
+      const bookedParticipants = Number(existingBookings[0].total || 0);
+      const maxParticipants = Number(
+        tour.max_group_size ??
+        tour.max_participants ??
+        tour.capacity ??
+        0
+      );
+      const availableSpots = Math.max(maxParticipants - bookedParticipants, 0);
 
       return {
         available: availableSpots > 0,
