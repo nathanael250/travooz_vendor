@@ -15,14 +15,48 @@ const getProperties = async (req, res) => {
 };
 
 /**
+ * Get properties with available rooms for specific dates
+ */
+const getPropertiesWithAvailableRooms = async (req, res) => {
+  try {
+    console.log('🔍 [getPropertiesWithAvailableRooms] Called with query:', req.query);
+    const { check_in_date, check_out_date } = req.query;
+
+    if (!check_in_date || !check_out_date) {
+      console.log('❌ [getPropertiesWithAvailableRooms] Missing required parameters');
+      return sendError(res, 'check_in_date and check_out_date query parameters are required', 400);
+    }
+
+    console.log('✅ [getPropertiesWithAvailableRooms] Calling service with dates:', check_in_date, check_out_date);
+    const properties = await clientDiscoveryService.getPropertiesWithAvailableRooms(req.query);
+    console.log(`✅ [getPropertiesWithAvailableRooms] Found ${properties.length} properties`);
+    return sendSuccess(res, properties, 'Properties with available rooms retrieved successfully', 200);
+  } catch (error) {
+    console.error('❌ [getPropertiesWithAvailableRooms] Error:', error);
+    return sendError(res, error.message || 'Failed to get properties with available rooms', 500);
+  }
+};
+
+/**
  * Get property details by ID
  */
 const getPropertyById = async (req, res) => {
   try {
     const { propertyId } = req.params;
+    
+    console.log('🔍 [getPropertyById] Called with propertyId:', propertyId);
+    
+    // Prevent "available" from being treated as a propertyId
+    // This should be handled by the route order, but adding defensive check
+    if (propertyId === 'available') {
+      console.log('⚠️ [getPropertyById] "available" was matched as propertyId - route order issue!');
+      return sendError(res, 'Invalid property ID. Use /properties/available endpoint for availability search. The server may need to be restarted.', 400);
+    }
+    
     const property = await clientDiscoveryService.getPropertyById(propertyId);
     
     if (!property) {
+      console.log('❌ [getPropertyById] Property not found:', propertyId);
       return sendError(res, 'Property not found', 404);
     }
 
@@ -229,6 +263,7 @@ module.exports = {
   getProperties,
   getPropertyById,
   checkPropertyAvailability,
+  getPropertiesWithAvailableRooms,
   getTourPackages,
   getTourPackageById,
   checkTourAvailability,

@@ -173,51 +173,184 @@ class ClientDiscoveryService {
    */
   async checkPropertyAvailability(propertyId, checkInDate, checkOutDate) {
     try {
-      // Get all room types for this property
-      const roomTypes = await executeQuery(
-        `SELECT * FROM room_types WHERE homestay_id = ? AND status = 'active'`,
+      // Get all rooms for this property
+      const rooms = await executeQuery(
+        `SELECT * FROM stays_rooms WHERE property_id = ? AND room_status = 'active'`,
         [propertyId]
       );
 
+      if (!rooms || rooms.length === 0) {
+        return [];
+      }
+
       const availability = [];
 
-      for (const roomType of roomTypes) {
-        // Count existing bookings for this room type
+      for (const room of rooms) {
+        // Count existing bookings for this room that overlap with the requested dates
+        // A booking overlaps if:
+        // - check_in_date < check_out_date AND check_out_date > check_in_date
         const existingBookings = await executeQuery(
-          `SELECT COUNT(*) as count FROM room_bookings rb
-           JOIN bookings b ON rb.booking_id = b.booking_id
-           WHERE rb.room_type_id = ? 
-           AND b.status IN ('pending', 'confirmed')
-           AND ((rb.check_in_date < ? AND rb.check_out_date > ?) OR
-                (rb.check_in_date < ? AND rb.check_out_date > ?))`,
-          [roomType.room_type_id, checkOutDate, checkInDate, checkInDate, checkOutDate]
-        );
-
-        // Count total rooms of this type
-        const totalRooms = await executeQuery(
-          `SELECT COUNT(*) as count FROM room_inventory 
-           WHERE room_type_id = ? AND status = 'available'`,
-          [roomType.room_type_id]
+          `SELECT COUNT(*) as count FROM stays_bookings sb
+           WHERE sb.room_id = ? 
+           AND sb.status IN ('pending', 'confirmed')
+           AND sb.check_in_date < ? 
+           AND sb.check_out_date > ?`,
+          [room.room_id, checkOutDate, checkInDate]
         );
 
         const bookedCount = existingBookings[0].count || 0;
-        const totalCount = totalRooms[0].count || 0;
-        const availableCount = totalCount - bookedCount;
+        const totalRooms = room.number_of_rooms || 1;
+        const availableCount = Math.max(totalRooms - bookedCount, 0);
 
         availability.push({
-          room_type_id: roomType.room_type_id,
-          room_type_name: roomType.name,
-          price_per_night: roomType.room_price_per_night,
-          max_guests: roomType.max_people,
+          room_id: room.room_id,
+          room_name: room.room_name,
+          room_type: room.room_type,
+          room_class: room.room_class,
+          price_per_night: room.base_rate,
+          max_guests: room.recommended_occupancy,
           available: availableCount > 0,
           available_count: availableCount,
-          total_rooms: totalCount
+          total_rooms: totalRooms,
+          pricing_model: room.pricing_model,
+          people_included: room.people_included
         });
       }
 
       return availability;
     } catch (error) {
       console.error('Error checking availability:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get properties with available rooms for specific dates
+   */
+  async getPropertiesWithAvailableRooms(filters = {}) {
+    try {
+      const {
+        check_in_date,
+        check_out_date,
+        guests,
+        location,
+        property_type,
+        limit = 20,
+        offset = 0
+      } = filters;
+
+      if (!check_in_date || !check_out_date) {
+        throw new Error('check_in_date and check_out_date are required');
+      }
+
+      const limitValue = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+      const offsetValue = Math.max(parseInt(offset, 10) || 0, 0);
+
+      // Build base query to get properties with available rooms
+      let query = `
+        SELECT DISTINCT
+          sp.property_id,
+          sp.property_name AS name,
+          NULL AS description,
+          sp.location,
+          sp.location_data,
+          sp.property_type,
+          sp.number_of_rooms,
+          sp.currency,
+          sp.status,
+          sp.created_at
+        FROM stays_properties sp
+        INNER JOIN stays_rooms sr ON sp.property_id = sr.property_id
+        WHERE sp.status = 'approved'
+        AND sr.room_status = 'active'
+        AND sr.number_of_rooms > (
+          SELECT COUNT(*) 
+          FROM stays_bookings sb
+          WHERE sb.room_id = sr.room_id
+          AND sb.status IN ('pending', 'confirmed')
+          AND sb.check_in_date < ?
+          AND sb.check_out_date > ?
+        )
+      `;
+
+      const params = [check_out_date, check_in_date];
+
+      if (location) {
+        query += ` AND (sp.location LIKE ? OR JSON_EXTRACT(sp.location_data, '$.formatted_address') LIKE ?)`;
+        const locationParam = `%${location}%`;
+        params.push(locationParam, locationParam);
+      }
+
+      if (property_type) {
+        query += ` AND sp.property_type = ?`;
+        params.push(property_type);
+      }
+
+      if (guests) {
+        const guestsCount = parseInt(guests, 10) || 1;
+        query += ` AND sr.recommended_occupancy >= ?`;
+        params.push(guestsCount);
+      }
+
+      query += ` ORDER BY sp.created_at DESC LIMIT ? OFFSET ?`;
+      params.push(limitValue, offsetValue);
+
+      const properties = await executeQuery(query, params);
+
+      // For each property, get detailed availability info
+      for (const property of properties) {
+        if (property.location_data) {
+          try {
+            property.location_data = JSON.parse(property.location_data);
+          } catch (err) {
+            property.location_data = null;
+          }
+        }
+
+        // Get images
+        const images = await executeQuery(
+          `SELECT image_url FROM stays_property_images WHERE property_id = ? ORDER BY image_order ASC LIMIT 5`,
+          [property.property_id]
+        );
+        property.images = images.map(img => img.image_url);
+
+        // Get available rooms with detailed info
+        const availableRooms = await executeQuery(
+          `SELECT 
+            sr.room_id,
+            sr.room_name,
+            sr.room_type,
+            sr.room_class,
+            sr.base_rate,
+            sr.recommended_occupancy,
+            sr.number_of_rooms,
+            sr.pricing_model,
+            sr.people_included,
+            (sr.number_of_rooms - COALESCE((
+              SELECT COUNT(*) 
+              FROM stays_bookings sb
+              WHERE sb.room_id = sr.room_id
+              AND sb.status IN ('pending', 'confirmed')
+              AND sb.check_in_date < ?
+              AND sb.check_out_date > ?
+            ), 0)) as available_count
+          FROM stays_rooms sr
+          WHERE sr.property_id = ?
+          AND sr.room_status = 'active'
+          HAVING available_count > 0
+          ORDER BY sr.base_rate ASC`,
+          [check_out_date, check_in_date, property.property_id]
+        );
+
+        property.available_rooms = availableRooms;
+        property.min_price = availableRooms.length > 0 
+          ? Math.min(...availableRooms.map(r => parseFloat(r.base_rate || 0)))
+          : null;
+      }
+
+      return properties;
+    } catch (error) {
+      console.error('Error getting properties with available rooms:', error);
       throw error;
     }
   }
@@ -594,12 +727,15 @@ class ClientDiscoveryService {
       );
       restaurant.menu = menuItems;
 
-      // Get capacity info
-      const capacity = await executeQuery(
-        `SELECT * FROM restaurant_capacity WHERE eating_out_id = ?`,
-        [restaurantId]
-      );
-      restaurant.capacity = capacity[0] || null;
+      // Capacity info is already in the restaurant object (capacity and available_seats columns)
+      // Format it for API response - store original values first
+      const totalCapacity = restaurant.capacity || 0;
+      const availableSeats = restaurant.available_seats || 0;
+      restaurant.capacity = {
+        total_seats: totalCapacity,
+        available_seats: availableSeats,
+        max_capacity: totalCapacity
+      };
 
       return restaurant;
     } catch (error) {
@@ -613,19 +749,26 @@ class ClientDiscoveryService {
    */
   async checkRestaurantAvailability(restaurantId, reservationDate, reservationTime, guests) {
     try {
-      // Get capacity info
-      const capacity = await executeQuery(
-        `SELECT * FROM restaurant_capacity WHERE eating_out_id = ?`,
+      // Get restaurant with capacity info
+      const restaurants = await executeQuery(
+        `SELECT id, capacity, available_seats FROM restaurants WHERE id = ? AND status = 'active'`,
         [restaurantId]
       );
 
-      if (!capacity || capacity.length === 0) {
+      if (!restaurants || restaurants.length === 0) {
+        return { available: false, message: 'Restaurant not found' };
+      }
+
+      const restaurant = restaurants[0];
+      const maxCapacity = restaurant.capacity || 0;
+
+      // If no capacity is set, assume available
+      if (maxCapacity === 0) {
         return { available: true, message: 'No capacity restrictions' };
       }
 
-      const cap = capacity[0];
-
       // Count existing reservations for this time
+      // Note: restaurant_capacity_bookings uses eating_out_id which should match restaurant id
       const existingReservations = await executeQuery(
         `SELECT COUNT(*) as count FROM restaurant_capacity_bookings rcb
          JOIN bookings b ON rcb.booking_id = b.booking_id
@@ -637,14 +780,13 @@ class ClientDiscoveryService {
       );
 
       const bookedCount = existingReservations[0].count || 0;
-      const maxCapacity = cap.max_capacity || 0;
       const available = bookedCount < maxCapacity;
 
       return {
         available: available,
         max_capacity: maxCapacity,
         booked_tables: bookedCount,
-        available_tables: maxCapacity - bookedCount
+        available_tables: Math.max(maxCapacity - bookedCount, 0)
       };
     } catch (error) {
       console.error('Error checking restaurant availability:', error);

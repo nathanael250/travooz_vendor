@@ -128,7 +128,7 @@ const APIDocumentation = () => {
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Search Properties</h3>
-              <p className="text-gray-600 mb-4">Search and filter properties by location, dates, price, and more.</p>
+              <p className="text-gray-600 mb-4">Search and filter properties by location, property type, and more. <strong>No authentication required.</strong></p>
               
               <div className="mb-4">
                 <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
@@ -142,14 +142,79 @@ const APIDocumentation = () => {
                   id="properties-query"
                   code={JSON.stringify({
                     location: "Kigali",
-                    check_in_date: "2024-12-25",
-                    check_out_date: "2024-12-30",
+                    property_type: "hotel",
                     guests: 2,
-                    min_price: 50000,
-                    max_price: 500000,
+                    limit: 20,
+                    offset: 0
+                  }, null, 2)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Search Properties with Available Rooms</h3>
+              <p className="text-gray-600 mb-4">Search for properties that have available rooms for specific dates. Returns only properties with at least one available room. <strong>No authentication required.</strong></p>
+              
+              <div className="mb-4">
+                <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                  GET {apiBase}/properties/available
+                </span>
+              </div>
+
+              <div className="mb-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Query Parameters:</h4>
+                <CodeBlock
+                  id="properties-available-query"
+                  code={JSON.stringify({
+                    check_in_date: "2025-01-15",
+                    check_out_date: "2025-01-20",
+                    guests: 2,
+                    location: "Kigali",
                     property_type: "hotel",
                     limit: 20,
                     offset: 0
+                  }, null, 2)}
+                />
+                <ul className="list-disc list-inside text-sm text-gray-700 space-y-1 mt-2">
+                  <li><code>check_in_date</code> (required) - Check-in date in YYYY-MM-DD format</li>
+                  <li><code>check_out_date</code> (required) - Check-out date in YYYY-MM-DD format</li>
+                  <li><code>guests</code> (optional) - Minimum number of guests the room should accommodate</li>
+                  <li><code>location</code> (optional) - Filter by location</li>
+                  <li><code>property_type</code> (optional) - Filter by property type</li>
+                </ul>
+              </div>
+
+              <div className="mb-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Response (200 OK):</h4>
+                <CodeBlock
+                  id="properties-available-response"
+                  code={JSON.stringify({
+                    success: true,
+                    message: "Properties with available rooms retrieved successfully",
+                    data: [
+                      {
+                        property_id: 1,
+                        name: "Luxury Hotel",
+                        location: "Kigali",
+                        property_type: "hotel",
+                        images: ["url1", "url2"],
+                        min_price: 300000,
+                        available_rooms: [
+                          {
+                            room_id: 1,
+                            room_name: "Single Room, Garden view, Standard",
+                            room_type: "Single Room",
+                            room_class: "Standard",
+                            base_rate: 300000,
+                            recommended_occupancy: 1,
+                            available_count: 45,
+                            total_rooms: 50,
+                            pricing_model: "per-day",
+                            people_included: 1
+                          }
+                        ]
+                      }
+                    ]
                   }, null, 2)}
                 />
               </div>
@@ -165,14 +230,9 @@ const APIDocumentation = () => {
                       {
                         property_id: 1,
                         name: "Luxury Hotel",
-                        description: "A beautiful hotel...",
-                        address: "123 Main St",
-                        city: "Kigali",
-                        country: "Rwanda",
+                        location: "Kigali",
                         property_type: "hotel",
-                        star_rating: 5,
-                        min_price: 100000,
-                        max_price: 500000,
+                        number_of_rooms: 50,
                         images: ["url1", "url2"]
                       }
                     ]
@@ -183,7 +243,7 @@ const APIDocumentation = () => {
 
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Get Property Details</h3>
-              <p className="text-gray-600 mb-4">Get detailed information about a specific property.</p>
+              <p className="text-gray-600 mb-4">Get detailed information about a specific property including rooms, amenities, and images. <strong>No authentication required.</strong></p>
               
               <div className="mb-4">
                 <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
@@ -200,18 +260,31 @@ const APIDocumentation = () => {
                     message: "Property retrieved successfully",
                     data: {
                       property_id: 1,
-                      name: "Luxury Hotel",
-                      description: "Full description...",
+                      property_name: "Luxury Hotel",
+                      location: "Kigali",
+                      property_type: "hotel",
                       images: ["url1", "url2"],
-                      amenities: ["WiFi", "Pool", "Gym"],
-                      room_types: [
+                      amenities: [
                         {
-                          room_type_id: 1,
-                          name: "Deluxe Room",
-                          room_price_per_night: 100000,
-                          max_people: 2
+                          amenity_id: 1,
+                          amenity_name: "WiFi",
+                          amenity_type: "connectivity"
                         }
-                      ]
+                      ],
+                      rooms: [
+                        {
+                          room_id: 1,
+                          room_name: "Single Room, Garden view, Standard",
+                          room_type: "Single Room",
+                          room_class: "Standard",
+                          base_rate: 300000,
+                          recommended_occupancy: 1,
+                          number_of_rooms: 50,
+                          pricing_model: "per-day",
+                          people_included: 1
+                        }
+                      ],
+                      policies: []
                     }
                   }, null, 2)}
                 />
@@ -220,12 +293,20 @@ const APIDocumentation = () => {
 
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Check Property Availability</h3>
-              <p className="text-gray-600 mb-4">Check room availability and pricing for specific dates.</p>
+              <p className="text-gray-600 mb-4">Check room availability and pricing for specific dates at a property. <strong>No authentication required.</strong></p>
               
               <div className="mb-4">
                 <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                  GET {apiBase}/properties/:propertyId/availability?check_in_date=2024-12-25&check_out_date=2024-12-30
+                  GET {apiBase}/properties/:propertyId/availability?check_in_date=2025-01-15&check_out_date=2025-01-20
                 </span>
+              </div>
+
+              <div className="mb-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Query Parameters:</h4>
+                <ul className="list-disc list-inside text-sm text-gray-700 space-y-1 mb-2">
+                  <li><code>check_in_date</code> (required) - Check-in date in YYYY-MM-DD format</li>
+                  <li><code>check_out_date</code> (required) - Check-out date in YYYY-MM-DD format</li>
+                </ul>
               </div>
 
               <div className="mb-4">
@@ -237,13 +318,17 @@ const APIDocumentation = () => {
                     message: "Availability checked successfully",
                     data: [
                       {
-                        room_type_id: 1,
-                        room_type_name: "Deluxe Room",
-                        price_per_night: 100000,
-                        max_guests: 2,
+                        room_id: 1,
+                        room_name: "Single Room, Garden view, Standard",
+                        room_type: "Single Room",
+                        room_class: "Standard",
+                        price_per_night: 300000,
+                        max_guests: 1,
                         available: true,
-                        available_count: 5,
-                        total_rooms: 10
+                        available_count: 45,
+                        total_rooms: 50,
+                        pricing_model: "per-day",
+                        people_included: 1
                       }
                     ]
                   }, null, 2)}
@@ -629,7 +714,7 @@ const APIDocumentation = () => {
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Create Room Booking</h3>
-              <p className="text-gray-600 mb-4">Book a room at a property for specific check-in and check-out dates.</p>
+              <p className="text-gray-600 mb-4">Book a room at a property for specific check-in and check-out dates. The system will check availability and create the booking if rooms are available.</p>
               
               <div className="mb-4">
                 <span className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
@@ -643,16 +728,17 @@ const APIDocumentation = () => {
                   id="stay-request"
                   code={JSON.stringify({
                     property_id: 1,
-                    room_type_id: 1,
-                    check_in_date: "2024-12-25",
-                    check_out_date: "2024-12-30",
+                    room_id: 1,
+                    check_in_date: "2025-01-15",
+                    check_out_date: "2025-01-20",
                     guest_name: "John Doe",
                     guest_email: "john@example.com",
                     guest_phone: "+250788123456",
                     number_of_adults: 2,
                     number_of_children: 1,
                     special_requests: "High floor, quiet room",
-                    payment_method: "card"
+                    payment_method: "card",
+                    user_id: null
                   }, null, 2)}
                 />
               </div>
@@ -667,11 +753,16 @@ const APIDocumentation = () => {
                     data: {
                       booking_id: 123,
                       booking_reference: "STAY-1234567890-ABC123XYZ",
-                      total_amount: 500000,
+                      total_amount: 1500000,
                       nights: 5,
                       transaction_id: 456,
                       status: "pending",
-                      payment_status: "pending"
+                      payment_status: "pending",
+                      room_id: 1,
+                      property_id: 1,
+                      check_in_date: "2025-01-15",
+                      check_out_date: "2025-01-20",
+                      guests: 3
                     }
                   }, null, 2)}
                 />
@@ -680,14 +771,25 @@ const APIDocumentation = () => {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h4 className="font-semibold text-blue-900 mb-2">Required Fields:</h4>
                 <ul className="list-disc list-inside text-sm text-blue-800 space-y-1">
-                  <li><code>property_id</code> - ID of the property</li>
-                  <li><code>room_type_id</code> - ID of the room type</li>
-                  <li><code>check_in_date</code> - Check-in date (YYYY-MM-DD)</li>
-                  <li><code>check_out_date</code> - Check-out date (YYYY-MM-DD)</li>
+                  <li><code>property_id</code> - ID of the property (from <code>/properties</code> endpoint)</li>
+                  <li><code>room_id</code> - ID of the room (from <code>/properties/:propertyId</code> or <code>/properties/:propertyId/availability</code>)</li>
+                  <li><code>check_in_date</code> - Check-in date in YYYY-MM-DD format</li>
+                  <li><code>check_out_date</code> - Check-out date in YYYY-MM-DD format</li>
                   <li><code>guest_name</code> - Guest full name</li>
                   <li><code>guest_email</code> - Guest email address</li>
                   <li><code>guest_phone</code> - Guest phone number</li>
                   <li><code>number_of_adults</code> - Number of adult guests</li>
+                </ul>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
+                <h4 className="font-semibold text-yellow-900 mb-2">⚠️ Important Notes:</h4>
+                <ul className="list-disc list-inside text-sm text-yellow-800 space-y-1">
+                  <li>Use <code>room_id</code> (not <code>room_type_id</code>) - this is the ID from the <code>stays_rooms</code> table</li>
+                  <li>The system validates that the room can accommodate the number of guests</li>
+                  <li>Availability is checked in real-time - if no rooms are available, the booking will fail</li>
+                  <li>Guest information is stored in the booking's <code>special_requests</code> field</li>
+                  <li><code>user_id</code> is optional - only include if the user is logged in</li>
                 </ul>
               </div>
             </div>
@@ -1263,14 +1365,16 @@ curl -X POST ${apiBase}/bookings/stays \\
   -H "Content-Type: application/json" \\
   -d '{
     "property_id": 1,
-    "room_type_id": 1,
-    "check_in_date": "2024-12-25",
-    "check_out_date": "2024-12-30",
+    "room_id": 1,
+    "check_in_date": "2025-01-15",
+    "check_out_date": "2025-01-20",
     "guest_name": "John Doe",
     "guest_email": "john@example.com",
     "guest_phone": "+250788123456",
     "number_of_adults": 2,
-    "number_of_children": 1
+    "number_of_children": 1,
+    "special_requests": "Late check-in please",
+    "payment_method": "card"
   }'
 
 # Process payment

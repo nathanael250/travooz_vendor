@@ -8,9 +8,11 @@ const tableBookingController = require('../controllers/restaurant/tableBooking.c
 
 // Client-facing discovery/browsing routes (public - no authentication required)
 // Properties (Stays)
+// IMPORTANT: More specific routes must come before parameterized routes
+router.get('/properties/available', clientDiscoveryController.getPropertiesWithAvailableRooms);
 router.get('/properties', clientDiscoveryController.getProperties);
-router.get('/properties/:propertyId', clientDiscoveryController.getPropertyById);
 router.get('/properties/:propertyId/availability', clientDiscoveryController.checkPropertyAvailability);
+router.get('/properties/:propertyId', clientDiscoveryController.getPropertyById);
 
 // Tours
 router.get('/tours', clientDiscoveryController.getTourPackages);

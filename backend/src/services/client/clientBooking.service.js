@@ -60,9 +60,11 @@ class ClientBookingService {
    */
   async createStayBooking(bookingData) {
     try {
+      console.log('📥 [createStayBooking] Received booking request:', bookingData);
+      
       const {
         property_id,
-        room_type_id,
+        room_id,  // Changed from room_type_id to room_id (using stays_rooms.room_id)
         check_in_date,
         check_out_date,
         guest_name,
@@ -71,26 +73,42 @@ class ClientBookingService {
         number_of_adults,
         number_of_children = 0,
         special_requests,
-        payment_method = 'card'
+        payment_method = 'card',
+        user_id = null  // Optional: if user is logged in
       } = bookingData;
 
       // Validate required fields
-      if (!property_id || !room_type_id || !check_in_date || !check_out_date || 
+      if (!property_id || !room_id || !check_in_date || !check_out_date || 
           !guest_name || !guest_email || !guest_phone || !number_of_adults) {
-        throw new Error('Missing required booking fields');
+        console.error('❌ [createStayBooking] Missing required fields');
+        throw new Error('Missing required booking fields: property_id, room_id, check_in_date, check_out_date, guest_name, guest_email, guest_phone, and number_of_adults are required');
       }
 
-      // Get room type details and pricing
-      const roomType = await executeQuery(
-        `SELECT * FROM room_types WHERE room_type_id = ?`,
-        [room_type_id]
+      // Get room details and pricing from stays_rooms table
+      const rooms = await executeQuery(
+        `SELECT * FROM stays_rooms WHERE room_id = ? AND property_id = ? AND room_status = 'active'`,
+        [room_id, property_id]
       );
 
-      if (!roomType || roomType.length === 0) {
-        throw new Error('Room type not found');
+      if (!rooms || rooms.length === 0) {
+        console.error(`❌ [createStayBooking] Room not found: room_id=${room_id}, property_id=${property_id}`);
+        throw new Error('Room not found or not available');
       }
 
-      const room = roomType[0];
+      const room = rooms[0];
+      console.log('✅ [createStayBooking] Room found:', {
+        room_id: room.room_id,
+        room_name: room.room_name,
+        base_rate: room.base_rate,
+        recommended_occupancy: room.recommended_occupancy,
+        number_of_rooms: room.number_of_rooms
+      });
+
+      // Validate guest count
+      const totalGuests = parseInt(number_of_adults) + parseInt(number_of_children || 0);
+      if (room.recommended_occupancy && totalGuests > room.recommended_occupancy) {
+        throw new Error(`Room can only accommodate ${room.recommended_occupancy} guests, but ${totalGuests} guests requested`);
+      }
 
       // Calculate number of nights
       const checkIn = new Date(check_in_date);
@@ -98,37 +116,58 @@ class ClientBookingService {
       const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
 
       if (nights <= 0) {
-        throw new Error('Invalid date range');
+        throw new Error('Invalid date range: check-out date must be after check-in date');
       }
 
-      // Check availability - join with bookings table to check status
+      console.log(`📅 [createStayBooking] Booking dates: ${check_in_date} to ${check_out_date} (${nights} nights)`);
+
+      // Check availability using stays_bookings table
+      // Count existing bookings for this room that overlap with requested dates
       const existingBookings = await executeQuery(
-        `SELECT COUNT(*) as count FROM room_bookings rb
-         JOIN bookings b ON rb.booking_id = b.booking_id
-         WHERE rb.room_type_id = ? 
-         AND b.status IN ('pending', 'confirmed')
-         AND ((rb.check_in_date < ? AND rb.check_out_date > ?) OR 
-              (rb.check_in_date < ? AND rb.check_out_date > ?))`,
-        [room_type_id, check_out_date, check_in_date, check_in_date, check_out_date]
+        `SELECT COUNT(*) as count FROM stays_bookings sb
+         WHERE sb.room_id = ? 
+         AND sb.status IN ('pending', 'confirmed')
+         AND sb.check_in_date < ? 
+         AND sb.check_out_date > ?`,
+        [room_id, check_out_date, check_in_date]
       );
 
-      const totalRooms = await executeQuery(
-        `SELECT COUNT(*) as count FROM rooms WHERE room_type_id = ? AND status = 'active'`,
-        [room_type_id]
-      );
+      const bookedCount = existingBookings[0].count || 0;
+      const totalRooms = room.number_of_rooms || 1;
+      const availableCount = totalRooms - bookedCount;
 
-      if (existingBookings[0].count >= totalRooms[0].count) {
+      console.log(`📊 [createStayBooking] Availability check:`, {
+        room_id,
+        total_rooms: totalRooms,
+        booked_count: bookedCount,
+        available_count: availableCount
+      });
+
+      if (availableCount <= 0) {
         throw new Error('Room not available for selected dates');
       }
 
       // Calculate total amount
-      const baseRate = parseFloat(room.room_price_per_night || room.base_rate || 0);
+      const baseRate = parseFloat(room.base_rate || 0);
+      if (baseRate === 0) {
+        console.warn(`⚠️ [createStayBooking] Warning: base_rate is 0 for room_id=${room_id}`);
+      }
+      
       const totalAmount = baseRate * nights;
+      console.log(`💰 [createStayBooking] Pricing:`, {
+        base_rate: baseRate,
+        nights: nights,
+        total_amount: totalAmount
+      });
 
       // Generate booking reference
       const bookingReference = `STAY-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
-      // Create booking
+      // Ensure bookings table exists
+      await this.ensureBookingsTable();
+
+      // Create booking in bookings table
+      // Note: Using 'room' to match existing database enum (not 'stay')
       const bookingResult = await executeQuery(
         `INSERT INTO bookings (
           service_type, total_amount, status, payment_status, 
@@ -138,17 +177,34 @@ class ClientBookingService {
       );
 
       const bookingId = bookingResult.insertId;
+      console.log(`✅ [createStayBooking] Created booking in bookings table: booking_id=${bookingId}`);
 
-      // Create room booking - use homestay_id for property_id
+      // Create stay booking in stays_bookings table
+      // Note: stays_bookings doesn't have guest_name, guest_email, guest_phone fields
+      // We'll store guest info in special_requests or a separate table if needed
+      // For now, we'll use the guests field for total guest count
       await executeQuery(
-        `INSERT INTO room_bookings (
-          booking_id, room_type_id, check_in_date, check_out_date,
-          number_of_adults, number_of_children, guest_name, guest_email, guest_phone,
-          homestay_id, guests, room_price_per_night, total_room_amount, nights
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [bookingId, room_type_id, check_in_date, check_out_date,
-         number_of_adults, number_of_children, guest_name, guest_email, guest_phone,
-         property_id, number_of_adults + number_of_children, baseRate, totalAmount, nights]
+        `INSERT INTO stays_bookings (
+          booking_id, property_id, room_id, user_id, check_in_date, check_out_date,
+          guests, total_amount, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [bookingId, property_id, room_id, user_id, check_in_date, check_out_date,
+         totalGuests, totalAmount, 'pending']
+      );
+
+      console.log(`✅ [createStayBooking] Created stay booking in stays_bookings table`);
+
+      // Store guest information in special_requests for now
+      // TODO: Create a separate guest_profiles or booking_guests table if needed
+      const guestInfo = `Guest: ${guest_name}, Email: ${guest_email}, Phone: ${guest_phone}, Adults: ${number_of_adults}, Children: ${number_of_children}`;
+      const fullSpecialRequests = special_requests 
+        ? `${special_requests}\n${guestInfo}` 
+        : guestInfo;
+
+      // Update booking with guest info in special_requests
+      await executeQuery(
+        `UPDATE bookings SET special_requests = ? WHERE booking_id = ?`,
+        [fullSpecialRequests, bookingId]
       );
 
       // Ensure payment_transactions table exists
@@ -162,6 +218,13 @@ class ClientBookingService {
         [bookingId, totalAmount, payment_method, 'pending']
       );
 
+      console.log(`✅ [createStayBooking] Booking created successfully:`, {
+        booking_id: bookingId,
+        booking_reference: bookingReference,
+        total_amount: totalAmount,
+        nights: nights
+      });
+
       return {
         booking_id: bookingId,
         booking_reference: bookingReference,
@@ -169,10 +232,15 @@ class ClientBookingService {
         nights: nights,
         transaction_id: transactionResult.insertId,
         status: 'pending',
-        payment_status: 'pending'
+        payment_status: 'pending',
+        room_id: room_id,
+        property_id: property_id,
+        check_in_date: check_in_date,
+        check_out_date: check_out_date,
+        guests: totalGuests
       };
     } catch (error) {
-      console.error('Error creating stay booking:', error);
+      console.error('❌ [createStayBooking] Error creating stay booking:', error);
       throw error;
     }
   }
@@ -671,13 +739,25 @@ class ClientBookingService {
   async getBookingByReference(bookingReference) {
     try {
       const bookings = await executeQuery(
-        `SELECT b.*, 
-         rb.check_in_date, rb.check_out_date, rb.guest_name, rb.guest_email, rb.guest_phone,
-         tb.tour_date, tb.number_of_participants, tb.customer_name as tour_customer_name,
-         rcb.reservation_start, rcb.reservation_end, rcb.guests as restaurant_guests,
-         crb.pickup_date, crb.dropoff_date as return_date, crb.pickup_location, crb.dropoff_location as return_location
+        `SELECT 
+          b.*,
+          sb.property_id as stay_property_id,
+          sb.room_id as stay_room_id,
+          sb.check_in_date, 
+          sb.check_out_date, 
+          sb.guests as stay_guests,
+          tb.tour_date, 
+          tb.number_of_participants, 
+          tb.customer_name as tour_customer_name,
+          rcb.reservation_start, 
+          rcb.reservation_end, 
+          rcb.guests as restaurant_guests,
+          crb.pickup_date, 
+          crb.dropoff_date as return_date, 
+          crb.pickup_location, 
+          crb.dropoff_location as return_location
          FROM bookings b
-         LEFT JOIN room_bookings rb ON b.booking_id = rb.booking_id
+         LEFT JOIN stays_bookings sb ON b.booking_id = sb.booking_id
          LEFT JOIN tours_bookings tb ON b.booking_id = tb.booking_id
          LEFT JOIN restaurant_capacity_bookings rcb ON b.booking_id = rcb.booking_id
          LEFT JOIN car_rental_bookings crb ON b.booking_id = crb.booking_id
@@ -689,7 +769,22 @@ class ClientBookingService {
         return null;
       }
 
-      return bookings[0];
+      const booking = bookings[0];
+      
+      // Parse guest info from special_requests if it's a stay booking
+      // Note: service_type is 'room' in the database for stays
+      if ((booking.service_type === 'stay' || booking.service_type === 'room' || booking.service_type === 'homestay') && booking.special_requests) {
+        const guestInfoMatch = booking.special_requests.match(/Guest: ([^,]+), Email: ([^,]+), Phone: ([^,]+), Adults: (\d+), Children: (\d+)/);
+        if (guestInfoMatch) {
+          booking.guest_name = guestInfoMatch[1];
+          booking.guest_email = guestInfoMatch[2];
+          booking.guest_phone = guestInfoMatch[3];
+          booking.number_of_adults = parseInt(guestInfoMatch[4]);
+          booking.number_of_children = parseInt(guestInfoMatch[5]);
+        }
+      }
+
+      return booking;
     } catch (error) {
       console.error('Error getting booking:', error);
       throw error;
