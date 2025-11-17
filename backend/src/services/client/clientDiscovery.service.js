@@ -419,22 +419,6 @@ class ClientDiscoveryService {
       tour.images = images && images.length > 0 ? images.map(img => img.photo_url) : [];
       console.log(`📸 Package ${tourId}: Found ${tour.images.length} images`);
 
-      // Get itinerary
-      try {
-        const itinerary = await executeQuery(
-          `SELECT * FROM tour_package_itinerary WHERE package_id = ? ORDER BY day_number`,
-          [tourId]
-        );
-        tour.itinerary = itinerary;
-      } catch (error) {
-        if (error.code === 'ER_NO_SUCH_TABLE') {
-          console.warn('tour_package_itinerary table not found, returning empty itinerary');
-          tour.itinerary = [];
-        } else {
-          throw error;
-        }
-      }
-
       return tour;
     } catch (error) {
       console.error('Error getting tour package:', error);
