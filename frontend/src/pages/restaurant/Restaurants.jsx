@@ -1,15 +1,52 @@
 import { useEffect, useState } from 'react';
 import { restaurantsAPI, imagesAPI } from '../../services/restaurantDashboardService';
-import { Plus, Edit, Trash2, Store, MapPin, Phone, Users, X, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Edit, Store, MapPin, Phone, Users, X, Image as ImageIcon, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
+import apiClient from '../../services/apiClient';
+
+// Get backend base URL for static assets (remove /api/v1 if present)
+const getBackendBaseURL = () => {
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+  // Remove /api/v1 to get the base server URL
+  return apiBase.replace(/\/api\/v1\/?$/, '');
+};
+
+// Helper function to normalize image URLs
+const normalizeImageUrl = (imageUrl) => {
+  if (!imageUrl) return null;
+  
+  // If already a full URL (http/https), return as is
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    return imageUrl;
+  }
+  
+  // If it's a data URL (base64), return as is
+  if (imageUrl.startsWith('data:')) {
+    return imageUrl;
+  }
+  
+  // For relative paths starting with /uploads, use relative path in development
+  // (so Vite proxy can handle it) or full URL in production
+  const cleanPath = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+  
+  // In development, use relative paths so Vite proxy handles CORS
+  // In production, use full backend URL
+  if (import.meta.env.DEV && cleanPath.startsWith('/uploads')) {
+    return cleanPath;
+  }
+  
+  // For production or non-upload paths, use full backend URL
+  const backendBase = getBackendBaseURL();
+  return `${backendBase}${cleanPath}`;
+};
 
 const Restaurants = () => {
-  const [restaurants, setRestaurants] = useState([]);
+  const [restaurant, setRestaurant] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
-  const [editingId, setEditingId] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -22,60 +59,87 @@ const Restaurants = () => {
     image_url: '',
   });
   const [imagePreviews, setImagePreviews] = useState([]);
-  const [currentImageIndex, setCurrentImageIndex] = useState({});
 
   useEffect(() => {
-    fetchRestaurants();
+    fetchRestaurant();
   }, []);
 
   // Auto-rotate images every 3 seconds
   useEffect(() => {
+    if (!restaurant?.images || restaurant.images.length <= 1) return;
+    
     const interval = setInterval(() => {
-      setCurrentImageIndex(prev => {
-        const updated = {};
-        restaurants.forEach(restaurant => {
-          if (restaurant.images && restaurant.images.length > 1) {
-            const currentIndex = prev[restaurant.id] || 0;
-            updated[restaurant.id] = (currentIndex + 1) % restaurant.images.length;
-          }
-        });
-        return { ...prev, ...updated };
-      });
+      setCurrentImageIndex(prev => (prev + 1) % restaurant.images.length);
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [restaurants]);
+  }, [restaurant?.images]);
 
-  const fetchRestaurants = async () => {
+  const fetchRestaurant = async () => {
     try {
-      const data = await restaurantsAPI.getAll();
+      setFetching(true);
+      const myRestaurant = await restaurantsAPI.getMyRestaurant();
       
-      // Fetch images for each restaurant
-      const restaurantsWithData = await Promise.all(
-        data.map(async (restaurant) => {
+      if (myRestaurant) {
+        // Images might already be included in the response from backend
+        let images = myRestaurant.images || [];
+        
+        // If no images in response, try fetching separately
+        if (!images || images.length === 0) {
           try {
-            const images = await imagesAPI.getByEntity('restaurant', restaurant.id);
-            return {
-              ...restaurant,
-              images: images.sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-            };
+            const fetchedImages = await imagesAPI.getByEntity('restaurant', myRestaurant.id);
+            images = Array.isArray(fetchedImages) ? fetchedImages : [];
+            console.log('Fetched images separately:', images);
           } catch (error) {
-            return {
-              ...restaurant,
-              images: []
-            };
+            console.error('Error fetching images:', error);
+            images = [];
           }
-        })
-      );
-      
-      // Sort by created_at descending
-      const sorted = restaurantsWithData.sort((a, b) => 
-        new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-      );
-      setRestaurants(sorted);
+        } else {
+          console.log('Images found in restaurant response:', images);
+        }
+        
+        // Sort images by display_order, filter out invalid URLs, and normalize URLs
+        const sortedImages = images
+          .filter(img => img && img.image_url && img.image_url.trim() !== '')
+          .map(img => ({
+            ...img,
+            image_url: normalizeImageUrl(img.image_url)
+          }))
+          .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+        
+        console.log('Final sorted images:', sortedImages);
+        console.log('Image URLs (normalized):', sortedImages.map(img => img.image_url));
+        console.log('Total images found:', images.length, 'Valid images:', sortedImages.length);
+        console.log('Backend base URL:', getBackendBaseURL());
+        
+        setRestaurant({
+          ...myRestaurant,
+          images: sortedImages
+        });
+        
+        // Set form data for editing
+        setFormData({
+          name: myRestaurant.name || '',
+          description: myRestaurant.description || '',
+          capacity: myRestaurant.capacity || 0,
+          available_seats: myRestaurant.available_seats || 0,
+          address: myRestaurant.address || '',
+          phone: myRestaurant.phone || '',
+          status: myRestaurant.status || 'active',
+          image_url: myRestaurant.image_url || '',
+        });
+        
+        // Load existing images for form (already normalized in sortedImages)
+        const existingImages = sortedImages.map(img => img.image_url).filter(url => url) || [];
+        setImagePreviews(existingImages);
+      } else {
+        setRestaurant(null);
+      }
     } catch (error) {
-      console.error('Error fetching restaurants:', error);
-      toast.error('Failed to fetch restaurants');
+      console.error('Error fetching restaurant:', error);
+      toast.error('Failed to fetch restaurant information');
+    } finally {
+      setFetching(false);
     }
   };
 
@@ -90,18 +154,8 @@ const Restaurants = () => {
         available_seats: formData.available_seats || formData.capacity,
       };
       
-      let restaurantId;
+      await restaurantsAPI.update(restaurant.id, restaurantData);
       
-      if (editingId) {
-        await restaurantsAPI.update(editingId, restaurantData);
-        restaurantId = editingId;
-        toast.success('Restaurant updated successfully');
-      } else {
-        const newRestaurant = await restaurantsAPI.create(restaurantData);
-        restaurantId = newRestaurant.id;
-        toast.success('Restaurant created successfully');
-      }
-
       // Save images if any
       if (imagePreviews.length > 0) {
         try {
@@ -111,76 +165,50 @@ const Restaurants = () => {
             is_primary: index === 0 ? true : false
           }));
           
-          await imagesAPI.add('restaurant', restaurantId, imagesToSave);
+          await imagesAPI.add('restaurant', restaurant.id, imagesToSave);
         } catch (imageError) {
           console.error('Error saving images:', imageError);
-          toast.error('Restaurant saved but some images may not have been saved');
+          toast.error('Restaurant updated but some images may not have been saved');
         }
       }
 
+      toast.success('Restaurant information updated successfully');
       setDialogOpen(false);
-      resetForm();
-      fetchRestaurants();
+      setIsEditing(false);
+      fetchRestaurant();
     } catch (error) {
-      console.error('Error saving restaurant:', error);
-      toast.error(error.message || 'Failed to save restaurant');
+      console.error('Error updating restaurant:', error);
+      toast.error(error.message || 'Failed to update restaurant');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEdit = (restaurant) => {
-    setEditingId(restaurant.id);
-    setFormData({
-      name: restaurant.name || '',
-      description: restaurant.description || '',
-      capacity: restaurant.capacity || 0,
-      available_seats: restaurant.available_seats || 0,
-      address: restaurant.address || '',
-      phone: restaurant.phone || '',
-      status: restaurant.status || 'active',
-      image_url: restaurant.image_url || '',
-    });
-    // Load existing images
-    const existingImages = restaurant.images?.map(img => img.image_url) || [];
-    setImagePreviews(existingImages);
+  const handleEdit = () => {
+    setIsEditing(true);
     setDialogOpen(true);
   };
 
-  const handleDeleteClick = (id) => {
-    setDeletingId(id);
-    setDeleteDialogOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!deletingId) return;
-
-    try {
-      await restaurantsAPI.delete(deletingId);
-      toast.success('Restaurant deleted successfully');
-      fetchRestaurants();
-    } catch (error) {
-      console.error('Error deleting restaurant:', error);
-      toast.error('Failed to delete restaurant');
-    } finally {
-      setDeleteDialogOpen(false);
-      setDeletingId(null);
+  const handleCancel = () => {
+    if (restaurant) {
+      setFormData({
+        name: restaurant.name || '',
+        description: restaurant.description || '',
+        capacity: restaurant.capacity || 0,
+        available_seats: restaurant.available_seats || 0,
+        address: restaurant.address || '',
+        phone: restaurant.phone || '',
+        status: restaurant.status || 'active',
+        image_url: restaurant.image_url || '',
+      });
+      // Normalize existing image URLs when loading for edit
+      const existingImages = (restaurant.images || [])
+        .map(img => normalizeImageUrl(img.image_url))
+        .filter(url => url) || [];
+      setImagePreviews(existingImages);
     }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      description: '',
-      capacity: 0,
-      available_seats: 0,
-      address: '',
-      phone: '',
-      status: 'active',
-      image_url: '',
-    });
-    setImagePreviews([]);
-    setEditingId(null);
+    setIsEditing(false);
+    setDialogOpen(false);
   };
 
   const handleImageChange = (e) => {
@@ -252,213 +280,253 @@ const Restaurants = () => {
     setImagePreviews(newPreviews);
   };
 
-  const getStatusBadge = (status) => {
-    if (status === 'active') {
-      return <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded">Active</span>;
-    }
-    return <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded">Inactive</span>;
+  const handleSeatsChange = (value) => {
+    const numValue = parseInt(value) || 0;
+    const maxSeats = formData.capacity || 0;
+    const newValue = Math.max(0, Math.min(numValue, maxSeats));
+    setFormData({ ...formData, available_seats: newValue });
   };
 
+  const handleSaveSeats = async () => {
+    if (!restaurant) return;
+    
+    if (formData.available_seats < 0 || formData.available_seats > formData.capacity) {
+      toast.error(`Seats must be between 0 and ${formData.capacity}`);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await restaurantsAPI.update(restaurant.id, { available_seats: formData.available_seats });
+      toast.success('Available seats updated successfully');
+      fetchRestaurant();
+    } catch (error) {
+      console.error('Error updating seats:', error);
+      toast.error('Failed to update available seats');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    if (status === 'active') {
+      return <span className="px-3 py-1 text-sm font-medium bg-green-100 text-green-700 rounded-full">Active</span>;
+    }
+    return <span className="px-3 py-1 text-sm font-medium bg-gray-100 text-gray-700 rounded-full">Inactive</span>;
+  };
+
+  if (fetching) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading restaurant information...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!restaurant) {
+    return (
+      <div className="p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+          <Store className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Restaurant Found</h2>
+          <p className="text-gray-600 mb-6">
+            You haven't set up your restaurant yet. Please contact support to create your restaurant profile.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Restaurants</h1>
-          <p className="text-sm text-gray-600 mt-1">Manage your restaurant locations</p>
+          <h1 className="text-2xl font-bold text-gray-900">My Restaurant</h1>
+          <p className="text-sm text-gray-600 mt-1">View and manage your restaurant information</p>
         </div>
         
         <button
-          onClick={() => {
-            resetForm();
-            setDialogOpen(true);
-          }}
+          onClick={handleEdit}
           className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
         >
-          <Plus className="w-4 h-4" />
-          Add Restaurant
+          <Edit className="w-4 h-4" />
+          Edit Restaurant
         </button>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="p-4 border-b border-gray-200">
-          <h2 className="text-base font-semibold text-gray-900">
-            Restaurant Locations ({restaurants.length})
-          </h2>
-        </div>
-        <div className="overflow-x-auto">
-          {restaurants.length > 0 ? (
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-600">Image</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-600">Restaurant Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-600">Description</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-600">Capacity</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-600">Available Seats</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-600">Address</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-600">Phone</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-600">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-600">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {restaurants.map((restaurant) => (
-                  <tr key={restaurant.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      {restaurant.images && restaurant.images.length > 0 ? (
-                        <div className="relative group">
-                          <div className="w-20 h-20 rounded-md border-2 border-gray-200 shadow-sm overflow-hidden bg-gray-100">
-                            <img
-                              key={restaurant.images[currentImageIndex[restaurant.id] || 0]?.id}
-                              src={restaurant.images[currentImageIndex[restaurant.id] || 0]?.image_url}
-                              alt={`${restaurant.name} ${(currentImageIndex[restaurant.id] || 0) + 1}`}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                              }}
-                            />
-                          </div>
-                          {restaurant.images.length > 1 && (
-                            <>
-                              <button
-                                className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-6 bg-white/80 hover:bg-white border border-gray-200 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const currentIndex = currentImageIndex[restaurant.id] || 0;
-                                  const newIndex = currentIndex === 0 ? restaurant.images.length - 1 : currentIndex - 1;
-                                  setCurrentImageIndex({ ...currentImageIndex, [restaurant.id]: newIndex });
-                                }}
-                              >
-                                <ChevronLeft className="h-3 w-3" />
-                              </button>
-                              <button
-                                className="absolute right-0 top-1/2 -translate-y-1/2 h-6 w-6 bg-white/80 hover:bg-white border border-gray-200 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const currentIndex = currentImageIndex[restaurant.id] || 0;
-                                  const newIndex = currentIndex === restaurant.images.length - 1 ? 0 : currentIndex + 1;
-                                  setCurrentImageIndex({ ...currentImageIndex, [restaurant.id]: newIndex });
-                                }}
-                              >
-                                <ChevronRight className="h-3 w-3" />
-                              </button>
-                              <div className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-white/80 px-1.5 py-0.5 rounded text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                                {(currentImageIndex[restaurant.id] || 0) + 1} / {restaurant.images.length}
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      ) : restaurant.image_url && restaurant.image_url.length > 100 && restaurant.image_url.startsWith('data:image') ? (
-                        <div className="w-20 h-20 rounded-md border-2 border-gray-200 shadow-sm overflow-hidden">
-                          <img
-                            src={restaurant.image_url}
-                            alt={restaurant.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-20 h-20 rounded-md border-2 border-gray-200 bg-gray-100 flex items-center justify-center">
-                          <ImageIcon className="h-5 w-5 text-gray-400" />
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{restaurant.name}</td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm text-gray-600">
-                        {restaurant.description || <span className="italic">No description</span>}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <Users className="h-3 w-3 text-gray-400" />
-                        <span className="font-medium">{restaurant.capacity || 0}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="px-2 py-1 text-xs font-medium border border-gray-300 rounded">
-                        {restaurant.available_seats || 0}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {restaurant.address ? (
-                        <div className="flex items-center gap-1 text-sm">
-                          <MapPin className="h-3 w-3 text-gray-400" />
-                          <span className="truncate max-w-[200px]" title={restaurant.address}>
-                            {restaurant.address}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-400 italic">No address</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {restaurant.phone ? (
-                        <div className="flex items-center gap-1 text-sm">
-                          <Phone className="h-3 w-3 text-gray-400" />
-                          {restaurant.phone}
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-400 italic">No phone</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {getStatusBadge(restaurant.status)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleEdit(restaurant)}
-                          className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4 text-gray-600" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteClick(restaurant.id)}
-                          className="p-1.5 hover:bg-red-50 rounded transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4 text-red-600" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <p className="text-sm text-gray-500 mb-4">
-                No restaurants yet. Add your first restaurant to get started!
-              </p>
-              <button
-                onClick={() => {
-                  resetForm();
-                  setDialogOpen(true);
-                }}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Add Restaurant
-              </button>
+      {/* Restaurant Information Card */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        {/* Image Section */}
+        {restaurant.images && restaurant.images.length > 0 && restaurant.images[currentImageIndex]?.image_url ? (
+          <div className="relative h-64 bg-gray-100">
+            <img
+              key={`${restaurant.images[currentImageIndex]?.id || currentImageIndex}-${restaurant.images[currentImageIndex]?.image_url}`}
+              src={restaurant.images[currentImageIndex]?.image_url}
+              alt={restaurant.name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                console.error('Image failed to load:', restaurant.images[currentImageIndex]?.image_url);
+                console.error('Current image index:', currentImageIndex);
+                console.error('All images:', restaurant.images);
+                // Try to show next image if available
+                if (restaurant.images.length > currentImageIndex + 1) {
+                  setCurrentImageIndex(currentImageIndex + 1);
+                } else if (currentImageIndex > 0) {
+                  setCurrentImageIndex(0);
+                } else {
+                  e.target.style.display = 'none';
+                }
+              }}
+              onLoad={() => {
+                console.log('Image loaded successfully:', restaurant.images[currentImageIndex]?.image_url);
+              }}
+            />
+            {restaurant.images.length > 1 && (
+              <>
+                <button
+                  className="absolute left-4 top-1/2 -translate-y-1/2 h-10 w-10 bg-white/80 hover:bg-white border border-gray-200 shadow-sm rounded-full flex items-center justify-center transition-opacity"
+                  onClick={() => {
+                    setCurrentImageIndex(prev => prev === 0 ? restaurant.images.length - 1 : prev - 1);
+                  }}
+                >
+                  <ChevronLeft className="h-5 w-5 text-gray-700" />
+                </button>
+                <button
+                  className="absolute right-4 top-1/2 -translate-y-1/2 h-10 w-10 bg-white/80 hover:bg-white border border-gray-200 shadow-sm rounded-full flex items-center justify-center transition-opacity"
+                  onClick={() => {
+                    setCurrentImageIndex(prev => (prev + 1) % restaurant.images.length);
+                  }}
+                >
+                  <ChevronRight className="h-5 w-5 text-gray-700" />
+                </button>
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/80 px-3 py-1 rounded-full text-sm font-medium">
+                  {currentImageIndex + 1} / {restaurant.images.length}
+                </div>
+              </>
+            )}
+          </div>
+        ) : restaurant.image_url && restaurant.image_url.length > 100 && restaurant.image_url.startsWith('data:image') ? (
+          <div className="h-64 bg-gray-100">
+            <img
+              src={restaurant.image_url}
+              alt={restaurant.name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.target.style.display = 'none';
+              }}
+            />
+          </div>
+        ) : (
+          <div className="h-64 bg-gray-100 flex items-center justify-center">
+            <div className="text-center">
+              <ImageIcon className="h-16 w-16 text-gray-400 mx-auto mb-2" />
+              <p className="text-sm text-gray-500">No image available</p>
             </div>
-          )}
+          </div>
+        )}
+
+        {/* Information Section */}
+        <div className="p-6 space-y-6">
+          {/* Name and Status */}
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">{restaurant.name}</h2>
+              {restaurant.description && (
+                <p className="text-gray-600">{restaurant.description}</p>
+              )}
+            </div>
+            {getStatusBadge(restaurant.status)}
+          </div>
+
+          {/* Details Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Capacity */}
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-gray-100 rounded-lg">
+                <Users className="h-5 w-5 text-gray-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Total Capacity</p>
+                <p className="text-lg font-semibold text-gray-900">{restaurant.capacity || 0} seats</p>
+              </div>
+            </div>
+
+            {/* Available Seats */}
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-green-100 rounded-lg">
+                <Users className="h-5 w-5 text-green-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-gray-500 mb-1">Available Seats</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max={restaurant.capacity || 0}
+                    value={formData.available_seats || 0}
+                    onChange={(e) => handleSeatsChange(e.target.value)}
+                    onBlur={handleSaveSeats}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSaveSeats();
+                      }
+                    }}
+                    className="w-24 px-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                    disabled={loading}
+                    title={`Available seats (max: ${restaurant.capacity || 0})`}
+                  />
+                  <button
+                    onClick={handleSaveSeats}
+                    disabled={loading}
+                    className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
+                    title="Save"
+                  >
+                    <Save className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Address */}
+            {restaurant.address && (
+              <div className="flex items-start gap-3">
+                <div className="p-3 bg-gray-100 rounded-lg">
+                  <MapPin className="h-5 w-5 text-gray-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Address</p>
+                  <p className="text-base text-gray-900">{restaurant.address}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Phone */}
+            {restaurant.phone && (
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-gray-100 rounded-lg">
+                  <Phone className="h-5 w-5 text-gray-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Phone</p>
+                  <p className="text-base font-medium text-gray-900">{restaurant.phone}</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Add/Edit Dialog */}
+      {/* Edit Dialog */}
       {dialogOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">
-                {editingId ? 'Edit Restaurant' : 'Add New Restaurant'}
-              </h2>
+              <h2 className="text-lg font-semibold text-gray-900">Edit Restaurant Information</h2>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -502,6 +570,10 @@ const Restaurants = () => {
                               src={preview}
                               alt={`Preview ${index + 1}`}
                               className="w-full h-32 object-cover rounded-md border border-gray-300"
+                              onError={(e) => {
+                                console.error('Preview image failed to load:', preview);
+                                e.target.style.display = 'none';
+                              }}
                             />
                             <button
                               type="button"
@@ -561,22 +633,20 @@ const Restaurants = () => {
                   />
                 </div>
 
-                {editingId && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Available Seats
-                    </label>
-                    <input
-                      type="number"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                      min="0"
-                      max={formData.capacity}
-                      placeholder="0"
-                      value={formData.available_seats}
-                      onChange={(e) => setFormData({ ...formData, available_seats: parseInt(e.target.value) || 0 })}
-                    />
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Available Seats
+                  </label>
+                  <input
+                    type="number"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    min="0"
+                    max={formData.capacity}
+                    placeholder="0"
+                    value={formData.available_seats}
+                    onChange={(e) => setFormData({ ...formData, available_seats: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -623,10 +693,7 @@ const Restaurants = () => {
                 <button
                   type="button"
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                  onClick={() => {
-                    setDialogOpen(false);
-                    resetForm();
-                  }}
+                  onClick={handleCancel}
                   disabled={loading}
                 >
                   Cancel
@@ -636,37 +703,10 @@ const Restaurants = () => {
                   className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50"
                   disabled={loading}
                 >
-                  {loading ? 'Saving...' : editingId ? 'Update Restaurant' : 'Create Restaurant'}
+                  {loading ? 'Saving...' : 'Update Restaurant'}
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Dialog */}
-      {deleteDialogOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Are you sure?</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              This action cannot be undone. This will permanently delete the restaurant
-              and all associated data.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setDeleteDialogOpen(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -675,4 +715,3 @@ const Restaurants = () => {
 };
 
 export default Restaurants;
-

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ordersAPI } from '../../services/restaurantDashboardService';
+import { ordersAPI, restaurantsAPI } from '../../services/restaurantDashboardService';
 import { format } from 'date-fns';
 import * as XLSX from "xlsx";
 import toast from 'react-hot-toast';
@@ -79,40 +79,129 @@ const Reports = () => {
         : "This Year";
       setDateRangeText(`${dateRangeLabel} - ${format(startDate, "MMM dd, yyyy")} to ${format(endDate, "MMM dd, yyyy")}`);
 
-      const allOrders = await ordersAPI.getAll();
+      // Get vendor's restaurant
+      const myRestaurant = await restaurantsAPI.getMyRestaurant();
+      if (!myRestaurant) {
+        toast.error('No restaurant found. Please complete your restaurant setup.');
+        setLoading(false);
+        return;
+      }
+
+      // Get all orders for the restaurant
+      const allOrders = await ordersAPI.getAll(myRestaurant.id);
       
-      const currentOrders = allOrders.filter(order => {
+      // Map backend response fields
+      const mappedOrders = allOrders.map(order => ({
+        ...order,
+        status: order.order_status || order.status,
+        items: order.items || []
+      }));
+      
+      // Debug: Log order statuses to see what we're working with
+      console.log('All orders:', mappedOrders.length);
+      console.log('Order statuses:', [...new Set(mappedOrders.map(o => o.status))]);
+      
+      // Filter orders by date (include all statuses for comprehensive reporting)
+      const currentOrdersAll = mappedOrders.filter(order => {
         const orderDate = new Date(order.created_at);
-        return orderDate >= startDate && 
-               orderDate <= endDate && 
-               order.status === "completed";
+        return orderDate >= startDate && orderDate <= endDate;
+      });
+      
+      // Filter for revenue calculation:
+      // - Orders that are delivered/ready (customer received food)
+      // - OR orders that are paid (payment received, even if not yet delivered)
+      const currentOrders = currentOrdersAll.filter(order => {
+        const isDeliveredOrReady = order.status === "delivered" || order.status === "ready";
+        const isPaid = order.payment_status === "paid";
+        return isDeliveredOrReady || isPaid;
+      });
+      
+      console.log('Current orders (all):', currentOrdersAll.length);
+      console.log('Current orders (for revenue):', currentOrders.length);
+      console.log('Order statuses found:', [...new Set(currentOrdersAll.map(o => o.status))]);
+      console.log('Payment statuses found:', [...new Set(currentOrdersAll.map(o => o.payment_status))]);
+      
+      // Debug: Check total_amount values
+      if (currentOrders.length > 0) {
+        console.log('Sample orders with total_amount:');
+        currentOrders.slice(0, 3).forEach((order, idx) => {
+          console.log(`Order ${idx + 1}:`, {
+            id: order.id,
+            total_amount: order.total_amount,
+            totalAmount: order.totalAmount,
+            total: order.total,
+            subtotal: order.subtotal,
+            delivery_fee: order.delivery_fee,
+            tax_amount: order.tax_amount,
+            discount_amount: order.discount_amount,
+            status: order.status,
+            payment_status: order.payment_status,
+            items_count: order.items?.length || 0
+          });
+        });
+      } else {
+        console.warn('No orders found for revenue calculation');
+      }
+
+      // Items are already included in the order response from backend
+      const currentOrdersWithItems = currentOrders.map(order => ({
+        ...order,
+        order_items: order.items || []
+      }));
+      
+      // For previous period comparison, also use all orders
+      const previousOrdersAll = mappedOrders.filter(order => {
+        const orderDate = new Date(order.created_at);
+        return orderDate >= previousStartDate && orderDate <= previousEndDate;
+      });
+      
+      const previousOrders = previousOrdersAll.filter(order => {
+        const isDeliveredOrReady = order.status === "delivered" || order.status === "ready";
+        const isPaid = order.payment_status === "paid";
+        return isDeliveredOrReady || isPaid;
       });
 
-      const currentOrdersWithItems = await Promise.all(
-        currentOrders.map(async (order) => {
-          try {
-            const items = await ordersAPI.getItems(order.id);
-            return { ...order, order_items: items };
-          } catch {
-            return { ...order, order_items: [] };
-          }
-        })
-      );
-
-      const previousOrders = allOrders.filter(order => {
-        const orderDate = new Date(order.created_at);
-        return orderDate >= previousStartDate && 
-               orderDate <= previousEndDate && 
-               order.status === "completed";
-      });
-
+      // Calculate revenue - handle null/undefined/0 values
       const currentRevenue = (currentOrdersWithItems || []).reduce(
-        (sum, order) => sum + Number(order.total_amount),
+        (sum, order) => {
+          // Try multiple field names and handle null/undefined
+          const totalAmount = order.total_amount || order.totalAmount || order.total || 0;
+          const amount = Number(totalAmount) || 0;
+          
+          // If total_amount is 0 or missing, try calculating from items
+          if (amount === 0 && order.items && order.items.length > 0) {
+            const calculatedTotal = order.items.reduce((itemSum, item) => {
+              const itemPrice = Number(item.unit_price || item.price || item.subtotal || 0);
+              const itemQuantity = Number(item.quantity || 1);
+              return itemSum + (itemPrice * itemQuantity);
+            }, 0);
+            
+            // Add delivery fee, tax, subtract discount if available
+            const deliveryFee = Number(order.delivery_fee || 0);
+            const taxAmount = Number(order.tax_amount || 0);
+            const discountAmount = Number(order.discount_amount || 0);
+            const calculatedWithFees = calculatedTotal + deliveryFee + taxAmount - discountAmount;
+            
+            console.log('Order has 0 total_amount, calculated:', {
+              orderId: order.id,
+              calculatedTotal,
+              calculatedWithFees,
+              items: order.items.length
+            });
+            
+            return sum + calculatedWithFees;
+          }
+          
+          return sum + amount;
+        },
         0
       );
 
       const previousRevenue = (previousOrders || []).reduce(
-        (sum, order) => sum + Number(order.total_amount),
+        (sum, order) => {
+          const totalAmount = order.total_amount || order.totalAmount || order.total || 0;
+          return sum + (Number(totalAmount) || 0);
+        },
         0
       );
 
@@ -120,21 +209,40 @@ const Reports = () => {
         ? ((currentRevenue - previousRevenue) / previousRevenue) * 100
         : currentRevenue > 0 ? 100 : 0;
 
-      const totalOrders = currentOrdersWithItems?.length || 0;
-      const averageOrder = totalOrders > 0 ? currentRevenue / totalOrders : 0;
+      // Debug: Log final revenue calculations
+      console.log('Revenue calculation summary:', {
+        currentRevenue,
+        previousRevenue,
+        salesGrowth: `${salesGrowth.toFixed(1)}%`,
+        ordersCount: currentOrdersWithItems.length,
+        previousOrdersCount: previousOrders.length
+      });
+
+      // Use all orders for count, but only paid/delivered/ready for revenue
+      const totalOrders = currentOrdersAll?.length || 0;
+      const revenueOrdersCount = currentOrdersWithItems?.length || 0;
+      const averageOrder = revenueOrdersCount > 0 ? currentRevenue / revenueOrdersCount : 0;
 
       const uniqueCustomers = new Set(
-        (currentOrdersWithItems || [])
+        (currentOrdersAll || [])
           .map((o) => o.customer_name)
           .filter((name) => name)
       );
 
+      // Use all orders for category analysis (not just completed)
+      const allCurrentOrdersWithItems = currentOrdersAll.map(order => ({
+        ...order,
+        order_items: order.items || []
+      }));
+      
       const categoryMap = new Map();
-      (currentOrdersWithItems || []).forEach((order) => {
-        (order.order_items || []).forEach((item) => {
-          const category = item.menu_items?.category || "Unknown";
-          const quantity = item.quantity || 0;
-          const revenue = (item.price || 0) * quantity;
+      (allCurrentOrdersWithItems || []).forEach((order) => {
+        (order.order_items || order.items || []).forEach((item) => {
+          // Category is now included in order items from backend
+          const category = item.category || "Unknown";
+          const quantity = parseInt(item.quantity || 0);
+          const unitPrice = parseFloat(item.unit_price || item.price || 0);
+          const revenue = unitPrice * quantity;
           const existing = categoryMap.get(category) || { quantity: 0, revenue: 0 };
           categoryMap.set(category, {
             quantity: existing.quantity + quantity,
@@ -150,7 +258,7 @@ const Reports = () => {
       const topCategory = categoryArray.length > 0 ? categoryArray[0].name : "N/A";
 
         const hourMap = new Map();
-      (currentOrdersWithItems || []).forEach((order) => {
+      (allCurrentOrdersWithItems || []).forEach((order) => {
         const hour = new Date(order.created_at).getHours();
         hourMap.set(hour, (hourMap.get(hour) || 0) + 1);
       });
@@ -172,11 +280,30 @@ const Reports = () => {
         : "N/A";
 
       const dailyRevenueMap = new Map();
+      // Only count revenue from completed/delivered orders
       (currentOrdersWithItems || []).forEach((order) => {
         const date = format(new Date(order.created_at), "MMM dd");
+        
+        // Use same calculation logic as total revenue
+        let orderRevenue = Number(order.total_amount || order.totalAmount || order.total || 0);
+        
+        // If total_amount is 0 or missing, calculate from items
+        if (orderRevenue === 0 && order.items && order.items.length > 0) {
+          const calculatedTotal = order.items.reduce((itemSum, item) => {
+            const itemPrice = Number(item.unit_price || item.price || item.subtotal || 0);
+            const itemQuantity = Number(item.quantity || 1);
+            return itemSum + (itemPrice * itemQuantity);
+          }, 0);
+          
+          const deliveryFee = Number(order.delivery_fee || 0);
+          const taxAmount = Number(order.tax_amount || 0);
+          const discountAmount = Number(order.discount_amount || 0);
+          orderRevenue = calculatedTotal + deliveryFee + taxAmount - discountAmount;
+        }
+        
         dailyRevenueMap.set(
           date,
-          (dailyRevenueMap.get(date) || 0) + Number(order.total_amount)
+          (dailyRevenueMap.get(date) || 0) + orderRevenue
         );
       });
 
@@ -192,12 +319,28 @@ const Reports = () => {
         totalRevenue: currentRevenue,
         totalOrders,
         totalCustomers: uniqueCustomers.size,
+        revenueOrdersCount, // Number of orders counted for revenue (paid/delivered/ready)
       });
 
       setCategoryData(categoryArray.slice(0, 6));
       setHourlyData(hourlyArray);
       setRevenueData(revenueArray);
     } catch (error) {
+      console.error('Error fetching reports data:', error);
+      toast.error('Failed to fetch reports data. Please try again.');
+      // Set default values on error
+      setStats({
+        salesGrowth: 0,
+        topCategory: "N/A",
+        averageOrder: 0,
+        peakHour: "N/A",
+        totalRevenue: 0,
+        totalOrders: 0,
+        totalCustomers: 0,
+      });
+      setCategoryData([]);
+      setHourlyData([]);
+      setRevenueData([]);
     } finally {
       setLoading(false);
     }
@@ -477,7 +620,7 @@ const Reports = () => {
                   frw {stats.totalRevenue.toLocaleString()}
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {stats.totalOrders} orders completed
+                  {stats.revenueOrdersCount || 0} orders (paid/delivered)
                 </p>
               </div>
             </div>
@@ -491,7 +634,7 @@ const Reports = () => {
                   {stats.totalOrders}
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Completed orders
+                  All orders
                 </p>
               </div>
             </div>

@@ -22,20 +22,32 @@ staysApiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Only redirect if we're NOT on a login page and NOT on a tour page
+      // Only redirect if we're NOT on a login page and NOT on other service pages
       const currentPath = window.location.pathname;
       const isLoginPage = currentPath.includes('/login') || currentPath.includes('/auth/');
       const isTourPage = currentPath.includes('/tours/');
+      const isRestaurantPage = currentPath.includes('/restaurant/');
+      const isCarRentalPage = currentPath.includes('/car-rental/');
       
-      // Don't redirect if we're on login pages or tour pages
-      if (!isLoginPage && !isTourPage) {
+      // CRITICAL: Only handle stays-related 401s, ignore 401s from other services
+      // Check if this is actually a stays API call
+      const isStaysApiCall = error.config?.url?.includes('/stays/') || 
+                            error.config?.baseURL?.includes('/stays/');
+      
+      // Don't redirect if we're on login pages or other service pages
+      // This prevents stays interceptor from interfering with other services
+      // Also only redirect if this is actually a stays API call
+      if (isStaysApiCall && !isLoginPage && !isTourPage && !isRestaurantPage && !isCarRentalPage) {
         localStorage.removeItem('stays_token');
         localStorage.removeItem('stays_user');
         window.location.href = '/stays/login';
       } else {
-        // Just clear tokens, don't redirect
-        localStorage.removeItem('stays_token');
-        localStorage.removeItem('stays_user');
+        // Just clear stays tokens, don't redirect
+        // This is not a stays API call or we're on another service's page
+        if (isStaysApiCall) {
+          localStorage.removeItem('stays_token');
+          localStorage.removeItem('stays_user');
+        }
       }
     }
     return Promise.reject(error);

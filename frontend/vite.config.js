@@ -7,7 +7,15 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 8080,
-    open: true
+    open: true,
+    proxy: {
+      // Proxy image requests to backend to avoid CORS issues
+      '/uploads': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   },
   resolve: {
     alias: {

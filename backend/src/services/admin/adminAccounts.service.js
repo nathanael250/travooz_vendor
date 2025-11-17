@@ -132,24 +132,24 @@ class AdminAccountsService {
                 try {
                     let restaurantQuery = `
                         SELECT 
-                            r.restaurant_id as account_id,
+                            r.id as account_id,
                             'restaurant' as service_type,
                             r.name as business_name,
                             r.address as location,
                             r.status,
                             r.created_at as submitted_at,
-                            p.full_name as owner_name,
-                            p.email as owner_email,
-                            p.phone as owner_phone,
+                            ru.name as owner_name,
+                            ru.email as owner_email,
+                            ru.phone as owner_phone,
                             r.status as submission_status
                         FROM restaurants r
-                        JOIN profiles p ON r.user_id = p.id
+                        LEFT JOIN restaurant_users ru ON CAST(r.user_id AS UNSIGNED) = ru.user_id
                         WHERE r.status = 'pending' OR r.status = 'pending_review'
                     `;
                     const restaurantParams = [];
 
                     if (search) {
-                        restaurantQuery += ' AND (r.name LIKE ? OR p.full_name LIKE ? OR p.email LIKE ?)';
+                        restaurantQuery += ' AND (r.name LIKE ? OR ru.name LIKE ? OR ru.email LIKE ?)';
                         const searchTerm = `%${search}%`;
                         restaurantParams.push(searchTerm, searchTerm, searchTerm);
                     }
@@ -160,6 +160,7 @@ class AdminAccountsService {
                 } catch (err) {
                     // Table might not exist or have different structure
                     console.log('Restaurant accounts query skipped:', err.message);
+                    console.error('Restaurant query error details:', err);
                 }
             }
 
@@ -338,13 +339,18 @@ class AdminAccountsService {
                     break;
 
                 case 'restaurant':
-                    // Update restaurant
-                    await executeQuery(
+                    // Update restaurant (id is UUID varchar(36))
+                    // Use pool.execute directly to ensure proper UUID handling
+                    const { pool } = require('../../../config/database');
+                    const [updateResult] = await pool.execute(
                         `UPDATE restaurants 
-                         SET status = 'approved', updated_at = NOW() 
-                         WHERE restaurant_id = ?`,
-                        [accountId]
+                         SET status = 'active', updated_at = NOW() 
+                         WHERE id = ?`,
+                        [String(accountId)]
                     );
+                    if (updateResult.affectedRows === 0) {
+                        throw new Error(`Restaurant with id ${accountId} not found or already updated`);
+                    }
                     break;
 
                 default:
@@ -433,13 +439,18 @@ class AdminAccountsService {
                     break;
 
                 case 'restaurant':
-                    // Update restaurant
-                    await executeQuery(
+                    // Update restaurant (id is UUID varchar(36))
+                    // Use pool.execute directly to ensure proper UUID handling
+                    const { pool: poolReject } = require('../../../config/database');
+                    const [rejectResult] = await poolReject.execute(
                         `UPDATE restaurants 
                          SET status = 'rejected', updated_at = NOW() 
-                         WHERE restaurant_id = ?`,
-                        [accountId]
+                         WHERE id = ?`,
+                        [String(accountId)]
                     );
+                    if (rejectResult.affectedRows === 0) {
+                        throw new Error(`Restaurant with id ${accountId} not found or already updated`);
+                    }
                     break;
 
                 default:

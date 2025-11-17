@@ -8,6 +8,42 @@ const fs = require('fs');
 
 const router = express.Router();
 
+/**
+ * Check if user exists in restaurant_users table
+ * POST /api/v1/restaurant/check-user
+ */
+router.post('/check-user', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
+    }
+    
+    const [users] = await pool.execute(
+      'SELECT user_id, email, name FROM restaurant_users WHERE email = ?',
+      [email]
+    );
+    
+    return res.json({
+      success: true,
+      exists: users.length > 0,
+      user: users.length > 0 ? users[0] : null
+    });
+  } catch (error) {
+    console.error('Error checking restaurant user:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to check user',
+      error: error.message
+    });
+  }
+});
+
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -77,30 +113,42 @@ router.post('/listing', async (req, res) => {
     // Create user account if not already logged in
     let userCreated = false;
     if (!userId && email && password) {
-      // Check if user already exists
-      const [existingUsers] = await pool.execute(
-        'SELECT * FROM profiles WHERE email = ?',
+      // First check if user exists in restaurant_users (new system)
+      const [existingRestaurantUsers] = await pool.execute(
+        'SELECT user_id, email, name FROM restaurant_users WHERE email = ?',
         [email]
       );
 
-      if (existingUsers.length > 0) {
-        userId = existingUsers[0].id;
+      if (existingRestaurantUsers.length > 0) {
+        // User exists in restaurant_users - use their INT user_id
+        userId = existingRestaurantUsers[0].user_id.toString();
       } else {
-        const bcrypt = await import('bcryptjs');
-        const jwt = await import('jsonwebtoken');
-        const hashedPassword = await bcrypt.default.hash(password, 10);
-        const fullName = [firstName || '', lastName || ''].filter(Boolean).join(' ').trim() || email.split('@')[0];
-        const newUserId = uuidv4();
-
-        // Insert into profiles table
-        await pool.execute(
-          `INSERT INTO profiles (id, email, password, full_name, role)
-           VALUES (?, ?, ?, ?, ?)`,
-          [newUserId, email, hashedPassword, fullName, 'vendor']
+        // Check profiles table for backward compatibility
+        const [existingProfiles] = await pool.execute(
+          'SELECT id FROM profiles WHERE email = ?',
+          [email]
         );
-        
-        userId = newUserId;
-        userCreated = true;
+
+        if (existingProfiles.length > 0) {
+          // User exists in profiles - use their UUID
+          userId = existingProfiles[0].id;
+        } else {
+          // Create new user in restaurant_users table (new system)
+          const bcrypt = await import('bcryptjs');
+          const hashedPassword = await bcrypt.default.hash(password, 10);
+          const fullName = [firstName || '', lastName || ''].filter(Boolean).join(' ').trim() || email.split('@')[0];
+
+          // Insert into restaurant_users table (INT user_id, AUTO_INCREMENT)
+          const [result] = await pool.execute(
+            `INSERT INTO restaurant_users (email, password_hash, name, phone, role, is_active)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [email, hashedPassword, fullName, userPhone || null, 'vendor', 1]
+          );
+          
+          // Get the AUTO_INCREMENT user_id
+          userId = result.insertId.toString();
+          userCreated = true;
+        }
       }
     }
 
@@ -719,37 +767,87 @@ router.post('/menu', authenticateToken, upload.any(), async (req, res) => {
 
     // Save menu items
     if (menuItemsData && Array.isArray(menuItemsData)) {
-      // Delete existing menu items
-      await pool.execute(
-        'DELETE FROM menu_items WHERE restaurant_id = ?',
+      // Get existing menu items to match against
+      const [existingItems] = await pool.execute(
+        'SELECT id, name FROM menu_items WHERE restaurant_id = ?',
         [restaurantId]
       );
+      
+      // Create a map of existing items by name for matching
+      const existingItemsMap = new Map();
+      existingItems.forEach(item => {
+        existingItemsMap.set(item.name.toLowerCase().trim(), item.id);
+      });
+      
+      // Track which items we're processing
+      const processedItemIds = new Set();
 
       for (const item of menuItemsData) {
-        const itemId = uuidv4();
         const categoryId = item.category ? categoryIdMap[item.category] : null;
         const imageUrl = menuItemImageMap[item.id || item.tempId] || item.photo || null;
+        const itemName = item.name.trim();
+        const itemNameLower = itemName.toLowerCase();
+        
+        // Check if item already exists (match by name)
+        const existingItemId = existingItemsMap.get(itemNameLower);
+        let itemId;
+        let isUpdate = false;
 
-        // Insert menu item
-        await pool.execute(
-          `INSERT INTO menu_items 
-           (id, restaurant_id, category_id, name, description, price, discount, availability, preparation_time, portion_size, image_url, available)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            itemId,
-            restaurantId,
-            categoryId,
-            item.name,
-            item.description || null,
-            item.price || 0,
-            item.discount || 0,
-            item.availability || 'available',
-            item.preparationTime || null,
-            item.portionSize || null,
-            imageUrl,
-            item.availability === 'available' ? 1 : 0
-          ]
-        );
+        if (existingItemId) {
+          // Update existing item
+          itemId = existingItemId;
+          isUpdate = true;
+          processedItemIds.add(itemId);
+          
+          await pool.execute(
+            `UPDATE menu_items SET
+             category_id = ?, name = ?, description = ?, price = ?, discount = ?, 
+             availability = ?, preparation_time = ?, portion_size = ?, 
+             image_url = ?, available = ?
+             WHERE id = ?`,
+            [
+              categoryId,
+              itemName,
+              item.description || null,
+              item.price || 0,
+              item.discount || 0,
+              item.availability || 'available',
+              item.preparationTime || null,
+              item.portionSize || null,
+              imageUrl || null,
+              item.availability === 'available' ? 1 : 0,
+              itemId
+            ]
+          );
+        } else {
+          // Insert new item
+          itemId = uuidv4();
+          isUpdate = false;
+          
+          await pool.execute(
+            `INSERT INTO menu_items 
+             (id, restaurant_id, category_id, name, description, price, discount, availability, preparation_time, portion_size, image_url, available)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              itemId,
+              restaurantId,
+              categoryId,
+              itemName,
+              item.description || null,
+              item.price || 0,
+              item.discount || 0,
+              item.availability || 'available',
+              item.preparationTime || null,
+              item.portionSize || null,
+              imageUrl,
+              item.availability === 'available' ? 1 : 0
+            ]
+          );
+        }
+
+        // Delete existing add-ons and customizations for this item, then re-insert
+        await pool.execute('DELETE FROM menu_item_addons WHERE menu_item_id = ?', [itemId]);
+        await pool.execute('DELETE FROM menu_item_customizations WHERE menu_item_id = ?', [itemId]);
 
         // Save add-ons
         if (item.addOns && Array.isArray(item.addOns)) {
@@ -780,6 +878,27 @@ router.post('/menu', authenticateToken, upload.any(), async (req, res) => {
             );
           }
         }
+      }
+      
+      // Mark items that weren't in the new list as unavailable (soft delete)
+      // This preserves order history while hiding them from the menu
+      if (processedItemIds.size > 0) {
+        const processedIdsArray = Array.from(processedItemIds);
+        const placeholders = processedIdsArray.map(() => '?').join(',');
+        await pool.execute(
+          `UPDATE menu_items 
+           SET available = 0, availability = 'out_of_stock'
+           WHERE restaurant_id = ? AND id NOT IN (${placeholders})`,
+          [restaurantId, ...processedIdsArray]
+        );
+      } else {
+        // If no items were processed, mark all as unavailable
+        await pool.execute(
+          `UPDATE menu_items 
+           SET available = 0, availability = 'out_of_stock'
+           WHERE restaurant_id = ?`,
+          [restaurantId]
+        );
       }
     }
 

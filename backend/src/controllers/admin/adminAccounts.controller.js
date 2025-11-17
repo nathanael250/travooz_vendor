@@ -54,9 +54,13 @@ class AdminAccountsController {
                 return sendUnauthorized(res, 'Admin ID not found in token');
             }
 
+            // For restaurants, accountId is UUID (varchar), not integer
+            // For other services (car_rental, tours, stays), accountId is integer
+            const parsedAccountId = serviceType === 'restaurant' ? accountId : parseInt(accountId);
+
             const result = await adminAccountsService.approveAccount(
                 serviceType,
-                parseInt(accountId),
+                parsedAccountId,
                 adminId,
                 notes
             );
@@ -82,9 +86,13 @@ class AdminAccountsController {
                 return sendUnauthorized(res, 'Admin ID not found in token');
             }
 
+            // For restaurants, accountId is UUID (varchar), not integer
+            // For other services (car_rental, tours, stays), accountId is integer
+            const parsedAccountId = serviceType === 'restaurant' ? accountId : parseInt(accountId);
+
             const result = await adminAccountsService.rejectAccount(
                 serviceType,
-                parseInt(accountId),
+                parsedAccountId,
                 adminId,
                 rejectionReason,
                 notes

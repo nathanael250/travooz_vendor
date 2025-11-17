@@ -10,9 +10,22 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const { status } = req.query;
     const userId = req.user.id || req.user.userId || req.user.user_id; // Get user ID from JWT token
+    const userType = req.user.userType || 'profile'; // 'restaurant_user' or 'profile'
     
-    let query = 'SELECT * FROM restaurants WHERE user_id = ?';
-    let params = [userId];
+    // For restaurant_users, user_id is INT. For profiles, it might be varchar
+    // Handle both cases by checking if userId matches either as string or int
+    let query = '';
+    let params = [];
+
+    if (userType === 'restaurant_user') {
+      // Restaurant user: user_id is INT, restaurants.user_id might be varchar or int
+      query = 'SELECT * FROM restaurants WHERE CAST(user_id AS UNSIGNED) = ?';
+      params = [userId];
+    } else {
+      // Profile user: user_id might be varchar or int
+      query = 'SELECT * FROM restaurants WHERE user_id = ? OR CAST(user_id AS UNSIGNED) = ?';
+      params = [String(userId), userId];
+    }
 
     if (status) {
       query += ' AND status = ?';
@@ -48,11 +61,24 @@ router.get('/', authenticateToken, async (req, res) => {
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id || req.user.userId || req.user.user_id; // Get user ID from JWT token
+    const userType = req.user.userType || 'profile'; // 'restaurant_user' or 'profile'
     
-    const [rows] = await pool.execute(
-      'SELECT * FROM restaurants WHERE id = ? AND user_id = ?',
-      [req.params.id, userId]
-    );
+    // For restaurant_users, user_id is INT. For profiles, it might be varchar
+    // Handle both cases
+    let query = '';
+    let params = [];
+
+    if (userType === 'restaurant_user') {
+      // Restaurant user: user_id is INT, restaurants.user_id might be varchar or int
+      query = 'SELECT * FROM restaurants WHERE id = ? AND CAST(user_id AS UNSIGNED) = ?';
+      params = [req.params.id, userId];
+    } else {
+      // Profile user: user_id might be varchar or int
+      query = 'SELECT * FROM restaurants WHERE id = ? AND (user_id = ? OR CAST(user_id AS UNSIGNED) = ?)';
+      params = [req.params.id, String(userId), userId];
+    }
+
+    const [rows] = await pool.execute(query, params);
 
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Restaurant not found' });

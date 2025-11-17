@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { menuItemsAPI, restaurantsAPI, imagesAPI } from '../../services/restaurantDashboardService';
-import { Plus, Edit, Trash2, Search, X, Image as ImageIcon, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, X, Image as ImageIcon, ChevronLeft, ChevronRight, Upload, Utensils } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const MenuItems = () => {
+  const navigate = useNavigate();
   const [menuItems, setMenuItems] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -53,18 +55,21 @@ const MenuItems = () => {
 
   const fetchRestaurants = async () => {
     try {
-      const data = await restaurantsAPI.getAll('active');
-      const sorted = data.sort((a, b) => a.name.localeCompare(b.name));
-      setRestaurants(sorted);
+      // Vendor has one restaurant - get it automatically
+      const myRestaurant = await restaurantsAPI.getMyRestaurant();
+      if (myRestaurant) {
+        setRestaurants([myRestaurant]);
+        setSelectedRestaurant(myRestaurant.id);
+      }
     } catch (error) {
-      toast.error('Failed to fetch restaurants');
+      toast.error('Failed to fetch restaurant');
     }
   };
 
   const fetchMenuItems = async () => {
     try {
-      const restaurantId = selectedRestaurant !== 'all' ? selectedRestaurant : undefined;
-      const data = await menuItemsAPI.getAll(restaurantId);
+      // No need to pass restaurant_id - API automatically uses vendor's restaurant
+      const data = await menuItemsAPI.getAll();
       
       const restaurantsData = await restaurantsAPI.getAll();
       const restaurantsMap = new Map(restaurantsData.map(r => [r.id, r.name]));
@@ -342,13 +347,22 @@ const MenuItems = () => {
           <p className="text-sm text-gray-600 mt-1">Dashboard &gt; All menu items</p>
         </div>
         
-        <button
-          onClick={() => setDialogOpen(true)}
-          className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-md flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Create new Item
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => navigate('/restaurant/menu-items/create')}
+            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-md flex items-center gap-2"
+          >
+            <Utensils className="w-4 h-4" />
+            Create Menu
+          </button>
+          <button
+            onClick={() => setDialogOpen(true)}
+            className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-md flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Create new Item
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

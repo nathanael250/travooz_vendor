@@ -5,38 +5,160 @@ const { authenticateToken } = require('../middlewares/auth.middleware');
 
 const router = express.Router();
 
-// Get all menu items
-router.get('/', authenticateToken, async (req, res) => {
+// Get menu categories for a restaurant (PUBLIC - no authentication required)
+// This endpoint can be called with restaurant_id query parameter for public access
+// Or without authentication for vendor's own restaurant
+router.get('/categories', async (req, res) => {
+  try {
+    const { restaurant_id } = req.query;
+    
+    // If restaurant_id is provided, fetch categories for that restaurant (public access)
+    if (restaurant_id) {
+      const [categoryRows] = await pool.execute(
+        'SELECT * FROM menu_categories WHERE restaurant_id = ? ORDER BY display_order ASC, name ASC',
+        [restaurant_id]
+      );
+      return res.json({ data: categoryRows });
+    }
+    
+    // If no restaurant_id and user is authenticated, fetch for vendor's restaurant
+    // Check if token exists (optional auth)
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const { authenticateToken } = require('../middlewares/auth.middleware');
+        // Use optional auth - if token is valid, get vendor's restaurant
+        const jwt = require('jsonwebtoken');
+        const token = authHeader.split(' ')[1];
+        const staysSecret = process.env.JWT_SECRET || 'stays-secret-key-change-in-production';
+        const mainBackendSecret = process.env.MAIN_BACKEND_JWT_SECRET || staysSecret;
+        
+        let decoded = null;
+        try {
+          decoded = jwt.verify(token, staysSecret);
+        } catch (staysError) {
+          if (mainBackendSecret !== staysSecret) {
+            try {
+              decoded = jwt.verify(token, mainBackendSecret);
+            } catch (mainError) {
+              // Token invalid, continue as public request
+            }
+          }
+        }
+        
+        if (decoded) {
+          const userId = decoded.id || decoded.userId || decoded.user_id;
+          const userType = decoded.userType || 'profile';
+          
+          // Get user's restaurant IDs
+          let restaurantQuery = '';
+          let restaurantParams = [];
+          
+          if (userType === 'restaurant_user') {
+            restaurantQuery = 'SELECT id FROM restaurants WHERE CAST(user_id AS UNSIGNED) = ?';
+            restaurantParams = [userId];
+          } else {
+            restaurantQuery = 'SELECT id FROM restaurants WHERE user_id = ? OR CAST(user_id AS UNSIGNED) = ?';
+            restaurantParams = [String(userId), userId];
+          }
+          
+          const [userRestaurants] = await pool.execute(restaurantQuery, restaurantParams);
+          
+          if (userRestaurants.length > 0) {
+            const restaurantId = userRestaurants[0].id;
+            const [categoryRows] = await pool.execute(
+              'SELECT * FROM menu_categories WHERE restaurant_id = ? ORDER BY display_order ASC, name ASC',
+              [restaurantId]
+            );
+            return res.json({ data: categoryRows });
+          }
+        }
+      } catch (error) {
+        // If auth fails, continue as public request (no restaurant_id provided)
+      }
+    }
+    
+    // No restaurant_id and no valid auth - return empty array
+    return res.json({ data: [] });
+  } catch (error) {
+    console.error('Error fetching menu categories:', error);
+    res.status(500).json({ error: 'Failed to fetch menu categories' });
+  }
+});
+
+// Get all menu items (PUBLIC - can be accessed by client web with restaurant_id)
+// If authenticated, can access vendor's own restaurant without restaurant_id
+router.get('/', async (req, res) => {
   try {
     const { restaurant_id, available } = req.query;
-    const userId = req.user.id || req.user.userId || req.user.user_id; // Get user ID from JWT token
     
-    // Get user's restaurant IDs first
-    const [userRestaurants] = await pool.execute(
-      'SELECT id FROM restaurants WHERE user_id = ?',
-      [userId]
-    );
-    const userRestaurantIds = userRestaurants.map(r => r.id);
+    let query = '';
+    let params = [];
     
-    if (userRestaurantIds.length === 0) {
-      return res.json([]); // User has no restaurants
-    }
-
-    let query = `
-      SELECT mi.* 
-      FROM menu_items mi
-      INNER JOIN restaurants r ON mi.restaurant_id = r.id
-      WHERE r.user_id = ?
-    `;
-    const params = [userId];
-
+    // If restaurant_id is provided, use it (public access for client web)
     if (restaurant_id) {
-      // Verify restaurant belongs to user
-      if (userRestaurantIds.includes(restaurant_id)) {
-        query += ' AND mi.restaurant_id = ?';
-        params.push(restaurant_id);
+      query = `SELECT mi.* FROM menu_items mi WHERE mi.restaurant_id = ?`;
+      params = [restaurant_id];
+    } else {
+      // If no restaurant_id, try to get from authenticated user (for vendor dashboard)
+      let userId = null;
+      let userType = 'profile';
+      
+      // Try to authenticate if token is provided (optional)
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const jwt = require('jsonwebtoken');
+          const token = authHeader.split(' ')[1];
+          const staysSecret = process.env.JWT_SECRET || 'stays-secret-key-change-in-production';
+          const mainBackendSecret = process.env.MAIN_BACKEND_JWT_SECRET || staysSecret;
+          
+          let decoded = null;
+          try {
+            decoded = jwt.verify(token, staysSecret);
+          } catch (staysError) {
+            if (mainBackendSecret !== staysSecret) {
+              try {
+                decoded = jwt.verify(token, mainBackendSecret);
+              } catch (mainError) {
+                // Token invalid, continue without auth
+              }
+            }
+          }
+          
+          if (decoded) {
+            userId = decoded.id || decoded.userId || decoded.user_id;
+            userType = decoded.userType || 'profile';
+          }
+        } catch (error) {
+          // Continue without authentication
+        }
+      }
+      
+      // If authenticated, get vendor's restaurant
+      if (userId) {
+        let restaurantQuery = '';
+        let restaurantParams = [];
+        
+        if (userType === 'restaurant_user') {
+          restaurantQuery = 'SELECT id FROM restaurants WHERE CAST(user_id AS UNSIGNED) = ?';
+          restaurantParams = [userId];
+        } else {
+          restaurantQuery = 'SELECT id FROM restaurants WHERE user_id = ? OR CAST(user_id AS UNSIGNED) = ?';
+          restaurantParams = [String(userId), userId];
+        }
+        
+        const [userRestaurants] = await pool.execute(restaurantQuery, restaurantParams);
+        
+        if (userRestaurants.length > 0) {
+          query = `SELECT mi.* FROM menu_items mi WHERE mi.restaurant_id = ?`;
+          params = [userRestaurants[0].id];
+        } else {
+          return res.json({ data: [] });
+        }
       } else {
-        return res.status(403).json({ error: 'Access denied to this restaurant' });
+        // No restaurant_id and not authenticated - return empty
+        return res.json({ data: [] });
       }
     }
     
@@ -47,33 +169,86 @@ router.get('/', authenticateToken, async (req, res) => {
 
     query += ' ORDER BY mi.created_at DESC';
 
+    console.log('Executing menu query:', query, params);
     const [rows] = await pool.execute(query, params);
+    console.log('Menu items found:', rows.length);
     
-    // Fetch images for each menu item
-    const menuItemsWithImages = await Promise.all(
+    // Fetch images, category, add-ons, and customizations for each menu item
+    const menuItemsWithDetails = await Promise.all(
       rows.map(async (item) => {
         try {
+          // Fetch images
           const [imageRows] = await pool.execute(
             'SELECT * FROM images WHERE entity_type = ? AND entity_id = ? ORDER BY is_primary DESC, display_order ASC',
             ['menu_item', item.id]
           );
+          
+          // Fetch category name
+          let categoryName = null;
+          if (item.category_id) {
+            try {
+              const [categoryRows] = await pool.execute(
+                'SELECT name FROM menu_categories WHERE id = ?',
+                [item.category_id]
+              );
+              if (categoryRows.length > 0) {
+                categoryName = categoryRows[0].name;
+              }
+            } catch (error) {
+              console.error('Error fetching category:', error);
+            }
+          }
+          
+          // Fetch add-ons
+          const [addonRows] = await pool.execute(
+            'SELECT * FROM menu_item_addons WHERE menu_item_id = ? ORDER BY display_order ASC',
+            [item.id]
+          );
+          
+          // Fetch customizations
+          const [customizationRows] = await pool.execute(
+            'SELECT * FROM menu_item_customizations WHERE menu_item_id = ? ORDER BY display_order ASC',
+            [item.id]
+          );
+          
+          // Parse customization options
+          const customizations = customizationRows.map(row => ({
+            name: row.name,
+            options: row.options ? JSON.parse(row.options) : []
+          }));
+          
           return {
             ...item,
-            images: imageRows
+            category: categoryName || item.category_id, // Use category name if available, fallback to ID
+            images: imageRows,
+            addOns: addonRows.map(addon => ({
+              name: addon.name,
+              price: parseFloat(addon.price) || 0
+            })),
+            customizations: customizations
           };
         } catch (error) {
+          console.error('Error fetching menu item details:', error);
           return {
             ...item,
-            images: []
+            category: item.category_id,
+            images: [],
+            addOns: [],
+            customizations: []
           };
         }
       })
     );
     
-    res.json(menuItemsWithImages);
+    res.json({ data: menuItemsWithDetails });
   } catch (error) {
     console.error('Error fetching menu items:', error);
-    res.status(500).json({ error: 'Failed to fetch menu items' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to fetch menu items',
+      message: error.message,
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+    });
   }
 });
 
@@ -81,14 +256,26 @@ router.get('/', authenticateToken, async (req, res) => {
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id || req.user.userId || req.user.user_id; // Get user ID from JWT token
+    const userType = req.user.userType || 'profile'; // 'restaurant_user' or 'profile'
     
-    const [rows] = await pool.execute(
-      `SELECT mi.* 
-       FROM menu_items mi
-       INNER JOIN restaurants r ON mi.restaurant_id = r.id
-       WHERE mi.id = ? AND r.user_id = ?`,
-      [req.params.id, userId]
-    );
+    let query = '';
+    let params = [];
+    
+    if (userType === 'restaurant_user') {
+      query = `SELECT mi.* 
+               FROM menu_items mi
+               INNER JOIN restaurants r ON mi.restaurant_id = r.id
+               WHERE mi.id = ? AND CAST(r.user_id AS UNSIGNED) = ?`;
+      params = [req.params.id, userId];
+    } else {
+      query = `SELECT mi.* 
+               FROM menu_items mi
+               INNER JOIN restaurants r ON mi.restaurant_id = r.id
+               WHERE mi.id = ? AND (r.user_id = ? OR CAST(r.user_id AS UNSIGNED) = ?)`;
+      params = [req.params.id, String(userId), userId];
+    }
+    
+    const [rows] = await pool.execute(query, params);
 
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Menu item not found' });
@@ -132,16 +319,25 @@ router.post('/', authenticateToken, async (req, res) => {
       available = true
     } = req.body;
     const userId = req.user.id || req.user.userId || req.user.user_id; // Get user ID from JWT token
+    const userType = req.user.userType || 'profile'; // 'restaurant_user' or 'profile'
 
     if (!restaurant_id || !name || !price || !category) {
       return res.status(400).json({ error: 'Restaurant ID, name, price, and category are required' });
     }
 
-    // Verify restaurant belongs to user
-    const [restaurantCheck] = await pool.execute(
-      'SELECT * FROM restaurants WHERE id = ? AND user_id = ?',
-      [restaurant_id, userId]
-    );
+    // Verify restaurant belongs to user - handle both INT and VARCHAR user_id
+    let restaurantQuery = '';
+    let restaurantParams = [];
+    
+    if (userType === 'restaurant_user') {
+      restaurantQuery = 'SELECT * FROM restaurants WHERE id = ? AND CAST(user_id AS UNSIGNED) = ?';
+      restaurantParams = [restaurant_id, userId];
+    } else {
+      restaurantQuery = 'SELECT * FROM restaurants WHERE id = ? AND (user_id = ? OR CAST(user_id AS UNSIGNED) = ?)';
+      restaurantParams = [restaurant_id, String(userId), userId];
+    }
+    
+    const [restaurantCheck] = await pool.execute(restaurantQuery, restaurantParams);
 
     if (restaurantCheck.length === 0) {
       return res.status(403).json({ error: 'Access denied. Restaurant not found or does not belong to you' });
@@ -180,15 +376,27 @@ router.put('/:id', authenticateToken, async (req, res) => {
       available
     } = req.body;
     const userId = req.user.id || req.user.userId || req.user.user_id; // Get user ID from JWT token
+    const userType = req.user.userType || 'profile'; // 'restaurant_user' or 'profile'
 
-    // First check if menu item belongs to user's restaurant
-    const [checkRows] = await pool.execute(
-      `SELECT mi.* 
-       FROM menu_items mi
-       INNER JOIN restaurants r ON mi.restaurant_id = r.id
-       WHERE mi.id = ? AND r.user_id = ?`,
-      [req.params.id, userId]
-    );
+    // First check if menu item belongs to user's restaurant - handle both INT and VARCHAR user_id
+    let checkQuery = '';
+    let checkParams = [];
+    
+    if (userType === 'restaurant_user') {
+      checkQuery = `SELECT mi.* 
+                    FROM menu_items mi
+                    INNER JOIN restaurants r ON mi.restaurant_id = r.id
+                    WHERE mi.id = ? AND CAST(r.user_id AS UNSIGNED) = ?`;
+      checkParams = [req.params.id, userId];
+    } else {
+      checkQuery = `SELECT mi.* 
+                    FROM menu_items mi
+                    INNER JOIN restaurants r ON mi.restaurant_id = r.id
+                    WHERE mi.id = ? AND (r.user_id = ? OR CAST(r.user_id AS UNSIGNED) = ?)`;
+      checkParams = [req.params.id, String(userId), userId];
+    }
+    
+    const [checkRows] = await pool.execute(checkQuery, checkParams);
 
     if (checkRows.length === 0) {
       return res.status(404).json({ error: 'Menu item not found or access denied' });
@@ -231,15 +439,27 @@ router.put('/:id', authenticateToken, async (req, res) => {
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id || req.user.userId || req.user.user_id; // Get user ID from JWT token
+    const userType = req.user.userType || 'profile'; // 'restaurant_user' or 'profile'
     
-    // First check if menu item belongs to user's restaurant
-    const [checkRows] = await pool.execute(
-      `SELECT mi.* 
-       FROM menu_items mi
-       INNER JOIN restaurants r ON mi.restaurant_id = r.id
-       WHERE mi.id = ? AND r.user_id = ?`,
-      [req.params.id, userId]
-    );
+    // First check if menu item belongs to user's restaurant - handle both INT and VARCHAR user_id
+    let checkQuery = '';
+    let checkParams = [];
+    
+    if (userType === 'restaurant_user') {
+      checkQuery = `SELECT mi.* 
+                    FROM menu_items mi
+                    INNER JOIN restaurants r ON mi.restaurant_id = r.id
+                    WHERE mi.id = ? AND CAST(r.user_id AS UNSIGNED) = ?`;
+      checkParams = [req.params.id, userId];
+    } else {
+      checkQuery = `SELECT mi.* 
+                    FROM menu_items mi
+                    INNER JOIN restaurants r ON mi.restaurant_id = r.id
+                    WHERE mi.id = ? AND (r.user_id = ? OR CAST(r.user_id AS UNSIGNED) = ?)`;
+      checkParams = [req.params.id, String(userId), userId];
+    }
+    
+    const [checkRows] = await pool.execute(checkQuery, checkParams);
 
     if (checkRows.length === 0) {
       return res.status(404).json({ error: 'Menu item not found or access denied' });
@@ -258,16 +478,25 @@ router.post('/import', authenticateToken, async (req, res) => {
   try {
     const { items } = req.body;
     const userId = req.user.id || req.user.userId || req.user.user_id; // Get user ID from JWT token
+    const userType = req.user.userType || 'profile'; // 'restaurant_user' or 'profile'
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Items array is required' });
     }
 
-    // Get user's restaurant IDs
-    const [userRestaurants] = await pool.execute(
-      'SELECT id FROM restaurants WHERE user_id = ?',
-      [userId]
-    );
+    // Get user's restaurant IDs - handle both INT and VARCHAR user_id
+    let restaurantQuery = '';
+    let restaurantParams = [];
+    
+    if (userType === 'restaurant_user') {
+      restaurantQuery = 'SELECT id FROM restaurants WHERE CAST(user_id AS UNSIGNED) = ?';
+      restaurantParams = [userId];
+    } else {
+      restaurantQuery = 'SELECT id FROM restaurants WHERE user_id = ? OR CAST(user_id AS UNSIGNED) = ?';
+      restaurantParams = [String(userId), userId];
+    }
+    
+    const [userRestaurants] = await pool.execute(restaurantQuery, restaurantParams);
     const userRestaurantIds = userRestaurants.map(r => r.id);
 
     const results = [];

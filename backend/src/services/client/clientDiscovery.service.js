@@ -500,64 +500,65 @@ class ClientDiscoveryService {
 
       let query = `
         SELECT 
-          r.restaurant_id,
-          r.restaurant_name as name,
+          r.id as restaurant_id,
+          r.name,
           r.description,
           r.address,
-          r.city,
-          r.country,
-          r.cuisine_type,
-          r.phone,
-          r.email,
+          r.latitude,
+          r.longitude,
+          r.restaurant_type as cuisine_type,
+          r.contact_number as phone,
+          r.phone as phone_alt,
+          r.email_address as email,
           r.status,
-          AVG(rev.rating) as average_rating
+          NULL as average_rating
         FROM restaurants r
-        LEFT JOIN reviews rev ON r.restaurant_id = rev.restaurant_id
-        WHERE r.status = 'active' AND r.is_approved = 1
+        WHERE r.status = 'active'
       `;
 
       const params = [];
 
       if (location) {
-        query += ` AND (r.city LIKE ? OR r.address LIKE ?)`;
+        query += ` AND r.address LIKE ?`;
         const locationParam = `%${location}%`;
-        params.push(locationParam, locationParam);
+        params.push(locationParam);
       }
 
       if (cuisine_type) {
-        query += ` AND r.cuisine_type = ?`;
+        query += ` AND r.restaurant_type = ?`;
         params.push(cuisine_type);
       }
 
       if (reservation_date && reservation_time) {
         // Check availability for specific date/time
-        query += ` AND r.restaurant_id NOT IN (
-          SELECT DISTINCT rcb.eating_out_id
-          FROM restaurant_capacity_bookings rcb
-          JOIN bookings b ON rcb.booking_id = b.booking_id
-          WHERE DATE(rcb.reservation_start) = ? 
-          AND TIME(rcb.reservation_start) = ?
-          AND b.status IN ('pending', 'confirmed')
+        // Note: This assumes restaurant_table_bookings table exists
+        query += ` AND r.id NOT IN (
+          SELECT DISTINCT rtb.restaurant_id
+          FROM restaurant_table_bookings rtb
+          JOIN bookings b ON rtb.booking_id = b.booking_id
+          WHERE DATE(rtb.booking_date) = ? 
+          AND TIME(rtb.booking_time) = ?
+          AND b.status IN ('pending', 'confirmed', 'active')
         )`;
         params.push(reservation_date, reservation_time);
       }
 
-      query += ` GROUP BY r.restaurant_id`;
+      // Note: Removed GROUP BY and HAVING for average_rating since reviews table doesn't exist
+      // If min_rating filter is needed in the future, implement reviews table first
+      // if (min_rating) {
+      //   query += ` HAVING average_rating >= ?`;
+      //   params.push(min_rating);
+      // }
 
-      if (min_rating) {
-        query += ` HAVING average_rating >= ?`;
-        params.push(min_rating);
-      }
-
-      query += ` ORDER BY average_rating DESC LIMIT ? OFFSET ?`;
+      query += ` ORDER BY r.name ASC LIMIT ? OFFSET ?`;
       params.push(limit, offset);
 
       const restaurants = await executeQuery(query, params);
 
-      // Get images for each restaurant
+      // Get images for each restaurant from images table
       for (const restaurant of restaurants) {
         const images = await executeQuery(
-          `SELECT image_url FROM restaurant_images WHERE restaurant_id = ? LIMIT 5`,
+          `SELECT image_url FROM images WHERE entity_type = 'restaurant' AND entity_id = ? ORDER BY display_order, is_primary DESC LIMIT 5`,
           [restaurant.restaurant_id]
         );
         restaurant.images = images.map(img => img.image_url);
@@ -576,7 +577,7 @@ class ClientDiscoveryService {
   async getRestaurantById(restaurantId) {
     try {
       const restaurants = await executeQuery(
-        `SELECT * FROM restaurants WHERE restaurant_id = ? AND status = 'active' AND is_approved = 1`,
+        `SELECT * FROM restaurants WHERE id = ? AND status = 'active'`,
         [restaurantId]
       );
 
@@ -585,17 +586,18 @@ class ClientDiscoveryService {
       }
 
       const restaurant = restaurants[0];
+      restaurant.restaurant_id = restaurant.id; // Add alias for compatibility
 
-      // Get images
+      // Get images from images table
       const images = await executeQuery(
-        `SELECT image_url FROM restaurant_images WHERE restaurant_id = ?`,
+        `SELECT image_url FROM images WHERE entity_type = 'restaurant' AND entity_id = ? ORDER BY display_order, is_primary DESC`,
         [restaurantId]
       );
       restaurant.images = images.map(img => img.image_url);
 
       // Get menu items
       const menuItems = await executeQuery(
-        `SELECT * FROM menu_items WHERE restaurant_id = ? AND status = 'active'`,
+        `SELECT * FROM menu_items WHERE restaurant_id = ? AND available = 1`,
         [restaurantId]
       );
       restaurant.menu = menuItems;

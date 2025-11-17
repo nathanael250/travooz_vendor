@@ -20,15 +20,14 @@ const formatDateInput = (date) => {
 };
 
 const Dashboard = () => {
+  const [restaurant, setRestaurant] = useState(null);
   const [stats, setStats] = useState({
     totalRevenue: 0,
     todayOrders: 0,
     totalOrders: 0,
-    activeRestaurants: 0,
   });
 
   const [orderStatusData, setOrderStatusData] = useState([]);
-  const [restaurantStats, setRestaurantStats] = useState([]);
   const [orderTypeData, setOrderTypeData] = useState([]);
   const [dateRange, setDateRange] = useState('today');
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -64,10 +63,18 @@ const Dashboard = () => {
         endDate.setHours(23, 59, 59, 999);
       }
 
-      const restaurants = await restaurantsAPI.getAll('active');
-      const restaurantsCount = restaurants.length;
+      // Get vendor's restaurant (one restaurant per vendor)
+      const myRestaurant = await restaurantsAPI.getMyRestaurant();
+      setRestaurant(myRestaurant);
 
-      const allOrders = await ordersAPI.getAll();
+      if (!myRestaurant) {
+        toast.error('No restaurant found. Please complete your restaurant setup.');
+        setLoading(false);
+        return;
+      }
+
+      // Get orders for vendor's restaurant
+      const allOrders = await ordersAPI.getAll(myRestaurant.id);
       const orders = allOrders.filter(order => {
         const orderDate = new Date(order.created_at);
         return orderDate >= startDate && orderDate <= endDate;
@@ -83,36 +90,15 @@ const Dashboard = () => {
 
       // Order status overview
       const statusCounts = {
-        available: restaurantsCount || 0,
-        occupied: orders?.filter((o) => o.status === 'confirmed' || o.status === 'pending').length || 0,
-        unavailable: orders?.filter((o) => o.status === 'cancelled').length || 0,
+        completed: orders?.filter((o) => o.status === 'completed').length || 0,
+        active: orders?.filter((o) => o.status === 'confirmed' || o.status === 'pending').length || 0,
+        cancelled: orders?.filter((o) => o.status === 'cancelled').length || 0,
       };
       setOrderStatusData([
-        { name: 'Available Restaurants', value: statusCounts.available, color: '#10b981' },
-        { name: 'Active Orders', value: statusCounts.occupied, color: '#f59e0b' },
-        { name: 'Cancelled Orders', value: statusCounts.unavailable, color: '#ef4444' },
+        { name: 'Completed Orders', value: statusCounts.completed, color: '#10b981' },
+        { name: 'Active Orders', value: statusCounts.active, color: '#f59e0b' },
+        { name: 'Cancelled Orders', value: statusCounts.cancelled, color: '#ef4444' },
       ]);
-
-      // Restaurant statistics
-      const restaurantStatsData = [];
-      for (const restaurant of restaurants) {
-        const restaurantOrders = orders.filter(order => 
-          order.restaurant_id === restaurant.id
-        );
-        
-        const available = Math.max(0, restaurant.available_seats || 0);
-        const sold = restaurantOrders?.filter((o) => o.status === 'completed').length || 0;
-        const outOfService = restaurantOrders?.filter((o) => o.status === 'cancelled').length || 0;
-        
-        restaurantStatsData.push({
-          type: restaurant.name,
-          available,
-          sold,
-          outOfService,
-          total: restaurant.capacity || 0,
-        });
-      }
-      setRestaurantStats(restaurantStatsData);
 
       // Order Type Chart Data - Last 7 days
       const orderTypeMap = new Map();
@@ -165,7 +151,6 @@ const Dashboard = () => {
         totalRevenue,
         todayOrders: todayOrders.length,
         totalOrders: orders?.length || 0,
-        activeRestaurants: restaurantsCount || 0,
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -176,10 +161,8 @@ const Dashboard = () => {
         totalRevenue: 0,
         todayOrders: 0,
         totalOrders: 0,
-        activeRestaurants: 0,
       });
       setOrderStatusData([]);
-      setRestaurantStats([]);
       setOrderTypeData([]);
     } finally {
       setLoading(false);
@@ -203,6 +186,9 @@ const Dashboard = () => {
       <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-gray-200">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Dashboard Overview</h1>
+          {restaurant && (
+            <p className="text-sm text-gray-600 mt-1">My Restaurant: {restaurant.name}</p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <select
@@ -258,11 +244,11 @@ const Dashboard = () => {
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-medium text-gray-600">RESTAURANTS</h3>
+            <h3 className="text-xs font-medium text-gray-600">MY RESTAURANT</h3>
             <Store className="h-4 w-4 text-green-500" />
           </div>
-          <div className="text-xl font-bold text-green-500">{stats.activeRestaurants}</div>
-          <p className="text-xs text-gray-500 mt-1">Active Locations</p>
+          <div className="text-xl font-bold text-green-500">{restaurant ? 'Active' : 'Not Set'}</div>
+          <p className="text-xs text-gray-500 mt-1">{restaurant?.name || 'Complete setup to get started'}</p>
         </div>
       </div>
 
@@ -289,44 +275,7 @@ const Dashboard = () => {
       </div>
 
       {/* Bottom Row */}
-      <div className="grid gap-3 lg:grid-cols-2">
-        {/* Restaurant Statistics Table */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Restaurant Statistics</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 px-2 text-xs font-medium text-gray-600">Restaurant</th>
-                  <th className="text-left py-2 px-2 text-xs font-medium text-gray-600">Available</th>
-                  <th className="text-left py-2 px-2 text-xs font-medium text-gray-600">Sold</th>
-                  <th className="text-left py-2 px-2 text-xs font-medium text-gray-600">Out of Service</th>
-                  <th className="text-left py-2 px-2 text-xs font-medium text-gray-600">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {restaurantStats.length > 0 ? (
-                  restaurantStats.map((stat, index) => (
-                    <tr key={index} className="border-b border-gray-100">
-                      <td className="py-2 px-2 text-xs font-medium text-gray-900">{stat.type}</td>
-                      <td className="py-2 px-2 text-xs text-gray-600">{stat.available}</td>
-                      <td className="py-2 px-2 text-xs text-gray-600">{stat.sold}</td>
-                      <td className="py-2 px-2 text-xs text-gray-600">{stat.outOfService}</td>
-                      <td className="py-2 px-2 text-xs text-gray-600">{stat.total}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5} className="text-center text-gray-500 text-xs py-4">
-                      No data available
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
+      <div className="grid gap-3 lg:grid-cols-1">
         {/* Order Type Chart */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <h2 className="text-sm font-semibold text-gray-900 mb-3">Order Type (Last 7 Days)</h2>

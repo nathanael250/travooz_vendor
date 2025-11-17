@@ -55,10 +55,9 @@ const POS = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    if (selectedRestaurant) {
-      fetchMenuItems(selectedRestaurant);
-    }
-  }, [selectedRestaurant]);
+    // Fetch menu items automatically (no restaurant selection needed)
+    fetchMenuItems();
+  }, []);
 
   useEffect(() => {
     if (searchQuery) {
@@ -75,27 +74,28 @@ const POS = () => {
 
   const fetchRestaurants = async () => {
     try {
-      const data = await restaurantsAPI.getAll("active");
-      const restaurantsData = data.map(r => ({
-        id: r.id,
-        name: r.name,
-        available_seats: r.available_seats
-      }));
-    setRestaurants(restaurantsData);
-    
-    if (restaurantsData.length === 1) {
-      setSelectedRestaurant(restaurantsData[0].id);
+      // Vendor has one restaurant - get it automatically
+      const myRestaurant = await restaurantsAPI.getMyRestaurant();
+      if (myRestaurant) {
+        const restaurantsData = [{
+          id: myRestaurant.id,
+          name: myRestaurant.name,
+          available_seats: myRestaurant.available_seats
+        }];
+        setRestaurants(restaurantsData);
+        setSelectedRestaurant(myRestaurant.id);
       }
     } catch (error) {
-      toast.error("Failed to fetch restaurants");
+      toast.error("Failed to fetch restaurant");
     }
   };
 
-  const fetchMenuItems = async (restaurantId) => {
+  const fetchMenuItems = async () => {
     try {
-      const data = await menuItemsAPI.getAll(restaurantId, true);
-    setMenuItems(data || []);
-    setFilteredMenuItems(data || []);
+      // No need to pass restaurant_id - API automatically uses vendor's restaurant
+      const data = await menuItemsAPI.getAll(true);
+      setMenuItems(data || []);
+      setFilteredMenuItems(data || []);
     } catch (error) {
       toast.error("Failed to fetch menu items");
     }

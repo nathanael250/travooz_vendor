@@ -19,11 +19,47 @@ export default function ListYourRestaurantStep3() {
   }, []);
 
   // Check if user is already logged in (from localStorage)
+  // IMPORTANT: For restaurant setup, we need to check if user exists in restaurant_users table
+  // Just having a session from tours/stays doesn't mean they have a restaurant account
   const [user, setUser] = useState(() => {
     const storedUser = localStorage.getItem('user');
     return storedUser ? JSON.parse(storedUser) : null;
   });
-  const isVendor = (user?.role || '').toLowerCase() === 'vendor';
+  
+  // Check if this is a restaurant-specific user
+  // We'll check this with the backend when the component loads
+  const [isRestaurantUser, setIsRestaurantUser] = useState(false);
+  const [checkingUser, setCheckingUser] = useState(true);
+  
+  // Check if user exists in restaurant_users table
+  useEffect(() => {
+    const checkRestaurantUser = async () => {
+      if (!user?.email) {
+        setCheckingUser(false);
+        return;
+      }
+      
+      try {
+        // Check if user exists in restaurant_users via backend
+        const response = await apiClient.post('/api/v1/restaurant/check-user', {
+          email: user.email
+        });
+        if (response.data?.exists) {
+          setIsRestaurantUser(true);
+        }
+      } catch (error) {
+        // User doesn't exist in restaurant_users, that's fine - they'll create one
+        setIsRestaurantUser(false);
+      } finally {
+        setCheckingUser(false);
+      }
+    };
+    
+    checkRestaurantUser();
+  }, [user]);
+  
+  // Only skip account creation if user is specifically a restaurant_user
+  const isVendor = isRestaurantUser && (user?.role || '').toLowerCase() === 'vendor';
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -362,11 +398,19 @@ export default function ListYourRestaurantStep3() {
               </button>
             </p>
 
-            {isVendor ? (
+            {checkingUser ? (
+              <div className="space-y-6">
+                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-sm text-gray-600 text-center">
+                    Checking account status...
+                  </p>
+                </div>
+              </div>
+            ) : isVendor && isRestaurantUser ? (
               <div className="space-y-6">
                 <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                   <p className="text-sm text-green-800">
-                    ✓ You are logged in as <strong>{user.name}</strong> ({user.email})
+                    ✓ You are logged in as restaurant vendor <strong>{user.name}</strong> ({user.email})
                   </p>
                 </div>
                 <div className="flex gap-4 pt-4">

@@ -1,0 +1,380 @@
+{
+	"info": {
+		"_postman_id": "fdf2eaed-25b4-454d-8f18-ebcb280ae87a",
+		"name": "DELIVERY BOY",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "28415169"
+	},
+	"item": [
+		{
+			"name": "GET DELIVERY BOYS",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://rwandaarts.com/admin/app/v1/api/get_delivery_boys?id&search&limit&offset&sort&order",
+					"protocol": "https",
+					"host": [
+						"rwandaarts",
+						"com"
+					],
+					"path": [
+						"admin",
+						"app",
+						"v1",
+						"api",
+						"get_delivery_boys"
+					],
+					"query": [
+						{
+							"key": "id",
+							"value": null
+						},
+						{
+							"key": "search",
+							"value": null
+						},
+						{
+							"key": "limit",
+							"value": null
+						},
+						{
+							"key": "offset",
+							"value": null
+						},
+						{
+							"key": "sort",
+							"value": null
+						},
+						{
+							"key": "order",
+							"value": null
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "ADD DELIVERY BOY",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NjI1MTk4NzQsImlzcyI6ImVzaG9wIiwiZXhwIjoxNzk0MDU1ODc0LCJ1c2VyX2lkIjoiOCJ9.JgINz8FZq43GsWGW6AoSyTK10LvNmUp3HupWmcpQeAY",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "name",
+							"value": "Delivery Boy",
+							"type": "text"
+						},
+						{
+							"key": "email",
+							"value": "testdeliveryboys@gmail.com",
+							"type": "text"
+						},
+						{
+							"key": "password",
+							"value": "testdeliveryboy@123",
+							"type": "text"
+						},
+						{
+							"key": "confirm_password",
+							"value": "testdeliveryboy@123",
+							"type": "text"
+						},
+						{
+							"key": "address",
+							"value": "Kigali, Rwanda",
+							"type": "text"
+						},
+						{
+							"key": "mobile",
+							"value": "0789101121",
+							"type": "text"
+						},
+						{
+							"key": "bonus_type",
+							"value": "fixed_amount_per_order",
+							"description": "fixed_amount_per_order / percentage_per_order",
+							"type": "text"
+						},
+						{
+							"key": "bonus_amount",
+							"value": "1000",
+							"description": "(if type fixed_amount_per_order ) ",
+							"type": "text"
+						},
+						{
+							"key": "bonus_percentage",
+							"value": "",
+							"description": "(if type percentage_per_order ) ",
+							"type": "text"
+						},
+						{
+							"key": "edit_delivery_boy",
+							"value": "",
+							"description": " (if wants to update)",
+							"type": "text",
+							"disabled": true
+						}
+					]
+				},
+				"url": {
+					"raw": "https://rwandaarts.com/admin/app/v1/api/add_delivery_boy",
+					"protocol": "https",
+					"host": [
+						"rwandaarts",
+						"com"
+					],
+					"path": [
+						"admin",
+						"app",
+						"v1",
+						"api",
+						"add_delivery_boy"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "ADMIN",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "mobile",
+							"value": "0781796824",
+							"type": "text"
+						},
+						{
+							"key": "password",
+							"value": "nathan@123",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://rwandaarts.com/admin/app/v1/api/login",
+					"protocol": "https",
+					"host": [
+						"rwandaarts",
+						"com"
+					],
+					"path": [
+						"admin",
+						"app",
+						"v1",
+						"api",
+						"login"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "DELETE DELIVERY BOY",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NjI1MTk4NzQsImlzcyI6ImVzaG9wIiwiZXhwIjoxNzk0MDU1ODc0LCJ1c2VyX2lkIjoiOCJ9.JgINz8FZq43GsWGW6AoSyTK10LvNmUp3HupWmcpQeAY",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "id",
+							"value": "10",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://rwandaarts.com/admin/app/v1/api/delete_delivery_boy",
+					"protocol": "https",
+					"host": [
+						"rwandaarts",
+						"com"
+					],
+					"path": [
+						"admin",
+						"app",
+						"v1",
+						"api",
+						"delete_delivery_boy"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "MANAGE DELIVERY BOY CASH COLLECTION",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NjI1MTk4NzQsImlzcyI6ImVzaG9wIiwiZXhwIjoxNzk0MDU1ODc0LCJ1c2VyX2lkIjoiOCJ9.JgINz8FZq43GsWGW6AoSyTK10LvNmUp3HupWmcpQeAY",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "delivery_boy_id",
+							"value": "4",
+							"type": "text"
+						},
+						{
+							"key": "amount",
+							"value": "1500",
+							"type": "text"
+						},
+						{
+							"key": "transaction_date",
+							"value": "2025-11-07T16:13",
+							"type": "text"
+						},
+						{
+							"key": "message",
+							"value": "We have increased your salary",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://rwandaarts.com/admin/app/v1/api/manage_delivery_boy_cash_collection",
+					"protocol": "https",
+					"host": [
+						"rwandaarts",
+						"com"
+					],
+					"path": [
+						"admin",
+						"app",
+						"v1",
+						"api",
+						"manage_delivery_boy_cash_collection"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GET DELIVERY BOY CASH COLLECTION",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NjI1MTk4NzQsImlzcyI6ImVzaG9wIiwiZXhwIjoxNzk0MDU1ODc0LCJ1c2VyX2lkIjoiOCJ9.JgINz8FZq43GsWGW6AoSyTK10LvNmUp3HupWmcpQeAY",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "delivery_boy_id",
+							"value": "4",
+							"description": "optional",
+							"type": "text"
+						},
+						{
+							"key": "status",
+							"value": "",
+							"description": "delivery_boy_cash (delivery boy collected) | delivery_boy_cash_collection (admin collected)",
+							"type": "text"
+						},
+						{
+							"key": "limit",
+							"value": "25",
+							"description": "default - 25  ( optional )",
+							"type": "text"
+						},
+						{
+							"key": "offset",
+							"value": "",
+							"description": "default - 0 ( optional )",
+							"type": "text"
+						},
+						{
+							"key": "sort",
+							"value": "",
+							"description": "id ( optional )",
+							"type": "text"
+						},
+						{
+							"key": "order",
+							"value": "",
+							"description": "default - DESC ( optional )",
+							"type": "text"
+						},
+						{
+							"key": "search",
+							"value": "",
+							"description": "optional",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://rwandaarts.com/admin/app/v1/api/get_delivery_boy_cash_collection",
+					"protocol": "https",
+					"host": [
+						"rwandaarts",
+						"com"
+					],
+					"path": [
+						"admin",
+						"app",
+						"v1",
+						"api",
+						"get_delivery_boy_cash_collection"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

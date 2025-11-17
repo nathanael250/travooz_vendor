@@ -1,371 +1,170 @@
 const APIDocs = () => {
   const apiEndpoints = [
     {
-      category: "Public API",
+      category: "Restaurant Orders API",
       endpoints: [
         {
-          method: "GET",
-          path: "/api/public/restaurants",
-          description: "Retrieve all active restaurants",
+          method: "POST",
+          path: "/api/v1/restaurant/orders",
+          description: "Create a new food order. Supports dine-in (with automatic table reservation), delivery, and pickup orders. Restaurant is auto-detected from vendor's JWT token.",
           request: {
-            query: {
-              status: "string (optional)"
+            body: {
+              order_type: "string (required) - 'dine_in', 'delivery', or 'pickup'",
+              customer_name: "string (required)",
+              customer_email: "string (optional)",
+              customer_phone: "string (required)",
+              "For dine_in orders": {
+                booking_date: "string (required) - YYYY-MM-DD",
+                booking_time: "string (required) - HH:MM",
+                number_of_guests: "number (optional, default: 1)",
+                table_booking_special_requests: "string (optional)"
+              },
+              "For delivery orders": {
+                delivery_address: "string (required)",
+                delivery_latitude: "number (optional)",
+                delivery_longitude: "number (optional)",
+                delivery_fee: "number (optional, default: 0)"
+              },
+              items: [
+                {
+                  menu_item_id: "string (required)",
+                  quantity: "number (required)",
+                  addons: ["array of addon IDs (optional)"],
+                  customizations: ["array of {name, value} objects (optional)"]
+                }
+              ],
+              tax_amount: "number (optional, default: 0)",
+              discount_amount: "number (optional, default: 0)",
+              payment_method: "string (optional) - 'card', 'cash', 'mobile_money', 'bank_transfer' (default: 'cash')",
+              special_instructions: "string (optional)"
             }
           },
           response: {
-            status: 200,
-            body: [
-              {
+            status: 201,
+            body: {
+              success: true,
+              message: "Order created successfully",
+              data: {
                 id: "string",
-                name: "string",
-                description: "string",
-                address: "string",
-                phone: "string",
-                images: []
+                restaurant_id: "string",
+                order_type: "string",
+                customer_name: "string",
+                order_status: "string",
+                payment_status: "string",
+                subtotal: "number",
+                total_amount: "number",
+                table_booking_id: "number (for dine_in orders)",
+                items: ["array of order items"],
+                created_at: "timestamp"
               }
-            ]
+            }
           }
         },
         {
           method: "GET",
-          path: "/api/public/restaurants/:id",
-          description: "Retrieve a specific restaurant by ID",
+          path: "/api/v1/restaurant/orders",
+          description: "Get all orders for the vendor's restaurant. Restaurant is auto-detected from vendor's JWT token.",
           request: {
-            params: {
-              id: "string (required)"
+            query: {
+              status: "string (optional) - Filter by order status: 'pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'cancelled'",
+              payment_status: "string (optional) - Filter by payment status: 'pending', 'paid', 'refunded'",
+              order_type: "string (optional) - Filter by order type: 'dine_in', 'delivery', 'pickup'",
+              limit: "number (optional, default: 50)",
+              offset: "number (optional, default: 0)"
             }
           },
           response: {
             status: 200,
             body: {
-              id: "string",
-              name: "string",
-              description: "string",
-              address: "string",
-              phone: "string",
-              images: []
+              success: true,
+              data: [
+                {
+                  id: "string",
+                  order_type: "string",
+                  customer_name: "string",
+                  order_status: "string",
+                  total_amount: "number",
+                  items: ["array of order items"]
+                }
+              ],
+              count: "number"
             }
           }
         },
         {
           method: "GET",
-          path: "/api/public/menu-items",
-          description: "Retrieve all menu items",
+          path: "/api/v1/restaurant/orders/:id",
+          description: "Get a specific order by ID with all details and items.",
           request: {
-            query: {
-              restaurant_id: "string (optional)",
-              available: "boolean (optional)",
-              category: "string (optional)"
+            params: {
+              id: "string (required) - Order ID"
             }
           },
           response: {
             status: 200,
-            body: [
-              {
+            body: {
+              success: true,
+              data: {
                 id: "string",
-                name: "string",
-                description: "string",
-                price: "number",
-                category: "string",
+                order_type: "string",
+                customer_name: "string",
+                order_status: "string",
+                items: ["array of order items with details"],
+                total_amount: "number"
+              }
+            }
+          }
+        },
+        {
+          method: "PATCH",
+          path: "/api/v1/restaurant/orders/:id/status",
+          description: "Update the status of an order. Valid statuses: 'pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery' (delivery only), 'delivered', 'cancelled'.",
+          request: {
+            params: {
+              id: "string (required) - Order ID"
+            },
+            body: {
+              status: "string (required) - New order status",
+              delivery_boy_id: "number (optional) - For delivery orders"
+            }
+          },
+          response: {
+            status: 200,
+            body: {
+              success: true,
+              message: "Order status updated successfully",
+              data: {
+                id: "string",
+                order_status: "string",
+                updated_at: "timestamp"
+              }
+            }
+          }
+        },
+        {
+          method: "GET",
+          path: "/api/v1/restaurant/orders/check-availability",
+          description: "Check table availability for a specific date, time, and number of guests. Restaurant is auto-detected from vendor's JWT token.",
+          request: {
+            query: {
+              booking_date: "string (required) - YYYY-MM-DD format",
+              booking_time: "string (required) - HH:MM format",
+              number_of_guests: "number (required)",
+              restaurant_id: "string (optional) - Auto-detected if not provided"
+            }
+          },
+          response: {
+            status: 200,
+            body: {
+              success: true,
+              data: {
                 available: "boolean",
-                images: []
+                total_capacity: "number",
+                available_seats: "number",
+                booked_guests: "number",
+                requested_guests: "number",
+                available_capacity: "number"
               }
-            ]
-          }
-        },
-        {
-          method: "GET",
-          path: "/api/public/menu-items/:id",
-          description: "Retrieve a specific menu item by ID",
-          request: {
-            params: {
-              id: "string (required)"
-            }
-          },
-          response: {
-            status: 200,
-            body: {
-              id: "string",
-              name: "string",
-              description: "string",
-              price: "number",
-              category: "string",
-              available: "boolean",
-              images : []
-            }
-          }
-        },
-        {
-          method: "GET",
-          path: "/api/public/orders",
-          description: "Retrieve all orders",
-          request: {
-            query: {
-              status: "string (optional)",
-              order_type: "string (optional)",
-              start_date: "string (optional)",
-              end_date: "string (optional)"
-            }
-          },
-          response: {
-            status: 200,
-            body: [
-              {
-                id: "string",
-                restaurant_id: "string",
-                order_type: "string",
-                customer_count: "number",
-                customer_name: "string",
-                customer_phone: "string",
-                customer_location: "string",
-                delivery_person: "string",
-                total_amount: "number",
-                status: "string",
-                created_at: "timestamp"
-              }
-            ]
-          }
-        },
-        {
-          method: "GET",
-          path: "/api/public/orders/:id",
-          description: "Retrieve a specific order by ID with items",
-          request: {
-            params: {
-              id: "string (required)"
-            }
-          },
-          response: {
-            status: 200,
-            body: {
-              id: "string",
-              restaurant_id: "string",
-              order_type: "string",
-              customer_count: "number",
-              customer_name: "string",
-              customer_phone: "string",
-              customer_location: "string",
-              delivery_person: "string",
-              total_amount: "number",
-              status: "string",
-              order_items : []
-            }
-          }
-        },
-        {
-          method: "GET",
-          path: "/api/public/delivery-persons",
-          description: "Retrieve all active delivery persons",
-          request: {
-            query: {
-              status: "string (optional)"
-            }
-          },
-          response: {
-            status: 200,
-            body: [
-              {
-                id: "string",
-                name: "string",
-                phone: "string",
-                email: "string",
-                status: "string"
-              }
-            ]
-          }
-        }
-      ]
-    },
-    {
-      category: "Authenticated API",
-      endpoints: [
-        {
-          method: "GET",
-          path: "/api/orders",
-          description: "Retrieve all orders for authenticated user's restaurants",
-          request: {
-            query: {}
-          },
-          response: {
-            status: 200,
-            body: [
-              {
-                id: "string",
-                restaurant_id: "string",
-                order_type: "string",
-                customer_count: "number",
-                customer_name: "string",
-                customer_phone: "string",
-                customer_location: "string",
-                delivery_person: "string",
-                total_amount: "number",
-                status: "string",
-                created_at: "timestamp"
-              }
-            ]
-          }
-        },
-        {
-          method: "POST",
-          path: "/api/orders",
-          description: "Create a new order",
-          request: {
-            body: {
-              restaurant_id: "string (required)",
-              order_type: "string (required)",
-              customer_count: "number (optional)",
-              customer_name: "string (optional)",
-              customer_phone: "string (optional)",
-              customer_location: "string (optional)",
-              delivery_person: "string (optional)",
-              total_amount: "number (required)",
-              status: "string (optional)",
-              items: "array (required)"
-            }
-          },
-          response: {
-            status: 201,
-            body: {
-              id: "string",
-              restaurant_id: "string",
-              order_type: "string",
-              total_amount: "number",
-              status: "string"
-            }
-          }
-        },
-        {
-          method: "PUT",
-          path: "/api/orders/:id",
-          description: "Update an existing order",
-          request: {
-            params: {
-              id: "string (required)"
-            },
-            body: {
-              customer_name: "string (optional)",
-              customer_phone: "string (optional)",
-              customer_location: "string (optional)",
-              customer_count: "number (optional)",
-              delivery_person: "string (optional)",
-              status: "string (optional)",
-              total_amount: "number (optional)"
-            }
-          },
-          response: {
-            status: 200,
-            body: {
-              id: "string",
-              status: "string",
-              updated_at: "timestamp"
-            }
-          }
-        },
-        {
-          method: "GET",
-          path: "/api/menu-items",
-          description: "Retrieve all menu items for authenticated user's restaurants",
-          request: {
-            query: {}
-          },
-          response: {
-            status: 200,
-            body: [
-              {
-                id: "string",
-                name: "string",
-                description: "string",
-                price: "number",
-                category: "string",
-                available: "boolean"
-              }
-            ]
-          }
-        },
-        {
-          method: "GET",
-          path: "/api/delivery-persons",
-          description: "Retrieve all delivery persons",
-          request: {
-            query: {
-              status: "string (optional)"
-            }
-          },
-          response: {
-            status: 200,
-            body: [
-              {
-                id: "string",
-                name: "string",
-                phone: "string",
-                email: "string",
-                status: "string"
-              }
-            ]
-          }
-        },
-        {
-          method: "POST",
-          path: "/api/delivery-persons",
-          description: "Create a new delivery person",
-          request: {
-            body: {
-              name: "string (required)",
-              phone: "string (optional)",
-              email: "string (optional)",
-              status: "string (optional)"
-            }
-          },
-          response: {
-            status: 201,
-            body: {
-              id: "string",
-              name: "string",
-              phone: "string",
-              email: "string",
-              status: "string"
-            }
-          }
-        },
-        {
-          method: "PUT",
-          path: "/api/delivery-persons/:id",
-          description: "Update a delivery person",
-          request: {
-            params: {
-              id: "string (required)"
-            },
-            body: {
-              name: "string (optional)",
-              phone: "string (optional)",
-              email: "string (optional)",
-              status: "string (optional)"
-            }
-          },
-          response: {
-            status: 200,
-            body: {
-              id: "string",
-              name: "string",
-              phone: "string",
-              email: "string",
-              status: "string"
-            }
-          }
-        },
-        {
-          method: "DELETE",
-          path: "/api/delivery-persons/:id",
-          description: "Delete a delivery person",
-          request: {
-            params: {
-              id: "string (required)"
-            }
-          },
-          response: {
-            status: 200,
-            body: {
-              message: "string"
             }
           }
         }

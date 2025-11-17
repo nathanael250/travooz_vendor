@@ -101,7 +101,7 @@ const APIDocumentation = () => {
             </a>
             <a href="#restaurants" className="flex items-center gap-2 text-blue-600 hover:text-blue-800">
               <UtensilsCrossed className="h-4 w-4" />
-              <span>Restaurant Reservations</span>
+              <span>Restaurant Orders</span>
             </a>
             <a href="#car-rentals" className="flex items-center gap-2 text-blue-600 hover:text-blue-800">
               <Car className="h-4 w-4" />
@@ -341,7 +341,7 @@ const APIDocumentation = () => {
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Search Restaurants</h3>
-              <p className="text-gray-600 mb-4">Search and filter restaurants by location, cuisine type, rating, and availability.</p>
+              <p className="text-gray-600 mb-4">Search and filter restaurants by location, cuisine type, rating, and availability. <strong>No authentication required.</strong></p>
               
               <div className="mb-4">
                 <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
@@ -369,23 +369,171 @@ const APIDocumentation = () => {
 
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Get Restaurant Details</h3>
-              <p className="text-gray-600 mb-4">Get detailed information including menu and capacity.</p>
+              <p className="text-gray-600 mb-4">Get detailed information including menu, images, and capacity. <strong>No authentication required.</strong></p>
               
               <div className="mb-4">
                 <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
                   GET {apiBase}/restaurants/:restaurantId
                 </span>
               </div>
+
+              <div className="mb-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Response (200 OK):</h4>
+                <CodeBlock
+                  id="restaurant-details-response"
+                  code={JSON.stringify({
+                    success: true,
+                    message: "Restaurant retrieved successfully",
+                    data: {
+                      id: "restaurant-uuid",
+                      name: "Luxury Restaurant",
+                      description: "A fine dining experience...",
+                      address: "123 Main St, Kigali",
+                      cuisine_type: "Italian",
+                      rating: 4.5,
+                      images: ["url1", "url2"],
+                      menu: [
+                        {
+                          id: "menu-item-uuid",
+                          name: "Pizza Margherita",
+                          description: "Classic Italian pizza",
+                          price: 7500,
+                          category_id: "category-uuid",
+                          available: 1
+                        }
+                      ],
+                      capacity: {
+                        total_seats: 50,
+                        available_seats: 30
+                      }
+                    }
+                  }, null, 2)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Get Restaurant Menu Categories</h3>
+              <p className="text-gray-600 mb-4">Get all menu categories for a restaurant. <strong>No authentication required.</strong></p>
+              
+              <div className="mb-4">
+                <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                  GET {baseUrl}/restaurant/menu/categories?restaurant_id=restaurant-uuid
+                </span>
+              </div>
+
+              <div className="mb-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Query Parameters:</h4>
+                <ul className="list-disc list-inside text-sm text-gray-700 space-y-1 mb-2">
+                  <li><code>restaurant_id</code> (required) - The restaurant ID</li>
+                </ul>
+              </div>
+
+              <div className="mb-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Response (200 OK):</h4>
+                <CodeBlock
+                  id="menu-categories-response"
+                  code={JSON.stringify({
+                    data: [
+                      {
+                        id: "category-uuid",
+                        restaurant_id: "restaurant-uuid",
+                        name: "Appetizers",
+                        display_order: 1
+                      },
+                      {
+                        id: "category-uuid-2",
+                        restaurant_id: "restaurant-uuid",
+                        name: "Main Courses",
+                        display_order: 2
+                      }
+                    ]
+                  }, null, 2)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Get Restaurant Menu Items</h3>
+              <p className="text-gray-600 mb-4">Get all menu items for a restaurant. <strong>No authentication required.</strong></p>
+              
+              <div className="mb-4">
+                <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                  GET {baseUrl}/restaurant/menu?restaurant_id=restaurant-uuid&available=1
+                </span>
+              </div>
+
+              <div className="mb-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Query Parameters:</h4>
+                <ul className="list-disc list-inside text-sm text-gray-700 space-y-1 mb-2">
+                  <li><code>restaurant_id</code> (required) - The restaurant ID</li>
+                  <li><code>available</code> (optional) - Filter by availability (1 for available, 0 for all)</li>
+                </ul>
+              </div>
+
+              <div className="mb-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Response (200 OK):</h4>
+                <CodeBlock
+                  id="menu-items-response"
+                  code={JSON.stringify({
+                    data: [
+                      {
+                        id: "menu-item-uuid",
+                        restaurant_id: "restaurant-uuid",
+                        category_id: "category-uuid",
+                        name: "Pizza Margherita",
+                        description: "Classic Italian pizza with tomato and mozzarella",
+                        price: 7500,
+                        discount: 0,
+                        availability: "available",
+                        preparation_time: 20,
+                        portion_size: "Large",
+                        image_url: "https://example.com/pizza.jpg",
+                        available: 1
+                      }
+                    ]
+                  }, null, 2)}
+                />
+              </div>
             </div>
 
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Check Table Availability</h3>
-              <p className="text-gray-600 mb-4">Check table availability for a specific date and time.</p>
+              <p className="text-gray-600 mb-4">Check table availability for a specific date and time. <strong>No authentication required.</strong></p>
               
               <div className="mb-4">
                 <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
                   GET {apiBase}/restaurants/:restaurantId/availability?reservation_date=2024-12-25&reservation_time=19:00&guests=4
                 </span>
+              </div>
+
+              <div className="mb-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Query Parameters:</h4>
+                <ul className="list-disc list-inside text-sm text-gray-700 space-y-1 mb-2">
+                  <li><code>reservation_date</code> (required) - Date in YYYY-MM-DD format</li>
+                  <li><code>reservation_time</code> (required) - Time in HH:MM format</li>
+                  <li><code>guests</code> (required) - Number of guests</li>
+                </ul>
+              </div>
+
+              <div className="mb-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Response (200 OK):</h4>
+                <CodeBlock
+                  id="table-availability-response"
+                  code={JSON.stringify({
+                    success: true,
+                    message: "Availability checked successfully",
+                    data: {
+                      available: true,
+                      available_seats: 20,
+                      total_seats: 50,
+                      capacity: {
+                        total_seats: 50,
+                        available_seats: 20
+                      }
+                    }
+                  }, null, 2)}
+                />
               </div>
             </div>
           </div>
@@ -616,37 +764,100 @@ const APIDocumentation = () => {
           </div>
         </section>
 
-        {/* Restaurant Reservations */}
+        {/* Restaurant Orders */}
         <section id="restaurants" className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-8">
           <div className="flex items-center gap-3 mb-6">
             <UtensilsCrossed className="h-8 w-8 text-[#3CAF54]" />
-            <h2 className="text-2xl font-bold text-gray-900">Restaurant Reservations</h2>
+            <h2 className="text-2xl font-bold text-gray-900">Restaurant Orders</h2>
           </div>
 
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Create Table Reservation</h3>
-              <p className="text-gray-600 mb-4">Reserve a table at a restaurant for a specific date and time.</p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Create Food Order</h3>
+              <p className="text-gray-600 mb-4">Order food from a restaurant. Supports three order types: <strong>dine_in</strong> (with automatic table reservation), <strong>delivery</strong>, and <strong>pickup</strong>. For dine-in orders, a table is automatically reserved when you place your order.</p>
               
               <div className="mb-4">
                 <span className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                  POST {apiBase}/bookings/restaurants
+                  POST {apiBase}/orders/restaurants
                 </span>
               </div>
 
               <div className="mb-4">
-                <h4 className="font-semibold text-gray-900 mb-2">Request Body:</h4>
+                <h4 className="font-semibold text-gray-900 mb-2">Request Body (Dine-In Order):</h4>
                 <CodeBlock
-                  id="restaurant-request"
+                  id="restaurant-dinein-request"
                   code={JSON.stringify({
-                    restaurant_id: 1,
-                    reservation_date: "2024-12-25",
-                    reservation_time: "19:00",
+                    restaurant_id: "restaurant-uuid",
+                    order_type: "dine_in",
+                    customer_name: "John Doe",
+                    customer_email: "john@example.com",
+                    customer_phone: "+250788123456",
+                    booking_date: "2024-12-25",
+                    booking_time: "19:00",
                     number_of_guests: 4,
+                    table_booking_special_requests: "Window seat preferred",
+                    items: [
+                      {
+                        menu_item_id: "menu-item-uuid",
+                        quantity: 2,
+                        addons: ["addon-id-1", "addon-id-2"],
+                        customizations: [
+                          { name: "Spice Level", value: "Medium" }
+                        ]
+                      }
+                    ],
+                    tax_amount: 0,
+                    discount_amount: 0,
+                    payment_method: "card",
+                    special_instructions: "No onions please"
+                  }, null, 2)}
+                />
+              </div>
+
+              <div className="mb-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Request Body (Delivery Order):</h4>
+                <CodeBlock
+                  id="restaurant-delivery-request"
+                  code={JSON.stringify({
+                    restaurant_id: "restaurant-uuid",
+                    order_type: "delivery",
+                    customer_name: "Jane Smith",
+                    customer_email: "jane@example.com",
+                    customer_phone: "+250788654321",
+                    delivery_address: "123 Main Street, Kigali",
+                    delivery_latitude: -1.9441,
+                    delivery_longitude: 30.0619,
+                    items: [
+                      {
+                        menu_item_id: "menu-item-uuid",
+                        quantity: 1,
+                        addons: []
+                      }
+                    ],
+                    delivery_fee: 2000,
+                    tax_amount: 0,
+                    discount_amount: 0,
+                    payment_method: "mobile_money",
+                    special_instructions: "Ring doorbell twice"
+                  }, null, 2)}
+                />
+              </div>
+
+              <div className="mb-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Request Body (Pickup Order):</h4>
+                <CodeBlock
+                  id="restaurant-pickup-request"
+                  code={JSON.stringify({
+                    restaurant_id: "restaurant-uuid",
+                    order_type: "pickup",
                     customer_name: "Bob Johnson",
-                    customer_email: "bob@example.com",
-                    customer_phone: "+250788987654",
-                    special_requests: "Window seat preferred",
+                    customer_phone: "+250788999888",
+                    items: [
+                      {
+                        menu_item_id: "menu-item-uuid",
+                        quantity: 3
+                      }
+                    ],
                     payment_method: "card"
                   }, null, 2)}
                 />
@@ -658,15 +869,28 @@ const APIDocumentation = () => {
                   id="restaurant-response"
                   code={JSON.stringify({
                     success: true,
-                    message: "Reservation created successfully",
+                    message: "Order created successfully",
                     data: {
-                      booking_id: 125,
-                      booking_reference: "REST-1234567890-GHI789RST",
-                      total_amount: 0,
-                      number_of_guests: 4,
-                      transaction_id: null,
-                      status: "pending",
-                      payment_status: "pending"
+                      id: "order-uuid",
+                      restaurant_id: "restaurant-uuid",
+                      order_type: "dine_in",
+                      customer_name: "John Doe",
+                      order_status: "pending",
+                      payment_status: "pending",
+                      subtotal: 15000,
+                      total_amount: 15000,
+                      table_booking_id: 123,
+                      items: [
+                        {
+                          id: "item-uuid",
+                          menu_item_id: "menu-item-uuid",
+                          item_name: "Pizza Margherita",
+                          quantity: 2,
+                          unit_price: 7500,
+                          subtotal: 15000
+                        }
+                      ],
+                      created_at: "2024-12-25T10:00:00.000Z"
                     }
                   }, null, 2)}
                 />
@@ -676,13 +900,22 @@ const APIDocumentation = () => {
                 <h4 className="font-semibold text-blue-900 mb-2">Required Fields:</h4>
                 <ul className="list-disc list-inside text-sm text-blue-800 space-y-1">
                   <li><code>restaurant_id</code> - ID of the restaurant</li>
-                  <li><code>reservation_date</code> - Date of reservation (YYYY-MM-DD)</li>
-                  <li><code>reservation_time</code> - Time of reservation (HH:MM)</li>
-                  <li><code>number_of_guests</code> - Number of guests</li>
+                  <li><code>order_type</code> - Order type: <code>"dine_in"</code>, <code>"delivery"</code>, or <code>"pickup"</code></li>
                   <li><code>customer_name</code> - Customer full name</li>
-                  <li><code>customer_email</code> - Customer email address</li>
                   <li><code>customer_phone</code> - Customer phone number</li>
+                  <li><code>items</code> - Array of menu items (at least one item required)</li>
+                  <li><strong>For dine_in orders:</strong> <code>booking_date</code>, <code>booking_time</code>, <code>number_of_guests</code></li>
+                  <li><strong>For delivery orders:</strong> <code>delivery_address</code></li>
                 </ul>
+              </div>
+
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-4">
+                <h4 className="font-semibold text-green-900 mb-2">💡 Note:</h4>
+                <p className="text-sm text-green-800">
+                  For <code>dine_in</code> orders, a table is automatically reserved when you place your order. 
+                  The system checks availability and creates both the order and table booking in one transaction. 
+                  You don't need to make a separate table reservation.
+                </p>
               </div>
             </div>
           </div>

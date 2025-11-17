@@ -30,7 +30,11 @@ const RestaurantDashboardLayout = () => {
       const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
       
       if (!userData || !token) {
-        navigate('/restaurant/login', { replace: true });
+        console.log('No user data or token found, redirecting to restaurant login');
+        // Explicitly navigate to restaurant login, not stays login
+        const targetPath = '/restaurant/login';
+        console.log('Redirecting to:', targetPath);
+        navigate(targetPath, { replace: true });
         return;
       }
 
@@ -39,7 +43,11 @@ const RestaurantDashboardLayout = () => {
         setUser(parsedUser);
       } catch (error) {
         console.error('Error checking auth:', error);
-        navigate('/restaurant/login', { replace: true });
+        console.log('Invalid user data, redirecting to restaurant login');
+        // Explicitly navigate to restaurant login, not stays login
+        const targetPath = '/restaurant/login';
+        console.log('Redirecting to:', targetPath);
+        navigate(targetPath, { replace: true });
       }
     };
 
@@ -74,8 +82,9 @@ const RestaurantDashboardLayout = () => {
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/restaurant/dashboard', category: 'Main' },
-    { icon: ShoppingCart, label: 'POS', path: '/restaurant/pos', category: 'Main' },
-    { icon: Store, label: 'Restaurants', path: '/restaurant/restaurants', category: 'Main' },
+    // POS temporarily disabled - system is for online orders only
+    // { icon: ShoppingCart, label: 'POS', path: '/restaurant/pos', category: 'Main' },
+    { icon: Store, label: 'My Restaurant', path: '/restaurant/restaurants', category: 'Main' },
     { icon: Utensils, label: 'Menu Items', path: '/restaurant/menu-items', category: 'Operations' },
     { icon: ShoppingBag, label: 'Orders', path: '/restaurant/orders', category: 'Operations' },
     { icon: FileText, label: 'Reports', path: '/restaurant/reports', category: 'Analytics' },

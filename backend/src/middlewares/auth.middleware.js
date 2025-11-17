@@ -12,11 +12,15 @@ const authenticate = async (req, res, next) => {
     }
     
     if (!token) {
+      console.log('No token found in request');
+      console.log('Auth header:', authHeader);
       return res.status(401).json({
         success: false,
         message: 'Access token is required'
       });
     }
+    
+    console.log('Token found, attempting verification');
     
     // Try to verify token with stays backend secret first
     let decoded = null;
@@ -60,8 +64,11 @@ const authenticate = async (req, res, next) => {
       req.user.id = req.user.user_id;
     }
     
+    console.log('Token verified successfully, user:', req.user);
     next();
   } catch (error) {
+    console.error('Token verification failed:', error.message);
+    console.error('Token verification error stack:', error.stack);
     return res.status(401).json({
       success: false,
       message: 'Invalid or expired token'

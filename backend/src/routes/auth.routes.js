@@ -7,7 +7,7 @@ const { authenticateToken } = require('../middlewares/auth.middleware');
 const router = express.Router();
 
 /**
- * Login endpoint for restaurants (uses profiles table)
+ * Login endpoint for restaurants (checks both profiles and restaurant_users tables)
  * POST /api/v1/auth/login
  */
 router.post('/login', async (req, res) => {
@@ -21,7 +21,81 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Check if user exists in profiles table
+    let user = null;
+    let userType = 'profile'; // 'profile' or 'restaurant_user'
+
+    // First, check restaurant_users table
+    try {
+      const [restaurantUsers] = await pool.execute(
+        `SELECT ru.*, r.id as restaurant_id, r.name as restaurant_name, r.status as restaurant_status
+         FROM restaurant_users ru
+         LEFT JOIN restaurants r ON r.user_id = ru.user_id
+         WHERE ru.email = ? AND ru.is_active = 1`,
+        [email]
+      );
+
+      if (restaurantUsers.length > 0) {
+        user = restaurantUsers[0];
+        userType = 'restaurant_user';
+        
+        // Verify password (restaurant_users uses password_hash)
+        const isValidPassword = await bcrypt.compare(password, user.password_hash || user.password);
+        if (!isValidPassword) {
+          return res.status(401).json({ 
+            success: false,
+            error: 'Invalid email or password' 
+          });
+        }
+
+        // Check if restaurant exists and is active (if user has a restaurant)
+        if (user.restaurant_id && user.restaurant_status && user.restaurant_status !== 'active') {
+          return res.status(403).json({ 
+            success: false,
+            error: 'Restaurant account is not active. Please contact administrator.' 
+          });
+        }
+
+        // Update last login
+        await pool.execute(
+          'UPDATE restaurant_users SET last_login = ? WHERE user_id = ?',
+          [new Date(), user.user_id]
+        );
+
+        // Generate JWT token
+        const token = jwt.sign(
+          { 
+            id: user.user_id, 
+            email: user.email, 
+            role: user.role || 'vendor',
+            restaurant_id: user.restaurant_id || null,
+            userType: 'restaurant_user'
+          },
+          process.env.JWT_SECRET || 'your-secret-key',
+          { expiresIn: '7d' }
+        );
+
+        return res.json({
+          success: true,
+          data: {
+            token,
+            user: {
+              id: user.user_id,
+              email: user.email,
+              role: user.role || 'vendor',
+              name: user.name,
+              restaurant_id: user.restaurant_id || null,
+              restaurant_name: user.restaurant_name || null,
+              userType: 'restaurant_user'
+            }
+          }
+        });
+      }
+    } catch (restaurantUserError) {
+      // If restaurant_users table doesn't exist yet, continue to check profiles
+      console.log('Restaurant users table check failed, checking profiles:', restaurantUserError.message);
+    }
+
+    // If not found in restaurant_users, check profiles table
     const [users] = await pool.execute(
       'SELECT * FROM profiles WHERE email = ?',
       [email]
@@ -34,7 +108,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const user = users[0];
+    user = users[0];
 
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password);
@@ -47,7 +121,7 @@ router.post('/login', async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role || 'vendor' },
+      { id: user.id, email: user.email, role: user.role || 'vendor', userType: 'profile' },
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
     );
@@ -60,7 +134,8 @@ router.post('/login', async (req, res) => {
           id: user.id,
           email: user.email,
           role: user.role || 'vendor',
-          full_name: user.full_name
+          full_name: user.full_name,
+          userType: 'profile'
         }
       }
     });

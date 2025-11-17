@@ -53,12 +53,16 @@ import StaysFinance from './pages/stays/Finance';
 
 // Restaurant Dashboard Pages
 import RestaurantDashboard from './pages/restaurant/Dashboard';
-import RestaurantPOS from './pages/restaurant/POS';
+// POS temporarily disabled - system is for online orders only
+// import RestaurantPOS from './pages/restaurant/POS';
 import Restaurants from './pages/restaurant/Restaurants';
 import RestaurantOrders from './pages/restaurant/Orders';
+import OrderDetails from './pages/restaurant/OrderDetails';
 import RestaurantMenuItems from './pages/restaurant/MenuItems';
+import CreateMenu from './pages/restaurant/CreateMenu';
 import RestaurantReports from './pages/restaurant/Reports';
 import RestaurantAPIDocs from './pages/restaurant/APIDocs';
+import TableBookings from './pages/restaurant/TableBookings';
 import RestaurantDashboardLayout from './components/restaurant/RestaurantDashboardLayout';
 
 // Tour Package Setup Pages
@@ -199,10 +203,14 @@ function App() {
           <Route path="/restaurant" element={<RestaurantDashboardLayout />}>
             <Route index element={<Navigate to="/restaurant/dashboard" replace />} />
             <Route path="dashboard" element={<RestaurantDashboard />} />
-            <Route path="pos" element={<RestaurantPOS />} />
+            {/* POS temporarily disabled - system is for online orders only */}
+            {/* <Route path="pos" element={<RestaurantPOS />} /> */}
             <Route path="restaurants" element={<Restaurants />} />
             <Route path="menu-items" element={<RestaurantMenuItems />} />
+            <Route path="menu-items/create" element={<CreateMenu />} />
             <Route path="orders" element={<RestaurantOrders />} />
+            <Route path="orders/:id" element={<OrderDetails />} />
+            <Route path="table-bookings" element={<TableBookings />} />
             <Route path="reports" element={<RestaurantReports />} />
             <Route path="api-docs" element={<RestaurantAPIDocs />} />
           </Route>

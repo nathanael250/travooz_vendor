@@ -10,9 +10,30 @@ const { testConnection } = require('../config/database');
 const app = express();
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+const defaultOrigins = [
+  'http://localhost:8080',
+  'http://localhost:5173',
+  'https://www.travooz.com'
+];
+
+const extraOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(origin => origin.length > 0);
+
+const allowedOrigins = Array.from(new Set([...defaultOrigins, ...extraOrigins]));
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:8080',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+  },
   credentials: true
 }));
 app.use(morgan('dev'));
@@ -20,8 +41,16 @@ app.use(morgan('dev'));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Serve static files from uploads directory
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Serve static files from uploads directory with CORS headers
+app.use('/uploads', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+}, express.static(path.join(__dirname, '../uploads')));
 
 // Health check
 app.get('/health', (req, res) => {
@@ -57,11 +86,18 @@ const carRentalRoutes = require('./routes/carRental.routes');
 const adminAccountsRoutes = require('./routes/adminAccounts.routes');
 const adminAuthRoutes = require('./routes/adminAuth.routes');
 const clientRoutes = require('./routes/client.routes');
+const deliveryBoyRoutes = require('./routes/deliveryBoy.routes');
+const restaurantOrdersRoutes = require('./routes/restaurantOrders.routes');
+const restaurantTableBookingsRoutes = require('./routes/restaurantTableBookings.routes');
 
 // Service routes
 app.use('/api/v1/stays', staysRoutes);
 app.use('/api/v1/eating-out/setup', restaurantSetupRoutes);
 app.use('/api/v1/restaurants', restaurantsRoutes);
+app.use('/api/v1/restaurant', deliveryBoyRoutes);
+app.use('/api/v1/restaurant', restaurantOrdersRoutes);
+app.use('/api/v1/restaurant', restaurantTableBookingsRoutes);
+app.use('/api/v1/restaurant/menu', menuItemsRoutes);
 app.use('/api/v1/tours', toursRoutes);
 app.use('/api/v1/car-rental', carRentalRoutes);
 
