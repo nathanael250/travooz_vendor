@@ -6,6 +6,38 @@ const propertySetupController = require('../controllers/stays/propertySetup.cont
 const staysAuthController = require('../controllers/stays/staysAuth.controller');
 const staysBookingController = require('../controllers/stays/staysBooking.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+const ensureUploadDir = (relativePath) => {
+    const uploadDir = path.join(__dirname, '../../uploads', relativePath);
+    if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    return uploadDir;
+};
+
+const storageFactory = (subFolder) => multer.diskStorage({
+    destination: (req, file, cb) => {
+        const dir = ensureUploadDir(subFolder);
+        cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        cb(null, `${file.fieldname}-${uniqueSuffix}${path.extname(file.originalname)}`);
+    }
+});
+
+const propertyImageUpload = multer({
+    storage: storageFactory('stays/property-images'),
+    limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+const roomImageUpload = multer({
+    storage: storageFactory('stays/room-images'),
+    limits: { fileSize: 10 * 1024 * 1024 }
+});
 
 // Auth routes (no authentication required)
 router.post('/auth/login', staysAuthController.login);
@@ -19,6 +51,23 @@ router.get('/properties/:id', staysPropertyController.getPropertyById);
 router.get('/properties/:id/complete', authenticate, staysPropertyController.getPropertyWithAllData);
 router.put('/properties/:id', staysPropertyController.updateProperty);
 router.delete('/properties/:id', staysPropertyController.deleteProperty);
+router.get('/properties/:id/images', authenticate, staysPropertyController.getPropertyImages);
+router.post(
+    '/properties/:id/images/property',
+    authenticate,
+    propertyImageUpload.array('images', 20),
+    staysPropertyController.uploadPropertyImages
+);
+router.delete('/properties/images/:imageId', authenticate, staysPropertyController.deletePropertyImage);
+router.put('/properties/images/:imageId', authenticate, staysPropertyController.updatePropertyImage);
+router.post(
+    '/rooms/:roomId/images',
+    authenticate,
+    roomImageUpload.array('images', 20),
+    staysPropertyController.uploadRoomImages
+);
+router.delete('/rooms/images/:imageId', authenticate, staysPropertyController.deleteRoomImage);
+router.put('/rooms/images/:imageId', authenticate, staysPropertyController.updateRoomImage);
 
 // Email verification routes
 router.post('/email-verification/send', emailVerificationController.sendVerificationCode);

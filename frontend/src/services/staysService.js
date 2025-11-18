@@ -168,6 +168,81 @@ export const getMyPropertyListings = async (userId = null) => {
   }
 };
 
+export const getPropertyImageLibrary = async (propertyId) => {
+  try {
+    const response = await staysApiClient.get(`/stays/properties/${propertyId}/images`);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+export const uploadPropertyImages = async (propertyId, formData) => {
+  try {
+    const response = await staysApiClient.post(
+      `/stays/properties/${propertyId}/images/property`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      }
+    );
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+export const deletePropertyImage = async (imageId) => {
+  try {
+    const response = await staysApiClient.delete(`/stays/properties/images/${imageId}`);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+export const updatePropertyImage = async (imageId, payload) => {
+  try {
+    const response = await staysApiClient.put(`/stays/properties/images/${imageId}`, payload);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+export const uploadRoomImages = async (roomId, formData) => {
+  try {
+    const response = await staysApiClient.post(
+      `/stays/rooms/${roomId}/images`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      }
+    );
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+export const deleteRoomImage = async (imageId) => {
+  try {
+    const response = await staysApiClient.delete(`/stays/rooms/images/${imageId}`);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+export const updateRoomImage = async (imageId, payload) => {
+  try {
+    const response = await staysApiClient.put(`/stays/rooms/images/${imageId}`, payload);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
 // Get properties by userId (no auth required - for setup flow)
 export const getPropertiesByUserId = async (userId) => {
   try {

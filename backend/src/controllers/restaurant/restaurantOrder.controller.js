@@ -3,6 +3,30 @@ const tableBookingService = require('../../services/restaurant/tableBooking.serv
 const { pool } = require('../../../config/database');
 
 /**
+ * Adjust restaurant available seats (bounded between 0 and capacity)
+ */
+async function adjustRestaurantAvailableSeats(restaurantId, adjustment) {
+  try {
+    await pool.execute(
+      `UPDATE restaurants 
+       SET available_seats = GREATEST(0, LEAST(capacity, COALESCE(available_seats, capacity) + ?))
+       WHERE id = ?`,
+      [adjustment, restaurantId]
+    );
+
+    const [restaurants] = await pool.execute(
+      'SELECT available_seats FROM restaurants WHERE id = ?',
+      [restaurantId]
+    );
+
+    return restaurants.length > 0 ? restaurants[0].available_seats : null;
+  } catch (error) {
+    console.error('Error adjusting restaurant available seats:', error);
+    return null;
+  }
+}
+
+/**
  * Create a new restaurant order
  * POST /api/v1/restaurant/orders
  * 
@@ -203,10 +227,23 @@ async function createOrder(req, res) {
         special_instructions
       });
 
+      let updatedSeats = null;
+      if (order_type === 'dine_in') {
+        updatedSeats = await adjustRestaurantAvailableSeats(
+          restaurantId,
+          -1 * (parseInt(number_of_guests, 10) || 1)
+        );
+      }
+
+      const responseData = { ...order };
+      if (order_type === 'dine_in' && updatedSeats !== null) {
+        responseData.updated_available_seats = updatedSeats;
+      }
+
       return res.status(201).json({
         success: true,
         message: 'Order created successfully',
-        data: order
+        data: responseData
       });
     } catch (orderError) {
       console.error('Error creating order:', orderError);

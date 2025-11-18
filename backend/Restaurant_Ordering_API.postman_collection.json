@@ -1,0 +1,270 @@
+{
+	"info": {
+		"_postman_id": "restaurant-ordering-api-2025",
+		"name": "Restaurant Ordering API",
+		"description": "Complete API collection for restaurant food ordering with delivery and dine-in options",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Get Restaurant Details",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{baseUrl}}/client/restaurants/{{restaurantId}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"client",
+						"restaurants",
+						"{{restaurantId}}"
+					]
+				},
+				"description": "Get restaurant details by ID"
+			},
+			"response": []
+		},
+		{
+			"name": "2. Get Menu Items",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{baseUrl}}/menu-items?restaurant_id={{restaurantId}}&available=true",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"menu-items"
+					],
+					"query": [
+						{
+							"key": "restaurant_id",
+							"value": "{{restaurantId}}",
+							"description": "Restaurant UUID"
+						},
+						{
+							"key": "available",
+							"value": "true",
+							"description": "Only show available items"
+						}
+					]
+				},
+				"description": "Get all menu items for a restaurant"
+			},
+			"response": []
+		},
+		{
+			"name": "3. Get Menu Categories",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{baseUrl}}/menu-items/categories?restaurant_id={{restaurantId}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"menu-items",
+						"categories"
+					],
+					"query": [
+						{
+							"key": "restaurant_id",
+							"value": "{{restaurantId}}",
+							"description": "Restaurant UUID"
+						}
+					]
+				},
+				"description": "Get menu categories for a restaurant"
+			},
+			"response": []
+		},
+		{
+			"name": "4. Check Table Availability",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{baseUrl}}/client/restaurants/{{restaurantId}}/table-availability?booking_date={{bookingDate}}&booking_time={{bookingTime}}&number_of_guests={{numberOfGuests}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"client",
+						"restaurants",
+						"{{restaurantId}}",
+						"table-availability"
+					],
+					"query": [
+						{
+							"key": "booking_date",
+							"value": "{{bookingDate}}",
+							"description": "Date in YYYY-MM-DD format"
+						},
+						{
+							"key": "booking_time",
+							"value": "{{bookingTime}}",
+							"description": "Time in HH:MM format (24-hour)"
+						},
+						{
+							"key": "number_of_guests",
+							"value": "{{numberOfGuests}}",
+							"description": "Number of guests"
+						}
+					]
+				},
+				"description": "Check table availability for dine-in orders"
+			},
+			"response": []
+		},
+		{
+			"name": "5. Create Order - Delivery",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"restaurant_id\": \"{{restaurantId}}\",\n  \"order_type\": \"delivery\",\n  \"customer_name\": \"John Doe\",\n  \"customer_email\": \"john.doe@example.com\",\n  \"customer_phone\": \"+250788123456\",\n  \"delivery_address\": \"KG 456 St, Kigali, Rwanda\",\n  \"delivery_latitude\": -1.9441,\n  \"delivery_longitude\": 30.0619,\n  \"items\": [\n    {\n      \"menu_item_id\": \"{{menuItemId1}}\",\n      \"quantity\": 2,\n      \"addons\": [],\n      \"customizations\": []\n    },\n    {\n      \"menu_item_id\": \"{{menuItemId2}}\",\n      \"quantity\": 1,\n      \"addons\": [],\n      \"customizations\": []\n    }\n  ],\n  \"delivery_fee\": 2000,\n  \"tax_amount\": 0,\n  \"discount_amount\": 0,\n  \"payment_method\": \"cash\",\n  \"special_instructions\": \"Please ring the doorbell twice\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/client/orders/restaurants",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"client",
+						"orders",
+						"restaurants"
+					]
+				},
+				"description": "Create a delivery order"
+			},
+			"response": []
+		},
+		{
+			"name": "6. Create Order - Dine-In",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"restaurant_id\": \"{{restaurantId}}\",\n  \"order_type\": \"dine_in\",\n  \"customer_name\": \"Jane Smith\",\n  \"customer_email\": \"jane.smith@example.com\",\n  \"customer_phone\": \"+250788654321\",\n  \"booking_date\": \"{{bookingDate}}\",\n  \"booking_time\": \"{{bookingTime}}\",\n  \"number_of_guests\": {{numberOfGuests}},\n  \"table_booking_special_requests\": \"Window seat preferred\",\n  \"items\": [\n    {\n      \"menu_item_id\": \"{{menuItemId1}}\",\n      \"quantity\": 2,\n      \"addons\": [],\n      \"customizations\": []\n    },\n    {\n      \"menu_item_id\": \"{{menuItemId2}}\",\n      \"quantity\": 1,\n      \"addons\": [],\n      \"customizations\": []\n    }\n  ],\n  \"tax_amount\": 0,\n  \"discount_amount\": 0,\n  \"payment_method\": \"card\",\n  \"special_instructions\": \"No onions please\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/client/orders/restaurants",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"client",
+						"orders",
+						"restaurants"
+					]
+				},
+				"description": "Create a dine-in order with table booking"
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5000/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "restaurantId",
+			"value": "your-restaurant-uuid-here",
+			"type": "string"
+		},
+		{
+			"key": "menuItemId1",
+			"value": "your-menu-item-uuid-1",
+			"type": "string"
+		},
+		{
+			"key": "menuItemId2",
+			"value": "your-menu-item-uuid-2",
+			"type": "string"
+		},
+		{
+			"key": "bookingDate",
+			"value": "2025-01-20",
+			"type": "string"
+		},
+		{
+			"key": "bookingTime",
+			"value": "19:00",
+			"type": "string"
+		},
+		{
+			"key": "numberOfGuests",
+			"value": "4",
+			"type": "string"
+		}
+	]
+}
+

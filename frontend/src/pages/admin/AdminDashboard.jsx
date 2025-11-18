@@ -17,7 +17,13 @@ import {
   Plane,
   Home,
   UtensilsCrossed,
-  LogOut
+  LogOut,
+  Menu,
+  Bell,
+  Settings,
+  ChevronDown,
+  LayoutDashboard,
+  X
 } from 'lucide-react';
 import AdminService from '../../services/AdminService';
 import toast from 'react-hot-toast';
@@ -40,7 +46,7 @@ const AdminDashboard = () => {
 
   // Filters and pagination
   const [filters, setFilters] = useState({
-    status: 'pending_review',
+    status: 'all',
     search: '',
     page: 1,
     limit: 10,
@@ -54,6 +60,10 @@ const AdminDashboard = () => {
     total: 0,
     totalPages: 0
   });
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   // Check authentication on mount
   useEffect(() => {
@@ -63,6 +73,16 @@ const AdminDashboard = () => {
     if (!adminToken || !adminUser) {
       navigate('/admin/login', { replace: true });
     }
+
+    const handleResize = () => {
+      const mobileView = window.innerWidth < 1024;
+      setIsMobile(mobileView);
+      setSidebarOpen(!mobileView);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [navigate]);
 
   // Fetch data when filters change (only if authenticated)
@@ -139,6 +159,25 @@ const AdminDashboard = () => {
     navigate('/admin/login', { replace: true });
   };
 
+  const openDetails = (account) => {
+    setSelectedAccount(account);
+    setDetailsOpen(true);
+  };
+
+  const closeDetails = () => {
+    setDetailsOpen(false);
+    setSelectedAccount(null);
+  };
+
+  const formatDate = (date) => {
+    if (!date) return 'N/A';
+    try {
+      return new Date(date).toLocaleString();
+    } catch {
+      return date;
+    }
+  };
+
   const getServiceIcon = (serviceType) => {
     switch (serviceType) {
       case 'car_rental':
@@ -203,7 +242,7 @@ const AdminDashboard = () => {
   };
 
   const StatCard = ({ title, value, icon: Icon, color }) => (
-    <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-200">
+    <div className="bg-gray-900 overflow-hidden shadow rounded-lg border border-gray-800">
       <div className="p-5">
         <div className="flex items-center">
           <div className="flex-shrink-0">
@@ -211,8 +250,8 @@ const AdminDashboard = () => {
           </div>
           <div className="ml-5 w-0 flex-1">
             <dl>
-              <dt className="text-sm font-medium truncate text-gray-500">{title}</dt>
-              <dd className="text-lg font-medium text-gray-900">{value}</dd>
+              <dt className="text-sm font-medium truncate text-gray-400">{title}</dt>
+              <dd className="text-lg font-semibold text-gray-100">{value}</dd>
             </dl>
           </div>
         </div>
@@ -220,48 +259,177 @@ const AdminDashboard = () => {
     </div>
   );
 
+  const navLinks = [
+    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { key: 'approvals', label: 'Account Approvals', icon: Shield, active: true },
+    { key: 'services', label: 'Services', icon: Building2 },
+    { key: 'reports', label: 'Reports', icon: MapPin },
+    { key: 'settings', label: 'Settings', icon: Settings }
+  ];
+
+  const serviceFilterOptions = [
+    { key: 'all', label: 'All Services' },
+    { key: 'car_rental', label: 'Car Rental', icon: Car },
+    { key: 'tours', label: 'Tours', icon: Plane },
+    { key: 'stays', label: 'Stays', icon: Home },
+    { key: 'restaurant', label: 'Restaurant', icon: UtensilsCrossed }
+  ];
+
+  const statusFilterOptions = [
+    { key: 'pending_review', label: 'Pending Review' },
+    { key: 'approved', label: 'Approved' },
+    { key: 'rejected', label: 'Rejected' },
+    { key: 'all', label: 'All Statuses' }
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center">
-              <Shield className="h-8 w-8 text-indigo-600 mr-3" />
+    <div className="min-h-screen flex bg-gray-950 text-gray-100">
+      {/* Sidebar */}
+      <aside
+        className={`fixed lg:static inset-y-0 left-0 z-40 w-64 bg-gray-900 border-r border-gray-800 flex flex-col transition-transform duration-300 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="px-6 py-5 border-b border-gray-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Shield className="h-8 w-8 text-indigo-600" />
+            <div>
+              <p className="text-xs uppercase tracking-wider text-gray-400">Travooz</p>
+              <h1 className="text-lg font-semibold text-white">Admin Console</h1>
+            </div>
+          </div>
+          {isMobile && (
+            <button
+              className="p-2 rounded-md hover:bg-gray-800"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <XCircle className="h-5 w-5 text-gray-500" />
+            </button>
+          )}
+        </div>
+        <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-1">
+          {navLinks.map(({ key, label, icon: Icon, active }) => (
+            <button
+              key={key}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                active
+                  ? 'bg-indigo-600/20 text-indigo-300'
+                  : 'text-gray-300 hover:bg-gray-800'
+              }`}
+            >
+              <Icon className="h-5 w-5" />
+              {label}
+            </button>
+          ))}
+        </nav>
+        <div className="px-6 py-4 border-t border-gray-800">
+          <button
+            onClick={handleLogout}
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 border border-gray-700 rounded-md text-sm font-semibold bg-gray-800 text-gray-100 hover:bg-gray-700"
+          >
+            <LogOut className="h-4 w-4" />
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      {/* Overlay for mobile */}
+      {isMobile && sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/70 z-30"
+          onClick={() => setSidebarOpen(false)}
+        ></div>
+      )}
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-h-screen bg-gray-950">
+        <header className="bg-gray-900 border-b border-gray-800">
+          <div className="px-4 sm:px-6 lg:px-10 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                className="lg:hidden p-2 rounded-md hover:bg-gray-800 text-gray-300"
+                onClick={() => setSidebarOpen(true)}
+              >
+                <Menu className="h-5 w-5 text-gray-600" />
+              </button>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-                <p className="text-sm text-gray-600">Manage account approvals</p>
+                <p className="text-xs uppercase tracking-wider text-gray-400">Overview</p>
+                <h2 className="text-xl font-semibold text-white">Account Approvals</h2>
               </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium bg-white text-gray-700 hover:bg-gray-50"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </button>
+            <div className="flex items-center gap-4">
+              <div className="hidden md:flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5">
+                <Search className="h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Quick search..."
+                  className="bg-transparent text-sm focus:outline-none text-gray-100"
+                  value={filters.search}
+                  onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
+                />
+              </div>
+              <button className="relative p-2 rounded-full border border-gray-700 text-gray-300 hover:text-white">
+                <Bell className="h-5 w-5" />
+                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center">
+                  3
+                </span>
+              </button>
+              <div className="flex items-center gap-2 border border-gray-700 rounded-full px-3 py-1.5">
+                <div className="h-8 w-8 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center font-semibold">
+                  AD
+                </div>
+                <div className="hidden sm:block text-left">
+                  <p className="text-sm font-semibold text-white">Admin User</p>
+                  <p className="text-xs text-gray-400">Super Admin</p>
+                </div>
+                <ChevronDown className="h-4 w-4 text-gray-400" />
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="space-y-6">
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <StatCard title="Total Pending" value={stats.pending_review} icon={Clock} color="text-yellow-600" />
-            <StatCard title="Car Rental" value={stats.by_service?.car_rental || 0} icon={Car} color="text-blue-600" />
-            <StatCard title="Tours" value={stats.by_service?.tours || 0} icon={Plane} color="text-green-600" />
-            <StatCard title="Stays" value={stats.by_service?.stays || 0} icon={Home} color="text-purple-600" />
-            <StatCard title="Restaurant" value={stats.by_service?.restaurant || 0} icon={UtensilsCrossed} color="text-red-600" />
-          </div>
+        <main className="flex-1 px-4 sm:px-6 lg:px-10 py-8">
+          <div className="space-y-6">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <StatCard title="Total Pending" value={stats.pending_review} icon={Clock} color="text-yellow-400" />
+              <StatCard title="Car Rental" value={stats.by_service?.car_rental || 0} icon={Car} color="text-blue-300" />
+              <StatCard title="Tours" value={stats.by_service?.tours || 0} icon={Plane} color="text-green-300" />
+              <StatCard title="Stays" value={stats.by_service?.stays || 0} icon={Home} color="text-purple-300" />
+              <StatCard title="Restaurant" value={stats.by_service?.restaurant || 0} icon={UtensilsCrossed} color="text-red-400" />
+            </div>
 
-          {/* Filters */}
-          <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
+            {/* Service Filters */}
+            <div className="bg-gray-900 p-4 rounded-lg shadow border border-gray-800">
+              <p className="text-sm font-semibold text-gray-200 mb-3">Filter by Service</p>
+              <div className="flex flex-wrap gap-3">
+                {serviceFilterOptions.map(({ key, label, icon: Icon }) => {
+                  const active = filters.service_type === key;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setFilters({ ...filters, service_type: key, page: 1 })}
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium transition-colors ${
+                        active
+                          ? 'border-indigo-400 bg-indigo-500/20 text-indigo-200'
+                          : 'border-gray-700 bg-gray-800 text-gray-300 hover:border-gray-600'
+                      }`}
+                    >
+                      {Icon && <Icon className="h-4 w-4" />}
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div className="bg-gray-900 p-4 rounded-lg shadow border border-gray-800">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Pending Accounts</h2>
+                <h2 className="text-lg font-semibold text-white">Pending Accounts</h2>
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium bg-white text-gray-700 hover:bg-gray-50"
+                  className="inline-flex items-center px-4 py-2 border border-gray-700 rounded-md shadow-sm text-sm font-medium bg-gray-800 text-gray-100 hover:bg-gray-700"
               >
                 <Filter className="h-4 w-4 mr-2" />
                 Filters
@@ -271,21 +439,35 @@ const AdminDashboard = () => {
             {showFilters && (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Service Type</label>
+                  <label className="block text-sm font-medium text-gray-300">Service Type</label>
                   <select
                     value={filters.service_type}
                     onChange={(e) => setFilters({ ...filters, service_type: e.target.value, page: 1 })}
-                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white text-gray-900"
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-700 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-800 text-gray-100"
                   >
-                    <option value="all">All Services</option>
-                    <option value="car_rental">Car Rental</option>
-                    <option value="tours">Tours</option>
-                    <option value="stays">Stays</option>
-                    <option value="restaurant">Restaurant</option>
+                    {serviceFilterOptions.map((option) => (
+                      <option key={option.key} value={option.key}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Search</label>
+                  <label className="block text-sm font-medium text-gray-300">Status</label>
+                  <select
+                    value={filters.status}
+                    onChange={(e) => setFilters({ ...filters, status: e.target.value, page: 1 })}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-700 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-800 text-gray-100"
+                  >
+                    {statusFilterOptions.map((option) => (
+                      <option key={option.key} value={option.key}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300">Search</label>
                   <div className="mt-1 relative rounded-md shadow-sm">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <Search className="h-4 w-4 text-gray-400" />
@@ -294,22 +476,23 @@ const AdminDashboard = () => {
                       type="text"
                       value={filters.search}
                       onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white text-gray-900 placeholder-gray-500"
+                      className="block w-full pl-10 pr-3 py-2 border border-gray-700 rounded-md leading-5 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-800 text-gray-100 placeholder-gray-400"
                       placeholder="Search by business name, owner..."
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Per Page</label>
+                  <label className="block text-sm font-medium text-gray-300">Per Page</label>
                   <select
                     value={filters.limit}
-                    onChange={(e) => setFilters({ ...filters, limit: parseInt(e.target.value), page: 1 })}
-                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white text-gray-900"
+                    onChange={(e) => setFilters({ ...filters, limit: parseInt(e.target.value, 10), page: 1 })}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-700 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-800 text-gray-100"
                   >
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
+                    {[10, 25, 50, 100].map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -317,7 +500,7 @@ const AdminDashboard = () => {
           </div>
 
           {/* Accounts Table */}
-          <div className="bg-white shadow overflow-hidden sm:rounded-md border border-gray-200">
+          <div className="bg-gray-900 shadow overflow-hidden sm:rounded-md border border-gray-800">
             <div className="px-4 py-5 sm:p-6">
               {loading ? (
                 <div className="text-center py-4">
@@ -326,7 +509,7 @@ const AdminDashboard = () => {
                 </div>
               ) : error ? (
                 <div className="text-center py-4">
-                  <p className="text-red-600">Error: {error}</p>
+                  <p className="text-red-400">Error: {error}</p>
                   <button
                     onClick={fetchAccounts}
                     className="mt-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
@@ -336,76 +519,85 @@ const AdminDashboard = () => {
                 </div>
               ) : accounts.length === 0 ? (
                 <div className="text-center py-8">
-                  <Shield className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No pending accounts</h3>
-                  <p className="mt-1 text-sm text-gray-500">No accounts found matching your criteria.</p>
+                  <Shield className="mx-auto h-12 w-12 text-gray-600" />
+                  <h3 className="mt-2 text-sm font-medium text-gray-100">No accounts to show</h3>
+                  <p className="mt-1 text-sm text-gray-400">
+                    We couldn't find any businesses for "{serviceFilterOptions.find(o => o.key === filters.service_type)?.label || 'All Services'}" with status "{statusFilterOptions.find(o => o.key === filters.status)?.label || 'All Statuses'}".
+                  </p>
                 </div>
               ) : (
                 <>
                   <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
+                    <table className="min-w-full divide-y divide-gray-800">
+                      <thead className="bg-gray-800/80">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-300">
                             Business
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-300">
                             Owner
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-300">
                             Service Type
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-300">
                             Location
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-300">
                             Status
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-300">
                             Submitted
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-300">
                             Actions
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
+                      <tbody className="bg-gray-900 divide-y divide-gray-800">
                         {accounts.map((account) => {
                           const ServiceIcon = getServiceIcon(account.service_type);
                           return (
                             <tr key={`${account.service_type}-${account.account_id}`} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 whitespace-nowrap">
+                              <td className="px-6 py-4 whitespace-nowrap text-gray-100">
                                 <div className="flex items-center">
                                   <div className="flex-shrink-0 h-10 w-10">
-                                    <div className="h-10 w-10 rounded-full flex items-center justify-center bg-gray-300">
-                                      <ServiceIcon className="h-5 w-5 text-gray-600" />
+                                    <div className="h-10 w-10 rounded-full flex items-center justify-center bg-gray-800">
+                                      <ServiceIcon className="h-5 w-5 text-gray-200" />
                                     </div>
                                   </div>
                                   <div className="ml-4">
-                                    <div className="text-sm font-medium text-gray-900">
+                                    <div className="text-sm font-medium text-white">
                                       {account.business_name || 'N/A'}
                                     </div>
                                   </div>
                                 </div>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">{account.owner_name || 'N/A'}</div>
-                                <div className="text-sm text-gray-500">{account.owner_email || 'N/A'}</div>
+                                <div className="text-sm text-gray-100">{account.owner_name || 'N/A'}</div>
+                                <div className="text-sm text-gray-400">{account.owner_email || 'N/A'}</div>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">{getServiceName(account.service_type)}</div>
+                                <div className="text-sm text-gray-100">{getServiceName(account.service_type)}</div>
                               </td>
                               <td className="px-6 py-4">
-                                <div className="text-sm text-gray-900">{account.location || 'N/A'}</div>
+                                <div className="text-sm text-gray-100">{account.location || 'N/A'}</div>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
                                 {getStatusBadge(account.status || account.submission_status)}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
                                 {account.submitted_at ? new Date(account.submitted_at).toLocaleDateString() : 'N/A'}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <div className="flex items-center space-x-2">
+                                  <button
+                                    onClick={() => openDetails(account)}
+                                    className="text-indigo-600 hover:text-indigo-900"
+                                    title="View details"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </button>
                                   {(account.status === 'pending_review' || account.submission_status === 'pending_review' || account.status === 'pending') && (
                                     <>
                                       <button
@@ -462,10 +654,76 @@ const AdminDashboard = () => {
             </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
+
+    {detailsOpen && selectedAccount && (
+      <div className="fixed inset-0 z-40 flex">
+        <div className="absolute inset-0 bg-black/70" onClick={closeDetails}></div>
+        <div className="relative ml-auto w-full max-w-xl h-full bg-gray-900 text-gray-100 shadow-2xl flex flex-col border-l border-gray-800">
+          <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase text-gray-400">Business Details</p>
+              <h3 className="text-lg font-semibold text-white">{selectedAccount.business_name || 'N/A'}</h3>
+              <p className="text-sm text-gray-400 capitalize">{selectedAccount.service_type}</p>
+            </div>
+            <button onClick={closeDetails} className="p-2 rounded-full hover:bg-gray-800 text-gray-400">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+            <section>
+              <h4 className="text-sm font-semibold text-gray-200 mb-3">Business Info</h4>
+              <div className="space-y-3">
+                <DetailRow label="Status" value={getStatusBadge(selectedAccount.status || selectedAccount.submission_status)} isBadge />
+                <DetailRow label="Location" value={selectedAccount.location || 'N/A'} icon={MapPin} />
+                <DetailRow label="Submitted At" value={formatDate(selectedAccount.submitted_at)} />
+                <DetailRow label="Current Step" value={selectedAccount.current_step || 'N/A'} />
+              </div>
+            </section>
+            <section>
+              <h4 className="text-sm font-semibold text-gray-200 mb-3">Owner Info</h4>
+              <div className="space-y-3">
+                <DetailRow label="Name" value={selectedAccount.owner_name || 'N/A'} icon={Users} />
+                <DetailRow label="Email" value={selectedAccount.owner_email || 'N/A'} icon={Mail} />
+                <DetailRow label="Phone" value={selectedAccount.owner_phone || 'N/A'} icon={Phone} />
+              </div>
+            </section>
+          </div>
+          <div className="px-6 py-4 border-t border-gray-800 flex items-center justify-between">
+            <button
+              onClick={() => handleReject(selectedAccount.service_type, selectedAccount.account_id)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold border border-red-500/50 text-red-300 hover:bg-red-500/10"
+            >
+              <XCircle className="h-4 w-4" />
+              Reject
+            </button>
+            <button
+              onClick={() => handleApprove(selectedAccount.service_type, selectedAccount.account_id)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-500"
+            >
+              <CheckCircle className="h-4 w-4" />
+              Approve
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
   );
 };
 
 export default AdminDashboard;
+
+const DetailRow = ({ label, value, icon: Icon, isBadge = false }) => (
+  <div className="flex items-start gap-3 text-sm">
+    {Icon && <Icon className="h-4 w-4 text-gray-400 mt-0.5" />}
+    <div>
+      <p className="text-xs uppercase tracking-wide text-gray-400">{label}</p>
+      <div className="text-gray-100 mt-0.5">
+        {isBadge ? value : value || 'N/A'}
+      </div>
+    </div>
+  </div>
+);
 

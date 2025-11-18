@@ -17,7 +17,8 @@ class AdminAccountsService {
         try {
             const { status = 'pending_review', search = '', page = 1, limit = 10, service_type = 'all' } = filters;
             const offset = (parseInt(page) - 1) * parseInt(limit);
-            const statusList = getStatusList(status) || getDefaultPendingStatuses();
+            const statusList = getStatusList(status);
+            const showAllStatuses = !statusList;
 
             // Get pending accounts from all services
             const accounts = [];
@@ -42,12 +43,11 @@ class AdminAccountsService {
                         JOIN car_rental_users cu ON crb.user_id = cu.user_id
                         LEFT JOIN car_rental_setup_submissions crss ON crb.car_rental_business_id = crss.car_rental_business_id
                         LEFT JOIN car_rental_setup_progress crsp ON crb.car_rental_business_id = crsp.car_rental_business_id
-                        WHERE crb.status NOT IN ('approved', 'rejected')
-                        AND (crsp.status IS NULL OR crsp.status NOT IN ('approved', 'rejected'))
+                        WHERE 1=1
                     `;
                     const carRentalParams = [];
 
-                    if (statusList) {
+                    if (!showAllStatuses) {
                         const placeholders = statusList.map(() => '?').join(',');
                         carRentalQuery += ` AND COALESCE(crss.status, crsp.status, crb.status) IN (${placeholders})`;
                         carRentalParams.push(...statusList);
@@ -118,7 +118,6 @@ class AdminAccountsService {
                             'stays' as service_type,
                             sp.property_name as business_name,
                             COALESCE(
-                                sp.city,
                                 sp.location,
                                 JSON_UNQUOTE(JSON_EXTRACT(sp.location_data, '$.formatted_address'))
                             ) as location,
@@ -130,9 +129,15 @@ class AdminAccountsService {
                             sp.status as submission_status
                         FROM stays_properties sp
                         LEFT JOIN stays_users su ON sp.user_id = su.user_id
-                        WHERE sp.status IN (${getDefaultPendingStatuses().map(() => '?').join(',')})
+                        WHERE 1=1
                     `;
-                    const staysParams = [...getDefaultPendingStatuses()];
+                    const staysParams = [];
+
+                    if (!showAllStatuses) {
+                        const placeholders = statusList.map(() => '?').join(',');
+                        staysQuery += ` AND sp.status IN (${placeholders})`;
+                        staysParams.push(...statusList);
+                    }
 
                     if (search) {
                         staysQuery += ' AND (sp.property_name LIKE ? OR su.name LIKE ? OR su.email LIKE ?)';
@@ -170,7 +175,7 @@ class AdminAccountsService {
                     `;
                     const restaurantParams = [];
 
-                    if (statusList) {
+                    if (!showAllStatuses) {
                         const placeholders = statusList.map(() => '?').join(',');
                         restaurantQuery += ` AND r.status IN (${placeholders})`;
                         restaurantParams.push(...statusList);

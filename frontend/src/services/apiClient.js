@@ -22,7 +22,9 @@ apiClient.interceptors.request.use((config) => {
     '/tours/auth/login', // Tours login endpoint
     '/admin/auth/login', // Admin login endpoint
     '/categories', // Only match exact /categories path, not /restaurant/menu/categories
-    '/subcategories' // Only match exact /subcategories path
+    '/subcategories', // Only match exact /subcategories path
+    '/client/', // All client-facing endpoints are public
+    '/menu-items' // Menu items endpoint (public when used with restaurant_id)
   ];
   
   // Check if this is a public endpoint - use exact path matching
@@ -30,6 +32,22 @@ apiClient.interceptors.request.use((config) => {
   const isPublicEndpoint = publicEndpoints.some(endpoint => {
     if (!config.url) return false;
     const url = config.url;
+    
+    // Special handling for /client/ prefix - all client endpoints are public
+    if (endpoint === '/client/' && url.startsWith('/client/')) {
+      return true;
+    }
+    
+    // Special handling for /menu-items - public when used with restaurant_id query param
+    if (endpoint === '/menu-items') {
+      if (url === '/menu-items' || url.startsWith('/menu-items?')) {
+        return true;
+      }
+      if (url.startsWith('/menu-items/')) {
+        // Only public if it's a query-based request, not a specific item ID
+        return false; // Specific item IDs require auth
+      }
+    }
     
     // Exact match
     if (url === endpoint) return true;

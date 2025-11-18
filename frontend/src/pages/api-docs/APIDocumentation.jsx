@@ -474,23 +474,11 @@ const APIDocumentation = () => {
                       name: "Luxury Restaurant",
                       description: "A fine dining experience...",
                       address: "123 Main St, Kigali",
-                      cuisine_type: "Italian",
-                      rating: 4.5,
-                      images: ["url1", "url2"],
-                      menu: [
-                        {
-                          id: "menu-item-uuid",
-                          name: "Pizza Margherita",
-                          description: "Classic Italian pizza",
-                          price: 7500,
-                          category_id: "category-uuid",
-                          available: 1
-                        }
-                      ],
-                      capacity: {
-                        total_seats: 50,
-                        available_seats: 30
-                      }
+                      phone: "+250788123456",
+                      capacity: 50,
+                      available_seats: 30,
+                      status: "active",
+                      images: ["/uploads/restaurants/logo-123.jpg"]
                     }
                   }, null, 2)}
                 />
@@ -503,14 +491,14 @@ const APIDocumentation = () => {
               
               <div className="mb-4">
                 <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                  GET {baseUrl}/restaurant/menu/categories?restaurant_id=restaurant-uuid
+                  GET {baseUrl}/menu-items/categories?restaurant_id=restaurant-uuid
                 </span>
               </div>
 
               <div className="mb-4">
                 <h4 className="font-semibold text-gray-900 mb-2">Query Parameters:</h4>
                 <ul className="list-disc list-inside text-sm text-gray-700 space-y-1 mb-2">
-                  <li><code>restaurant_id</code> (required) - The restaurant ID</li>
+                  <li><code>restaurant_id</code> (required) - The restaurant UUID</li>
                 </ul>
               </div>
 
@@ -540,19 +528,19 @@ const APIDocumentation = () => {
 
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Get Restaurant Menu Items</h3>
-              <p className="text-gray-600 mb-4">Get all menu items for a restaurant. <strong>No authentication required.</strong></p>
+              <p className="text-gray-600 mb-4">Get all menu items for a restaurant with full details including images, add-ons, and customizations. <strong>No authentication required.</strong></p>
               
               <div className="mb-4">
                 <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                  GET {baseUrl}/restaurant/menu?restaurant_id=restaurant-uuid&available=1
+                  GET {baseUrl}/menu-items?restaurant_id=restaurant-uuid&available=true
                 </span>
               </div>
 
               <div className="mb-4">
                 <h4 className="font-semibold text-gray-900 mb-2">Query Parameters:</h4>
                 <ul className="list-disc list-inside text-sm text-gray-700 space-y-1 mb-2">
-                  <li><code>restaurant_id</code> (required) - The restaurant ID</li>
-                  <li><code>available</code> (optional) - Filter by availability (1 for available, 0 for all)</li>
+                  <li><code>restaurant_id</code> (required) - The restaurant UUID</li>
+                  <li><code>available</code> (optional) - Filter by availability (true/false or 1/0)</li>
                 </ul>
               </div>
 
@@ -566,15 +554,31 @@ const APIDocumentation = () => {
                         id: "menu-item-uuid",
                         restaurant_id: "restaurant-uuid",
                         category_id: "category-uuid",
+                        category: "Main Courses",
                         name: "Pizza Margherita",
                         description: "Classic Italian pizza with tomato and mozzarella",
-                        price: 7500,
-                        discount: 0,
-                        availability: "available",
-                        preparation_time: 20,
-                        portion_size: "Large",
-                        image_url: "https://example.com/pizza.jpg",
-                        available: 1
+                        price: "7500.00",
+                        available: 1,
+                        images: [
+                          {
+                            id: "image-uuid",
+                            image_url: "/uploads/restaurants/menu-item-123.jpg",
+                            is_primary: 1
+                          }
+                        ],
+                        addOns: [
+                          {
+                            id: "addon-uuid",
+                            name: "Extra Cheese",
+                            price: "2000.00"
+                          }
+                        ],
+                        customizations: [
+                          {
+                            name: "Spice Level",
+                            options: ["Mild", "Medium", "Hot"]
+                          }
+                        ]
                       }
                     ]
                   }, null, 2)}
@@ -584,38 +588,55 @@ const APIDocumentation = () => {
 
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Check Table Availability</h3>
-              <p className="text-gray-600 mb-4">Check table availability for a specific date and time. <strong>No authentication required.</strong></p>
+              <p className="text-gray-600 mb-4">Check table availability for a specific date, time, and number of guests. Use this before placing a dine-in order. <strong>No authentication required.</strong></p>
               
               <div className="mb-4">
                 <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                  GET {apiBase}/restaurants/:restaurantId/availability?reservation_date=2024-12-25&reservation_time=19:00&guests=4
+                  GET {apiBase}/restaurants/:restaurantId/table-availability?booking_date=2025-01-20&booking_time=19:00&number_of_guests=4
                 </span>
               </div>
 
               <div className="mb-4">
                 <h4 className="font-semibold text-gray-900 mb-2">Query Parameters:</h4>
                 <ul className="list-disc list-inside text-sm text-gray-700 space-y-1 mb-2">
-                  <li><code>reservation_date</code> (required) - Date in YYYY-MM-DD format</li>
-                  <li><code>reservation_time</code> (required) - Time in HH:MM format</li>
-                  <li><code>guests</code> (required) - Number of guests</li>
+                  <li><code>booking_date</code> (required) - Date in YYYY-MM-DD format</li>
+                  <li><code>booking_time</code> (required) - Time in HH:MM format (24-hour)</li>
+                  <li><code>number_of_guests</code> (required) - Number of guests</li>
                 </ul>
               </div>
 
               <div className="mb-4">
-                <h4 className="font-semibold text-gray-900 mb-2">Response (200 OK):</h4>
+                <h4 className="font-semibold text-gray-900 mb-2">Response (200 OK - Available):</h4>
                 <CodeBlock
                   id="table-availability-response"
                   code={JSON.stringify({
                     success: true,
-                    message: "Availability checked successfully",
                     data: {
                       available: true,
-                      available_seats: 20,
-                      total_seats: 50,
-                      capacity: {
-                        total_seats: 50,
-                        available_seats: 20
-                      }
+                      total_capacity: 50,
+                      booked_guests: 20,
+                      available_capacity: 30,
+                      available_seats: 30,
+                      requested_guests: 4
+                    }
+                  }, null, 2)}
+                />
+              </div>
+
+              <div className="mb-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Response (200 OK - Not Available):</h4>
+                <CodeBlock
+                  id="table-availability-unavailable-response"
+                  code={JSON.stringify({
+                    success: true,
+                    data: {
+                      available: false,
+                      total_capacity: 50,
+                      booked_guests: 48,
+                      available_capacity: 2,
+                      available_seats: 2,
+                      requested_guests: 4,
+                      message: "Not enough capacity available"
                     }
                   }, null, 2)}
                 />
@@ -876,7 +897,7 @@ const APIDocumentation = () => {
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Create Food Order</h3>
-              <p className="text-gray-600 mb-4">Order food from a restaurant. Supports three order types: <strong>dine_in</strong> (with automatic table reservation), <strong>delivery</strong>, and <strong>pickup</strong>. For dine-in orders, a table is automatically reserved when you place your order.</p>
+              <p className="text-gray-600 mb-4">Order food from a restaurant with support for <strong>delivery</strong> and <strong>dine_in</strong> options. For dine-in orders, a table is automatically reserved based on restaurant capacity, and the restaurant's available seats are updated in real-time. <strong>No authentication required.</strong></p>
               
               <div className="mb-4">
                 <span className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
@@ -894,18 +915,26 @@ const APIDocumentation = () => {
                     customer_name: "John Doe",
                     customer_email: "john@example.com",
                     customer_phone: "+250788123456",
-                    booking_date: "2024-12-25",
+                    booking_date: "2025-01-20",
                     booking_time: "19:00",
                     number_of_guests: 4,
                     table_booking_special_requests: "Window seat preferred",
                     items: [
                       {
-                        menu_item_id: "menu-item-uuid",
+                        menu_item_id: "menu-item-uuid-1",
                         quantity: 2,
-                        addons: ["addon-id-1", "addon-id-2"],
+                        addons: [
+                          { id: "addon-uuid-1" }
+                        ],
                         customizations: [
                           { name: "Spice Level", value: "Medium" }
                         ]
+                      },
+                      {
+                        menu_item_id: "menu-item-uuid-2",
+                        quantity: 1,
+                        addons: [],
+                        customizations: []
                       }
                     ],
                     tax_amount: 0,
@@ -926,14 +955,15 @@ const APIDocumentation = () => {
                     customer_name: "Jane Smith",
                     customer_email: "jane@example.com",
                     customer_phone: "+250788654321",
-                    delivery_address: "123 Main Street, Kigali",
+                    delivery_address: "123 Main Street, Kigali, Rwanda",
                     delivery_latitude: -1.9441,
                     delivery_longitude: 30.0619,
                     items: [
                       {
-                        menu_item_id: "menu-item-uuid",
+                        menu_item_id: "menu-item-uuid-1",
                         quantity: 1,
-                        addons: []
+                        addons: [],
+                        customizations: []
                       }
                     ],
                     delivery_fee: 2000,
@@ -946,53 +976,101 @@ const APIDocumentation = () => {
               </div>
 
               <div className="mb-4">
-                <h4 className="font-semibold text-gray-900 mb-2">Request Body (Pickup Order):</h4>
+                <h4 className="font-semibold text-gray-900 mb-2">Response (201 Created - Dine-In):</h4>
                 <CodeBlock
-                  id="restaurant-pickup-request"
-                  code={JSON.stringify({
-                    restaurant_id: "restaurant-uuid",
-                    order_type: "pickup",
-                    customer_name: "Bob Johnson",
-                    customer_phone: "+250788999888",
-                    items: [
-                      {
-                        menu_item_id: "menu-item-uuid",
-                        quantity: 3
-                      }
-                    ],
-                    payment_method: "card"
-                  }, null, 2)}
-                />
-              </div>
-
-              <div className="mb-4">
-                <h4 className="font-semibold text-gray-900 mb-2">Response (201 Created):</h4>
-                <CodeBlock
-                  id="restaurant-response"
+                  id="restaurant-dinein-response"
                   code={JSON.stringify({
                     success: true,
                     message: "Order created successfully",
                     data: {
                       id: "order-uuid",
+                      booking_id: 123,
                       restaurant_id: "restaurant-uuid",
                       order_type: "dine_in",
                       customer_name: "John Doe",
-                      order_status: "pending",
+                      customer_email: "john@example.com",
+                      customer_phone: "+250788123456",
+                      table_booking_id: 45,
+                      subtotal: 32000.00,
+                      delivery_fee: 0.00,
+                      tax_amount: 0.00,
+                      discount_amount: 0.00,
+                      total_amount: 32000.00,
+                      payment_method: "card",
                       payment_status: "pending",
-                      subtotal: 15000,
-                      total_amount: 15000,
-                      table_booking_id: 123,
+                      order_status: "pending",
+                      updated_available_seats: 46,
+                      table_booking: {
+                        id: 45,
+                        restaurant_id: "restaurant-uuid",
+                        customer_name: "John Doe",
+                        booking_date: "2025-01-20",
+                        booking_time: "19:00",
+                        number_of_guests: 4,
+                        status: "pending",
+                        special_requests: "Window seat preferred"
+                      },
                       items: [
                         {
-                          id: "item-uuid",
-                          menu_item_id: "menu-item-uuid",
-                          item_name: "Pizza Margherita",
+                          id: "order-item-uuid-1",
+                          menu_item_id: "menu-item-uuid-1",
+                          item_name: "Grilled Chicken",
                           quantity: 2,
-                          unit_price: 7500,
-                          subtotal: 15000
+                          unit_price: 15000.00,
+                          subtotal: 30000.00
+                        },
+                        {
+                          id: "order-item-uuid-2",
+                          menu_item_id: "menu-item-uuid-2",
+                          item_name: "Caesar Salad",
+                          quantity: 1,
+                          unit_price: 2000.00,
+                          subtotal: 2000.00
                         }
                       ],
-                      created_at: "2024-12-25T10:00:00.000Z"
+                      created_at: "2025-01-15T10:30:00.000Z"
+                    }
+                  }, null, 2)}
+                />
+              </div>
+
+              <div className="mb-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Response (201 Created - Delivery):</h4>
+                <CodeBlock
+                  id="restaurant-delivery-response"
+                  code={JSON.stringify({
+                    success: true,
+                    message: "Order created successfully",
+                    data: {
+                      id: "order-uuid",
+                      booking_id: 124,
+                      restaurant_id: "restaurant-uuid",
+                      order_type: "delivery",
+                      customer_name: "Jane Smith",
+                      customer_email: "jane@example.com",
+                      customer_phone: "+250788654321",
+                      delivery_address: "123 Main Street, Kigali, Rwanda",
+                      delivery_latitude: -1.9441,
+                      delivery_longitude: 30.0619,
+                      subtotal: 7500.00,
+                      delivery_fee: 2000.00,
+                      tax_amount: 0.00,
+                      discount_amount: 0.00,
+                      total_amount: 9500.00,
+                      payment_method: "mobile_money",
+                      payment_status: "pending",
+                      order_status: "pending",
+                      items: [
+                        {
+                          id: "order-item-uuid-1",
+                          menu_item_id: "menu-item-uuid-1",
+                          item_name: "Pizza Margherita",
+                          quantity: 1,
+                          unit_price: 7500.00,
+                          subtotal: 7500.00
+                        }
+                      ],
+                      created_at: "2025-01-15T10:30:00.000Z"
                     }
                   }, null, 2)}
                 />
@@ -1001,23 +1079,58 @@ const APIDocumentation = () => {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h4 className="font-semibold text-blue-900 mb-2">Required Fields:</h4>
                 <ul className="list-disc list-inside text-sm text-blue-800 space-y-1">
-                  <li><code>restaurant_id</code> - ID of the restaurant</li>
-                  <li><code>order_type</code> - Order type: <code>"dine_in"</code>, <code>"delivery"</code>, or <code>"pickup"</code></li>
+                  <li><code>restaurant_id</code> - Restaurant UUID</li>
+                  <li><code>order_type</code> - Order type: <code>"dine_in"</code> or <code>"delivery"</code></li>
                   <li><code>customer_name</code> - Customer full name</li>
-                  <li><code>customer_phone</code> - Customer phone number</li>
+                  <li><code>customer_phone</code> - Customer phone number (with country code)</li>
                   <li><code>items</code> - Array of menu items (at least one item required)</li>
-                  <li><strong>For dine_in orders:</strong> <code>booking_date</code>, <code>booking_time</code>, <code>number_of_guests</code></li>
+                  <li><strong>For dine_in orders:</strong> <code>booking_date</code> (YYYY-MM-DD), <code>booking_time</code> (HH:MM), <code>number_of_guests</code></li>
                   <li><strong>For delivery orders:</strong> <code>delivery_address</code></li>
                 </ul>
               </div>
 
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-4">
-                <h4 className="font-semibold text-green-900 mb-2">💡 Note:</h4>
-                <p className="text-sm text-green-800">
-                  For <code>dine_in</code> orders, a table is automatically reserved when you place your order. 
-                  The system checks availability and creates both the order and table booking in one transaction. 
-                  You don't need to make a separate table reservation.
-                </p>
+                <h4 className="font-semibold text-green-900 mb-2">💡 Important Notes:</h4>
+                <ul className="list-disc list-inside text-sm text-green-800 space-y-1">
+                  <li>For <code>dine_in</code> orders, a table is automatically reserved when you place your order</li>
+                  <li>The system checks capacity availability before creating the order</li>
+                  <li>If successful, the restaurant's <code>available_seats</code> is automatically reduced by the number of guests</li>
+                  <li>The response includes <code>updated_available_seats</code> showing the new available seat count</li>
+                  <li>Menu items can include <code>addons</code> (array of addon IDs) and <code>customizations</code> (array of name/value pairs)</li>
+                  <li>All endpoints are public - no authentication required</li>
+                </ul>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
+                <h4 className="font-semibold text-yellow-900 mb-2">⚠️ Error Responses:</h4>
+                <div className="text-sm text-yellow-800 space-y-2">
+                  <div>
+                    <strong>400 - Not enough capacity:</strong>
+                    <CodeBlock
+                      id="error-capacity"
+                      code={JSON.stringify({
+                        success: false,
+                        message: "Not enough capacity available. Available: 2, Requested: 4",
+                        availability: {
+                          available: false,
+                          total_capacity: 50,
+                          booked_guests: 48,
+                          available_capacity: 2
+                        }
+                      }, null, 2)}
+                    />
+                  </div>
+                  <div>
+                    <strong>400 - Missing required fields:</strong>
+                    <CodeBlock
+                      id="error-missing-fields"
+                      code={JSON.stringify({
+                        success: false,
+                        message: "Customer name, phone, and at least one item are required"
+                      }, null, 2)}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>

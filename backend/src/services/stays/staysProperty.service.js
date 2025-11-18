@@ -2,6 +2,33 @@ const StaysProperty = require('../../models/stays/staysProperty.model');
 const { executeQuery } = require('../../../config/database');
 const bcrypt = require('bcryptjs');
 const EmailVerificationService = require('./emailVerification.service');
+const path = require('path');
+const fs = require('fs');
+
+const createErrorWithStatus = (message, statusCode) => {
+    const error = new Error(message);
+    if (statusCode) {
+        error.statusCode = statusCode;
+    }
+    return error;
+};
+
+const resolveAbsoluteUploadPath = (imageUrl) => {
+    if (!imageUrl) return null;
+    const normalizedPath = imageUrl.replace(/^\/+/, '');
+    return path.join(__dirname, '../../..', normalizedPath);
+};
+
+const removeImageFromDisk = (imageUrl) => {
+    try {
+        const absolutePath = resolveAbsoluteUploadPath(imageUrl);
+        if (absolutePath && fs.existsSync(absolutePath)) {
+            fs.unlinkSync(absolutePath);
+        }
+    } catch (error) {
+        console.warn('Failed to remove image from disk:', error.message);
+    }
+};
 
 class StaysPropertyService {
     async createProperty(data) {
@@ -318,6 +345,323 @@ class StaysPropertyService {
             console.error('Error getting property with all data:', error);
             throw error;
         }
+    }
+
+    async ensurePropertyOwnership(propertyId, userId, includeDetails = false) {
+        const property = await executeQuery(
+            `SELECT property_id, user_id, property_name, property_type, number_of_rooms 
+             FROM stays_properties WHERE property_id = ?`,
+            [propertyId]
+        );
+
+        if (!property || property.length === 0) {
+            throw createErrorWithStatus('Property not found', 404);
+        }
+
+        const propertyRecord = property[0];
+        if (propertyRecord.user_id && userId && Number(propertyRecord.user_id) !== Number(userId)) {
+            throw createErrorWithStatus('Unauthorized access to this property', 403);
+        }
+
+        return includeDetails ? propertyRecord : true;
+    }
+
+    async ensureRoomOwnership(roomId, userId, includeDetails = false) {
+        const room = await executeQuery(
+            `SELECT sr.*, sp.user_id, sp.property_name 
+             FROM stays_rooms sr
+             INNER JOIN stays_properties sp ON sr.property_id = sp.property_id
+             WHERE sr.room_id = ?`,
+            [roomId]
+        );
+
+        if (!room || room.length === 0) {
+            throw createErrorWithStatus('Room not found', 404);
+        }
+
+        const roomRecord = room[0];
+        if (roomRecord.user_id && userId && Number(roomRecord.user_id) !== Number(userId)) {
+            throw createErrorWithStatus('Unauthorized access to this room', 403);
+        }
+
+        return includeDetails ? roomRecord : true;
+    }
+
+    async getPropertyImageLibrary(propertyId, userId) {
+        const property = await this.ensurePropertyOwnership(propertyId, userId, true);
+
+        const propertyImages = await executeQuery(
+            `SELECT image_id, property_id, image_url, image_order, is_primary, created_at 
+             FROM stays_property_images 
+             WHERE property_id = ? 
+             ORDER BY image_order ASC, created_at ASC`,
+            [propertyId]
+        );
+
+        const rooms = await executeQuery(
+            `SELECT room_id, room_name, room_type, number_of_rooms, room_status 
+             FROM stays_rooms 
+             WHERE property_id = ? 
+             ORDER BY room_name ASC`,
+            [propertyId]
+        );
+
+        let roomImagesMap = {};
+        if (rooms.length > 0) {
+            const roomIds = rooms.map((room) => room.room_id);
+            const placeholders = roomIds.map(() => '?').join(',');
+            const roomImages = await executeQuery(
+                `SELECT image_id, room_id, image_url, image_order, is_primary, created_at 
+                 FROM stays_room_images 
+                 WHERE room_id IN (${placeholders})
+                 ORDER BY room_id ASC, image_order ASC, created_at ASC`,
+                roomIds
+            );
+
+            roomImagesMap = roomImages.reduce((acc, image) => {
+                if (!acc[image.room_id]) {
+                    acc[image.room_id] = [];
+                }
+                acc[image.room_id].push(image);
+                return acc;
+            }, {});
+        }
+
+        const roomsWithImages = rooms.map((room) => ({
+            ...room,
+            images: roomImagesMap[room.room_id] || []
+        }));
+
+        return {
+            property: {
+                property_id: property.property_id,
+                property_name: property.property_name,
+                property_type: property.property_type,
+                number_of_rooms: property.number_of_rooms
+            },
+            propertyImages,
+            rooms: roomsWithImages
+        };
+    }
+
+    async addPropertyImages(propertyId, userId, images = []) {
+        await this.ensurePropertyOwnership(propertyId, userId);
+        if (!images || images.length === 0) {
+            return this.getPropertyImageLibrary(propertyId, userId);
+        }
+
+        const existingOrder = await executeQuery(
+            `SELECT COALESCE(MAX(image_order), -1) AS max_order 
+             FROM stays_property_images 
+             WHERE property_id = ?`,
+            [propertyId]
+        );
+        let nextOrder = (existingOrder[0]?.max_order ?? -1) + 1;
+
+        for (const image of images) {
+            await executeQuery(
+                `INSERT INTO stays_property_images (property_id, image_url, image_order, is_primary)
+                 VALUES (?, ?, ?, ?)`,
+                [
+                    propertyId,
+                    image.url,
+                    nextOrder,
+                    image.isPrimary ? 1 : 0
+                ]
+            );
+            nextOrder += 1;
+        }
+
+        return this.getPropertyImageLibrary(propertyId, userId);
+    }
+
+    async addRoomImages(roomId, userId, images = []) {
+        const room = await this.ensureRoomOwnership(roomId, userId, true);
+        if (!images || images.length === 0) {
+            return this.getPropertyImageLibrary(room.property_id, userId);
+        }
+
+        const existingOrder = await executeQuery(
+            `SELECT COALESCE(MAX(image_order), -1) AS max_order 
+             FROM stays_room_images 
+             WHERE room_id = ?`,
+            [roomId]
+        );
+        let nextOrder = (existingOrder[0]?.max_order ?? -1) + 1;
+
+        for (const image of images) {
+            await executeQuery(
+                `INSERT INTO stays_room_images (room_id, image_url, image_order, is_primary)
+                 VALUES (?, ?, ?, ?)`,
+                [
+                    roomId,
+                    image.url,
+                    nextOrder,
+                    image.isPrimary ? 1 : 0
+                ]
+            );
+            nextOrder += 1;
+        }
+
+        return this.getPropertyImageLibrary(room.property_id, userId);
+    }
+
+    async deletePropertyImage(imageId, userId) {
+        const imageRecords = await executeQuery(
+            `SELECT spi.*, sp.user_id 
+             FROM stays_property_images spi
+             INNER JOIN stays_properties sp ON spi.property_id = sp.property_id
+             WHERE spi.image_id = ?`,
+            [imageId]
+        );
+
+        if (!imageRecords || imageRecords.length === 0) {
+            throw createErrorWithStatus('Image not found', 404);
+        }
+
+        const image = imageRecords[0];
+        if (Number(image.user_id) !== Number(userId)) {
+            throw createErrorWithStatus('Unauthorized access to this image', 403);
+        }
+
+        await executeQuery(`DELETE FROM stays_property_images WHERE image_id = ?`, [imageId]);
+        removeImageFromDisk(image.image_url);
+        return image;
+    }
+
+    async deleteRoomImage(imageId, userId) {
+        const imageRecords = await executeQuery(
+            `SELECT sri.*, sp.user_id 
+             FROM stays_room_images sri
+             INNER JOIN stays_rooms sr ON sri.room_id = sr.room_id
+             INNER JOIN stays_properties sp ON sr.property_id = sp.property_id
+             WHERE sri.image_id = ?`,
+            [imageId]
+        );
+
+        if (!imageRecords || imageRecords.length === 0) {
+            throw createErrorWithStatus('Image not found', 404);
+        }
+
+        const image = imageRecords[0];
+        if (Number(image.user_id) !== Number(userId)) {
+            throw createErrorWithStatus('Unauthorized access to this image', 403);
+        }
+
+        await executeQuery(`DELETE FROM stays_room_images WHERE image_id = ?`, [imageId]);
+        removeImageFromDisk(image.image_url);
+        return image;
+    }
+
+    async updatePropertyImage(imageId, userId, updates = {}) {
+        const imageRecords = await executeQuery(
+            `SELECT spi.*, sp.user_id 
+             FROM stays_property_images spi
+             INNER JOIN stays_properties sp ON spi.property_id = sp.property_id
+             WHERE spi.image_id = ?`,
+            [imageId]
+        );
+
+        if (!imageRecords || imageRecords.length === 0) {
+            throw createErrorWithStatus('Image not found', 404);
+        }
+
+        const image = imageRecords[0];
+        if (Number(image.user_id) !== Number(userId)) {
+            throw createErrorWithStatus('Unauthorized access to this image', 403);
+        }
+
+        const fields = [];
+        const params = [];
+
+        if (updates.image_order !== undefined) {
+            fields.push('image_order = ?');
+            params.push(Number(updates.image_order));
+        }
+
+        if (updates.is_primary !== undefined) {
+            if (updates.is_primary) {
+                await executeQuery(
+                    `UPDATE stays_property_images 
+                     SET is_primary = 0 
+                     WHERE property_id = ? AND image_id != ?`,
+                    [image.property_id, imageId]
+                );
+            }
+
+            fields.push('is_primary = ?');
+            params.push(updates.is_primary ? 1 : 0);
+        }
+
+        if (fields.length === 0) {
+            throw createErrorWithStatus('No valid fields provided for update', 400);
+        }
+
+        params.push(imageId);
+        await executeQuery(
+            `UPDATE stays_property_images 
+             SET ${fields.join(', ')}
+             WHERE image_id = ?`,
+            params
+        );
+
+        return this.getPropertyImageLibrary(image.property_id, userId);
+    }
+
+    async updateRoomImage(imageId, userId, updates = {}) {
+        const imageRecords = await executeQuery(
+            `SELECT sri.*, sp.user_id, sr.property_id 
+             FROM stays_room_images sri
+             INNER JOIN stays_rooms sr ON sri.room_id = sr.room_id
+             INNER JOIN stays_properties sp ON sr.property_id = sp.property_id
+             WHERE sri.image_id = ?`,
+            [imageId]
+        );
+
+        if (!imageRecords || imageRecords.length === 0) {
+            throw createErrorWithStatus('Image not found', 404);
+        }
+
+        const image = imageRecords[0];
+        if (Number(image.user_id) !== Number(userId)) {
+            throw createErrorWithStatus('Unauthorized access to this image', 403);
+        }
+
+        const fields = [];
+        const params = [];
+
+        if (updates.image_order !== undefined) {
+            fields.push('image_order = ?');
+            params.push(Number(updates.image_order));
+        }
+
+        if (updates.is_primary !== undefined) {
+            if (updates.is_primary) {
+                await executeQuery(
+                    `UPDATE stays_room_images 
+                     SET is_primary = 0 
+                     WHERE room_id = ? AND image_id != ?`,
+                    [image.room_id, imageId]
+                );
+            }
+
+            fields.push('is_primary = ?');
+            params.push(updates.is_primary ? 1 : 0);
+        }
+
+        if (fields.length === 0) {
+            throw createErrorWithStatus('No valid fields provided for update', 400);
+        }
+
+        params.push(imageId);
+        await executeQuery(
+            `UPDATE stays_room_images 
+             SET ${fields.join(', ')}
+             WHERE image_id = ?`,
+            params
+        );
+
+        return this.getPropertyImageLibrary(image.property_id, userId);
     }
 }
 

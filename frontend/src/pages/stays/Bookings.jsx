@@ -17,7 +17,8 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  DollarSign
+  DollarSign,
+  Image as ImageIcon
 } from 'lucide-react';
 import { staysAuthService, staysBookingService, getMyPropertyListings } from '../../services/staysService';
 import toast from 'react-hot-toast';
@@ -145,12 +146,14 @@ const Bookings = () => {
       );
     }
 
-    // Search filter (by booking ID, room name, or guest count)
+    // Search filter (by booking ID, room name, guest name, email, or guest count)
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(booking => 
         booking.booking_id?.toString().includes(query) ||
         booking.room_name?.toLowerCase().includes(query) ||
+        booking.guest_name?.toLowerCase().includes(query) ||
+        booking.guest_email?.toLowerCase().includes(query) ||
         booking.guests?.toString().includes(query)
       );
     }
@@ -273,6 +276,21 @@ const Bookings = () => {
             >
               <Building2 className="h-5 w-5 flex-shrink-0" />
               {(sidebarOpen || (!isMobile && sidebarExpanded)) && <span>My Property</span>}
+            </a>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                navigate('/stays/dashboard/property-images');
+              }}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-1 ${
+                currentPath === '/stays/dashboard/property-images' 
+                  ? 'bg-gray-700 text-white' 
+                  : 'text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              <ImageIcon className="h-5 w-5 flex-shrink-0" />
+              {(sidebarOpen || (!isMobile && sidebarExpanded)) && <span>Property Images</span>}
             </a>
             <a
               href="#"
@@ -489,6 +507,7 @@ const Bookings = () => {
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest Name</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-out</th>
@@ -503,6 +522,9 @@ const Bookings = () => {
                         <tr key={booking.booking_id} className="hover:bg-gray-50">
                           <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                             #{booking.booking_id}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                            {booking.guest_name || 'N/A'}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
                             {booking.room_name || 'N/A'}
@@ -565,46 +587,83 @@ const Bookings = () => {
               </div>
 
               <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Booking ID</label>
-                    <p className="text-sm font-medium">#{selectedBooking.booking_id}</p>
+                {/* Guest Information Section */}
+                <div className="border-b pb-4 mb-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Guest Information</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Guest Name</label>
+                      <p className="text-sm font-medium">{selectedBooking.guest_name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Guest Email</label>
+                      <p className="text-sm font-medium">{selectedBooking.guest_email || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Guest Phone</label>
+                      <p className="text-sm font-medium">{selectedBooking.guest_phone || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Adults / Children</label>
+                      <p className="text-sm font-medium">
+                        {selectedBooking.number_of_adults || 0} Adults, {selectedBooking.number_of_children || 0} Children
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Status</label>
-                    <div className="mt-1">{getStatusBadge(selectedBooking.status)}</div>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Room</label>
-                    <p className="text-sm font-medium">{selectedBooking.room_name || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Room Type</label>
-                    <p className="text-sm font-medium">{selectedBooking.room_type || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Check-in Date</label>
-                    <p className="text-sm font-medium">{formatDate(selectedBooking.check_in_date)}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Check-out Date</label>
-                    <p className="text-sm font-medium">{formatDate(selectedBooking.check_out_date)}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Number of Guests</label>
-                    <p className="text-sm font-medium">{selectedBooking.guests || 1}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Total Amount</label>
-                    <p className="text-sm font-medium text-green-600">{formatCurrency(selectedBooking.total_amount)}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Created At</label>
-                    <p className="text-sm font-medium">{formatDate(selectedBooking.created_at)}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Last Updated</label>
-                    <p className="text-sm font-medium">{formatDate(selectedBooking.updated_at)}</p>
+                </div>
+
+                {/* Booking Details Section */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Booking Details</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Booking ID</label>
+                      <p className="text-sm font-medium">#{selectedBooking.booking_id}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Booking Reference</label>
+                      <p className="text-sm font-medium">{selectedBooking.booking_reference || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Status</label>
+                      <div className="mt-1">{getStatusBadge(selectedBooking.status)}</div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Payment Status</label>
+                      <p className="text-sm font-medium capitalize">{selectedBooking.payment_status || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Room</label>
+                      <p className="text-sm font-medium">{selectedBooking.room_name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Room Type</label>
+                      <p className="text-sm font-medium">{selectedBooking.room_type || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Check-in Date</label>
+                      <p className="text-sm font-medium">{formatDate(selectedBooking.check_in_date)}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Check-out Date</label>
+                      <p className="text-sm font-medium">{formatDate(selectedBooking.check_out_date)}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Number of Guests</label>
+                      <p className="text-sm font-medium">{selectedBooking.guests || 1}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Total Amount</label>
+                      <p className="text-sm font-medium text-green-600">{formatCurrency(selectedBooking.total_amount)}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Created At</label>
+                      <p className="text-sm font-medium">{formatDate(selectedBooking.created_at)}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Last Updated</label>
+                      <p className="text-sm font-medium">{formatDate(selectedBooking.updated_at)}</p>
+                    </div>
                   </div>
                 </div>
               </div>

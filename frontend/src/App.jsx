@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { LanguageProvider } from './context/LanguageContext';
 
 // Vendor Landing
 import VendorLanding from './pages/vendor/VendorLanding';
@@ -50,6 +51,7 @@ import MyProperty from './pages/stays/MyProperty';
 import RoomAvailability from './pages/stays/RoomAvailability';
 import StaysBookings from './pages/stays/Bookings';
 import StaysFinance from './pages/stays/Finance';
+import PropertyImages from './pages/stays/PropertyImages';
 
 // Restaurant Dashboard Pages
 import RestaurantDashboard from './pages/restaurant/Dashboard';
@@ -64,6 +66,7 @@ import RestaurantReports from './pages/restaurant/Reports';
 import RestaurantAPIDocs from './pages/restaurant/APIDocs';
 import TableBookings from './pages/restaurant/TableBookings';
 import RestaurantDashboardLayout from './components/restaurant/RestaurantDashboardLayout';
+import OrderFood from './pages/restaurant/OrderFood';
 
 // Tour Package Setup Pages
 import ListYourTour from './pages/tours/ListYourTour';
@@ -133,11 +136,12 @@ import APIDocumentation from './pages/api-docs/APIDocumentation';
 
 function App() {
   return (
-    <Router>
-      <div className="min-h-screen bg-gray-50">
-        <Toaster position="top-right" />
-        
-        <Routes>
+    <LanguageProvider>
+      <Router>
+        <div className="min-h-screen bg-gray-50">
+          <Toaster position="top-right" />
+          
+          <Routes>
           {/* Vendor Landing Page */}
           <Route path="/" element={<VendorLanding />} />
           <Route path="/vendor" element={<VendorLanding />} />
@@ -163,6 +167,9 @@ function App() {
 
           {/* Restaurant Login */}
           <Route path="/restaurant/login" element={<RestaurantLogin />} />
+
+          {/* Client-facing Restaurant Ordering */}
+          <Route path="/restaurant/:restaurantId/order" element={<OrderFood />} />
 
           {/* Stays Listing Flow */}
           <Route path="/stays/list-your-property" element={<ListYourProperty />} />
@@ -198,6 +205,7 @@ function App() {
           <Route path="/stays/dashboard/bookings" element={<StaysBookings />} />
           <Route path="/stays/dashboard/room-availability" element={<RoomAvailability />} />
           <Route path="/stays/dashboard/finance" element={<StaysFinance />} />
+          <Route path="/stays/dashboard/property-images" element={<PropertyImages />} />
 
           {/* Restaurant Dashboard - Nested Routes with Layout */}
           <Route path="/restaurant" element={<RestaurantDashboardLayout />}>
@@ -302,8 +310,9 @@ function App() {
           {/* Catch all - redirect to vendor landing */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </div>
-    </Router>
+        </div>
+      </Router>
+    </LanguageProvider>
   );
 }
 

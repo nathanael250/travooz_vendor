@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { 
   LogOut, Home, Settings, Building2, Mail, AlertCircle, 
   Menu, Bell, Calendar, DollarSign, BarChart3, 
-  ChevronDown, ChevronLeft, ChevronRight, User, LayoutDashboard, FileText, TrendingUp, BookOpen
+  ChevronDown, ChevronLeft, ChevronRight, User, LayoutDashboard, FileText, TrendingUp, BookOpen, Image as ImageIcon
 } from 'lucide-react';
 import logo from '../../assets/images/cdc_logo.jpg';
 import { staysAuthService, getMyPropertyListings, staysSetupService } from '../../services/staysService';
@@ -690,6 +690,36 @@ export default function StaysDashboard() {
             >
               <Building2 className="h-5 w-5 flex-shrink-0" />
               {(sidebarOpen || (!isMobile && sidebarExpanded)) && <span>My Property</span>}
+            </a>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                navigate('/stays/dashboard/property-images');
+              }}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-1 ${
+                currentPath === '/stays/dashboard/property-images' 
+                  ? 'bg-gray-700 text-white' 
+                  : 'text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              <ImageIcon className="h-5 w-5 flex-shrink-0" />
+              {(sidebarOpen || (!isMobile && sidebarExpanded)) && <span>Property Images</span>}
+            </a>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                navigate('/stays/dashboard/property-images');
+              }}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-1 ${
+                currentPath === '/stays/dashboard/property-images' 
+                  ? 'bg-gray-700 text-white' 
+                  : 'text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              <ImageIcon className="h-5 w-5 flex-shrink-0" />
+              {(sidebarOpen || (!isMobile && sidebarExpanded)) && <span>Property Images</span>}
             </a>
             <a
               href="#"

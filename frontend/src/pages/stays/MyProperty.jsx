@@ -284,6 +284,21 @@ const MyProperty = () => {
               href="#"
               onClick={(e) => {
                 e.preventDefault();
+                navigate('/stays/dashboard/property-images');
+              }}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-1 ${
+                currentPath === '/stays/dashboard/property-images' 
+                  ? 'bg-gray-700 text-white' 
+                  : 'text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              <ImageIcon className="h-5 w-5 flex-shrink-0" />
+              {(sidebarOpen || (!isMobile && sidebarExpanded)) && <span>Property Images</span>}
+            </a>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
                 navigate('/stays/dashboard/bookings');
               }}
               className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-1 ${

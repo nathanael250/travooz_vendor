@@ -2,6 +2,43 @@ const staysPropertyService = require('../../services/stays/staysProperty.service
 const { validationSchemas, validate } = require('../../utils/validation');
 const { sendSuccess, sendError, sendValidationError, sendNotFound } = require('../../utils/response.utils');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
+
+const getUserIdFromRequest = (req) => req.user?.userId || req.user?.user_id || req.user?.id;
+
+const parseBoolean = (value) => {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+        return value === 'true' || value === '1';
+    }
+    return Boolean(value);
+};
+
+const cleanupUploadedFiles = (files = []) => {
+    files.forEach((file) => {
+        if (file?.path) {
+            try {
+                if (fs.existsSync(file.path)) {
+                    fs.unlinkSync(file.path);
+                }
+            } catch (error) {
+                console.warn('Failed to remove uploaded file:', error.message);
+            }
+        }
+    });
+};
+
+const handleImageError = (res, error, fallbackMessage = 'Failed to process images') => {
+    console.error('Image management error:', error.message);
+    if (error.statusCode === 404) {
+        return sendNotFound(res, error.message);
+    }
+    if (error.statusCode === 403) {
+        return sendError(res, error.message, 403);
+    }
+    return sendError(res, error.message || fallbackMessage, 500);
+};
 
 // Create property listing (all 3 steps combined)
 const createProperty = async (req, res) => {
@@ -185,6 +222,190 @@ const getPropertyWithAllData = async (req, res) => {
     }
 };
 
+// Get property + room images
+const getPropertyImages = async (req, res) => {
+    try {
+        const propertyId = parseInt(req.params.id);
+        if (!propertyId) {
+            return sendError(res, 'Invalid property ID', 400);
+        }
+
+        const userId = getUserIdFromRequest(req);
+        if (!userId) {
+            return sendError(res, 'Authentication required', 401);
+        }
+
+        const images = await staysPropertyService.getPropertyImageLibrary(propertyId, userId);
+        return sendSuccess(res, images, 'Property images retrieved successfully');
+    } catch (error) {
+        return handleImageError(res, error, 'Failed to fetch property images');
+    }
+};
+
+// Upload property-level images
+const uploadPropertyImages = async (req, res) => {
+    const files = req.files || [];
+    try {
+        const propertyId = parseInt(req.params.id);
+        if (!propertyId) {
+            cleanupUploadedFiles(files);
+            return sendError(res, 'Invalid property ID', 400);
+        }
+
+        const userId = getUserIdFromRequest(req);
+        if (!userId) {
+            cleanupUploadedFiles(files);
+            return sendError(res, 'Authentication required', 401);
+        }
+
+        if (files.length === 0) {
+            return sendError(res, 'Please attach at least one image', 400);
+        }
+
+        const payload = files.map((file) => ({
+            url: `/uploads/stays/property-images/${file.filename}`
+        }));
+
+        const images = await staysPropertyService.addPropertyImages(propertyId, userId, payload);
+        return sendSuccess(res, images, 'Property images uploaded successfully');
+    } catch (error) {
+        cleanupUploadedFiles(files);
+        return handleImageError(res, error, 'Failed to upload property images');
+    }
+};
+
+// Delete property-level image
+const deletePropertyImage = async (req, res) => {
+    try {
+        const imageId = parseInt(req.params.imageId);
+        if (!imageId) {
+            return sendError(res, 'Invalid image ID', 400);
+        }
+
+        const userId = getUserIdFromRequest(req);
+        if (!userId) {
+            return sendError(res, 'Authentication required', 401);
+        }
+
+        const deletedImage = await staysPropertyService.deletePropertyImage(imageId, userId);
+        const images = await staysPropertyService.getPropertyImageLibrary(deletedImage.property_id, userId);
+        return sendSuccess(res, images, 'Image deleted successfully');
+    } catch (error) {
+        return handleImageError(res, error, 'Failed to delete image');
+    }
+};
+
+// Update property-level image metadata
+const updatePropertyImage = async (req, res) => {
+    try {
+        const imageId = parseInt(req.params.imageId);
+        if (!imageId) {
+            return sendError(res, 'Invalid image ID', 400);
+        }
+
+        const userId = getUserIdFromRequest(req);
+        if (!userId) {
+            return sendError(res, 'Authentication required', 401);
+        }
+
+        const payload = {};
+        if (req.body?.image_order !== undefined) {
+            payload.image_order = Number(req.body.image_order);
+        }
+        const isPrimary = parseBoolean(req.body?.is_primary);
+        if (isPrimary !== undefined) {
+            payload.is_primary = isPrimary;
+        }
+
+        const images = await staysPropertyService.updatePropertyImage(imageId, userId, payload);
+        return sendSuccess(res, images, 'Image updated successfully');
+    } catch (error) {
+        return handleImageError(res, error, 'Failed to update image');
+    }
+};
+
+// Upload room-level images
+const uploadRoomImages = async (req, res) => {
+    const files = req.files || [];
+    try {
+        const roomId = parseInt(req.params.roomId);
+        if (!roomId) {
+            cleanupUploadedFiles(files);
+            return sendError(res, 'Invalid room ID', 400);
+        }
+
+        const userId = getUserIdFromRequest(req);
+        if (!userId) {
+            cleanupUploadedFiles(files);
+            return sendError(res, 'Authentication required', 401);
+        }
+
+        if (files.length === 0) {
+            return sendError(res, 'Please attach at least one image', 400);
+        }
+
+        const payload = files.map((file) => ({
+            url: `/uploads/stays/room-images/${file.filename}`
+        }));
+
+        const images = await staysPropertyService.addRoomImages(roomId, userId, payload);
+        return sendSuccess(res, images, 'Room images uploaded successfully');
+    } catch (error) {
+        cleanupUploadedFiles(files);
+        return handleImageError(res, error, 'Failed to upload room images');
+    }
+};
+
+// Delete room-level image
+const deleteRoomImage = async (req, res) => {
+    try {
+        const imageId = parseInt(req.params.imageId);
+        if (!imageId) {
+            return sendError(res, 'Invalid image ID', 400);
+        }
+
+        const userId = getUserIdFromRequest(req);
+        if (!userId) {
+            return sendError(res, 'Authentication required', 401);
+        }
+
+        const deletedImage = await staysPropertyService.deleteRoomImage(imageId, userId);
+        const images = await staysPropertyService.getPropertyImageLibrary(deletedImage.property_id, userId);
+        return sendSuccess(res, images, 'Image deleted successfully');
+    } catch (error) {
+        return handleImageError(res, error, 'Failed to delete room image');
+    }
+};
+
+// Update room-level image metadata
+const updateRoomImage = async (req, res) => {
+    try {
+        const imageId = parseInt(req.params.imageId);
+        if (!imageId) {
+            return sendError(res, 'Invalid image ID', 400);
+        }
+
+        const userId = getUserIdFromRequest(req);
+        if (!userId) {
+            return sendError(res, 'Authentication required', 401);
+        }
+
+        const payload = {};
+        if (req.body?.image_order !== undefined) {
+            payload.image_order = Number(req.body.image_order);
+        }
+        const isPrimary = parseBoolean(req.body?.is_primary);
+        if (isPrimary !== undefined) {
+            payload.is_primary = isPrimary;
+        }
+
+        const images = await staysPropertyService.updateRoomImage(imageId, userId, payload);
+        return sendSuccess(res, images, 'Room image updated successfully');
+    } catch (error) {
+        return handleImageError(res, error, 'Failed to update room image');
+    }
+};
+
 module.exports = {
     createProperty,
     getPropertyById,
@@ -192,6 +413,13 @@ module.exports = {
     getPropertiesByUserId,
     updateProperty,
     deleteProperty,
-    getPropertyWithAllData
+    getPropertyWithAllData,
+    getPropertyImages,
+    uploadPropertyImages,
+    deletePropertyImage,
+    updatePropertyImage,
+    uploadRoomImages,
+    deleteRoomImage,
+    updateRoomImage
 };
 
