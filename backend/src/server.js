@@ -17,7 +17,8 @@ app.use(helmet({
 const defaultOrigins = [
   'http://localhost:8080',
   'http://localhost:5173',
-  'https://www.travooz.com'
+  'https://www.travooz.com',
+  'https://travoozapp.com'
 ];
 
 const extraOrigins = (process.env.CORS_ORIGIN || '')
