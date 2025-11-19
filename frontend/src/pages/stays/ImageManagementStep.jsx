@@ -341,19 +341,19 @@ export default function ImageManagementStep() {
                     const imageName = image.name || image.original_name || 'Property image';
                     return (
                       <div key={imageId || imageSrc} className="relative group">
-                        <img
+                      <img
                           src={imageSrc}
                           alt={imageName}
-                          className="w-full h-32 object-cover rounded-lg border border-gray-200"
-                        />
-                        <button
-                          type="button"
+                        className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                      />
+                      <button
+                        type="button"
                           onClick={() => handleImageDelete(imageId || image.id, 'property')}
-                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
                     );
                   })}
                 </div>
@@ -363,12 +363,12 @@ export default function ImageManagementStep() {
                     {uploadingProperty ? (
                       <Loader2 className="h-8 w-8 mb-2 text-gray-500 animate-spin" />
                     ) : (
-                      <Upload className="h-8 w-8 mb-2 text-gray-500" />
+                    <Upload className="h-8 w-8 mb-2 text-gray-500" />
                     )}
                     <p className="text-sm text-gray-600 mb-1">
                       {uploadingProperty ? 'Uploading images...' : (
                         <>
-                          <span className="font-semibold">Click to upload</span> or drag and drop
+                      <span className="font-semibold">Click to upload</span> or drag and drop
                         </>
                       )}
                     </p>
@@ -404,65 +404,65 @@ export default function ImageManagementStep() {
                     const isUploading = !!roomUploadStatus[roomKey];
                     return (
                       <div key={roomKey || room.id} className="border rounded-lg p-6" style={{ borderColor: '#dcfce7' }}>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">
                           {getRoomName(room)}
-                        </h3>
-                        
-                        <div className="border-2 border-dashed rounded-lg p-6" style={{ borderColor: '#dcfce7' }}>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      </h3>
+                      
+                      <div className="border-2 border-dashed rounded-lg p-6" style={{ borderColor: '#dcfce7' }}>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                             {roomImagesList.map((image) => {
                               const imageId = image.image_id || image.id;
                               const imageSrc = image.preview || image.image_url || image.url;
                               const imageName = image.name || image.original_name || getRoomName(room);
                               return (
                                 <div key={imageId || imageSrc} className="relative group">
-                                  <img
+                              <img
                                     src={imageSrc}
                                     alt={imageName}
-                                    className="w-full h-32 object-cover rounded-lg border border-gray-200"
-                                  />
-                                  <button
-                                    type="button"
+                                className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                              />
+                              <button
+                                type="button"
                                     onClick={() => handleImageDelete(imageId || image.id, 'room', roomKey)}
-                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </button>
-                                </div>
+                                className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
                               );
                             })}
-                          </div>
-                          
+                        </div>
+                        
                           <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors ${isUploading ? 'opacity-70 cursor-not-allowed' : ''}`}>
-                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
                               {isUploading ? (
                                 <Loader2 className="h-8 w-8 mb-2 text-gray-500 animate-spin" />
                               ) : (
-                                <Upload className="h-8 w-8 mb-2 text-gray-500" />
+                            <Upload className="h-8 w-8 mb-2 text-gray-500" />
                               )}
-                              <p className="text-sm text-gray-600 mb-1">
+                            <p className="text-sm text-gray-600 mb-1">
                                 {isUploading ? 'Uploading images...' : (
                                   <>
-                                    <span className="font-semibold">Click to upload</span> or drag and drop
+                              <span className="font-semibold">Click to upload</span> or drag and drop
                                   </>
                                 )}
-                              </p>
-                              <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
-                            </div>
-                            <input
-                              type="file"
-                              className="hidden"
-                              multiple
-                              accept="image/*"
+                            </p>
+                            <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
+                          </div>
+                          <input
+                            type="file"
+                            className="hidden"
+                            multiple
+                            accept="image/*"
                               disabled={isUploading}
                               onChange={async (e) => {
                                 await handleImageUpload(e.target.files, 'room', roomKey);
                                 e.target.value = '';
                               }}
-                            />
-                          </label>
-                        </div>
+                          />
+                        </label>
                       </div>
+                    </div>
                     );
                   })}
                 </div>
