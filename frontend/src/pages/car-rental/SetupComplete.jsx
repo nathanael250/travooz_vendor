@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Clock, CheckCircle, ArrowRight } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
@@ -11,6 +11,7 @@ export default function SetupComplete() {
   const carRentalBusinessId = location.state?.carRentalBusinessId || localStorage.getItem('car_rental_business_id');
   const [submissionStatus, setSubmissionStatus] = useState(null);
   const [isChecking, setIsChecking] = useState(true);
+  const pollIntervalRef = useRef(null);
 
   useEffect(() => {
     const user = localStorage.getItem('user');
@@ -19,26 +20,68 @@ export default function SetupComplete() {
       return;
     }
 
+    let isMounted = true;
+
     const fetchStatus = async () => {
       if (!carRentalBusinessId) {
-        setSubmissionStatus('in_progress');
-        setIsChecking(false);
+        if (isMounted) {
+          setSubmissionStatus('in_progress');
+          setIsChecking(false);
+        }
         return;
       }
 
       try {
         const response = await carRentalSetupService.getSubmissionStatus(carRentalBusinessId);
         const data = response?.data || response || {};
-        setSubmissionStatus(data.status || 'pending_review');
+        const status = data.status || 'pending_review';
+        
+        if (isMounted) {
+          setSubmissionStatus(status);
+          setIsChecking(false);
+        }
+        
+        // Automatically redirect to dashboard if approved
+        if (status === 'approved') {
+          // Clear polling interval
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
+          // Show success message briefly before redirecting
+          setTimeout(() => {
+            if (isMounted) {
+              navigate('/car-rental/dashboard', { replace: true });
+            }
+          }, 1500);
+        }
       } catch (error) {
         console.error('Error fetching submission status:', error);
-        setSubmissionStatus('pending_review');
-      } finally {
-        setIsChecking(false);
+        if (isMounted) {
+          setSubmissionStatus('pending_review');
+          setIsChecking(false);
+        }
       }
     };
 
+    // Initial fetch
     fetchStatus();
+
+    // Set up polling to check status every 5 seconds if not approved
+    pollIntervalRef.current = setInterval(() => {
+      if (carRentalBusinessId && isMounted) {
+        fetchStatus();
+      }
+    }, 5000); // Check every 5 seconds
+
+    // Cleanup interval on unmount
+    return () => {
+      isMounted = false;
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
   }, [navigate, carRentalBusinessId]);
 
   const handleGoToDashboard = async () => {
@@ -173,8 +216,13 @@ export default function SetupComplete() {
               <ArrowRight className="h-5 w-5" />
             </button>
 
+            <div className="mt-4 flex items-center justify-center gap-2 text-sm text-gray-500">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#3CAF54]"></div>
+              <span>Automatically checking status every 5 seconds...</span>
+            </div>
+
             <p className="text-sm text-gray-500 mt-6">
-              You can log in to your dashboard to check your verification status. Once approved, you'll be able to create car rentals.
+              You can log in to your dashboard to check your verification status. Once approved, you'll be automatically redirected to your dashboard.
             </p>
           </div>
         </div>

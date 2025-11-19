@@ -313,6 +313,24 @@ class CarRentalSetupService {
       throw new Error('carRentalBusinessId is required');
     }
 
+    // Check business status first (this is updated when admin approves)
+    const businesses = await executeQuery(
+      `SELECT status, created_at, updated_at
+       FROM car_rental_businesses
+       WHERE car_rental_business_id = ?`,
+      [carRentalBusinessId]
+    );
+
+    // If business is approved, return approved status immediately
+    if (businesses && businesses.length > 0 && businesses[0].status === 'approved') {
+      return {
+        status: 'approved',
+        submitted_at: businesses[0].created_at,
+        updated_at: businesses[0].updated_at
+      };
+    }
+
+    // Otherwise, check submission status
     const submissions = await executeQuery(
       `SELECT status, submitted_at, agreement_signed_at, created_at
        FROM car_rental_setup_submissions
@@ -323,6 +341,13 @@ class CarRentalSetupService {
     );
 
     if (!submissions || submissions.length === 0) {
+      // If business exists but no submission, check business status
+      if (businesses && businesses.length > 0) {
+        return {
+          status: businesses[0].status || 'pending_review',
+          message: 'No submission found, but business exists.'
+        };
+      }
       return {
         status: 'in_progress',
         message: 'No submission found for this business yet.'
