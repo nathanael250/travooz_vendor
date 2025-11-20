@@ -1,4 +1,5 @@
 const { executeQuery } = require('../../../config/database');
+const EmailService = require('../../utils/email.service');
 
 class ClientBookingService {
   /**
@@ -96,6 +97,12 @@ class ClientBookingService {
       }
 
       const room = rooms[0];
+      
+      const properties = await executeQuery(
+        `SELECT property_name, city, country FROM stays_properties WHERE property_id = ? LIMIT 1`,
+        [property_id]
+      );
+      const property = properties && properties.length > 0 ? properties[0] : {};
       console.log('✅ [createStayBooking] Room found:', {
         room_id: room.room_id,
         room_name: room.room_name,
@@ -225,7 +232,7 @@ class ClientBookingService {
         nights: nights
       });
 
-      return {
+      const bookingDetails = {
         booking_id: bookingId,
         booking_reference: bookingReference,
         total_amount: totalAmount,
@@ -239,6 +246,24 @@ class ClientBookingService {
         check_out_date: check_out_date,
         guests: totalGuests
       };
+
+      // Send confirmation email (non-blocking)
+      this.sendStayBookingConfirmationEmail({
+        guest_name,
+        guest_email,
+        property_name: property.property_name,
+        room_name: room.room_name,
+        booking_reference: bookingReference,
+        check_in_date,
+        check_out_date,
+        total_amount: totalAmount,
+        number_of_adults,
+        number_of_children,
+        special_requests,
+        nights
+      });
+
+      return bookingDetails;
     } catch (error) {
       console.error('❌ [createStayBooking] Error creating stay booking:', error);
       throw error;
@@ -480,7 +505,7 @@ class ClientBookingService {
         [bookingId, totalAmount, payment_method, 'pending']
       );
 
-      return {
+      const bookingDetails = {
         booking_id: bookingId,
         booking_reference: bookingReference,
         total_amount: totalAmount,
@@ -489,6 +514,20 @@ class ClientBookingService {
         status: 'pending',
         payment_status: 'pending'
       };
+
+      this.sendTourBookingConfirmationEmail({
+        customer_name,
+        customer_email,
+        customer_phone,
+        package_name: tour.name,
+        booking_reference: bookingReference,
+        tour_date,
+        number_of_participants,
+        total_amount: totalAmount,
+        special_requests
+      });
+
+      return bookingDetails;
     } catch (error) {
       console.error('Error creating tour booking:', error);
       throw error;
@@ -581,7 +620,7 @@ class ClientBookingService {
         transactionId = transactionResult.insertId;
       }
 
-      return {
+      const reservationDetails = {
         booking_id: bookingId,
         booking_reference: bookingReference,
         total_amount: totalAmount,
@@ -590,6 +629,20 @@ class ClientBookingService {
         status: 'pending',
         payment_status: 'pending'
       };
+
+      this.sendRestaurantReservationConfirmationEmail({
+        customer_name,
+        customer_email,
+        customer_phone,
+        restaurant_name: restaurant[0]?.restaurant_name || restaurant[0]?.name,
+        reservation_date,
+        reservation_time,
+        number_of_guests,
+        booking_reference: bookingReference,
+        special_requests
+      });
+
+      return reservationDetails;
     } catch (error) {
       console.error('Error creating restaurant reservation:', error);
       throw error;
@@ -718,7 +771,7 @@ class ClientBookingService {
         [bookingId, totalAmount, payment_method, 'pending']
       );
 
-      return {
+      const bookingDetails = {
         booking_id: bookingId,
         booking_reference: bookingReference,
         total_amount: totalAmount,
@@ -727,6 +780,23 @@ class ClientBookingService {
         status: 'pending',
         payment_status: 'pending'
       };
+
+      this.sendCarRentalBookingConfirmationEmail({
+        customer_name,
+        customer_email,
+        customer_phone,
+        car_name: carData.name || carData.model || carData.make,
+        booking_reference: bookingReference,
+        pickup_date,
+        return_date,
+        pickup_location,
+        return_location,
+        total_amount: totalAmount,
+        days,
+        special_requests: specialRequestsText
+      });
+
+      return bookingDetails;
     } catch (error) {
       console.error('Error creating car rental booking:', error);
       throw error;
@@ -788,6 +858,229 @@ class ClientBookingService {
     } catch (error) {
       console.error('Error getting booking:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Send stay booking confirmation email
+   */
+  async sendStayBookingConfirmationEmail(details) {
+    if (!details?.guest_email) {
+      return;
+    }
+
+    try {
+      const {
+        guest_name,
+        guest_email,
+        property_name,
+        room_name,
+        booking_reference,
+        check_in_date,
+        check_out_date,
+        total_amount,
+        number_of_adults,
+        number_of_children,
+        special_requests,
+        nights
+      } = details;
+
+      const stayLabel = property_name || 'Travooz stay';
+      const subject = `Thank you for booking ${stayLabel} (Ref ${booking_reference})`;
+
+      const html = `
+        <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+          <h2 style="color: #16a34a;">Hi ${guest_name || 'there'},</h2>
+          <p>Thank you for choosing Travooz! We have received your booking for <strong>${stayLabel}</strong>${room_name ? ` (Room: ${room_name})` : ''}.</p>
+          <p>Here are the details:</p>
+          <ul>
+            <li><strong>Booking Reference:</strong> ${booking_reference}</li>
+            <li><strong>Check-in:</strong> ${check_in_date}</li>
+            <li><strong>Check-out:</strong> ${check_out_date}</li>
+            <li><strong>Nights:</strong> ${nights}</li>
+            <li><strong>Guests:</strong> ${number_of_adults} adults${number_of_children ? `, ${number_of_children} children` : ''}</li>
+            <li><strong>Total Amount:</strong> ${Number(total_amount || 0).toLocaleString()} RWF</li>
+          </ul>
+          ${special_requests ? `<p><strong>Special requests:</strong> ${special_requests}</p>` : ''}
+          <p>We will contact you soon to confirm the next steps. If you have any questions, simply reply to this email.</p>
+          <p>Safe travels,<br/>The Travooz Team</p>
+        </div>
+      `;
+
+      const text = `
+Hi ${guest_name || ''},
+
+Thank you for choosing Travooz! We have received your booking.
+
+Booking reference: ${booking_reference}
+Property: ${stayLabel}
+Room: ${room_name || 'N/A'}
+Check-in: ${check_in_date}
+Check-out: ${check_out_date}
+Nights: ${nights}
+Guests: ${number_of_adults} adults${number_of_children ? `, ${number_of_children} children` : ''}
+Total amount: ${total_amount} RWF
+${special_requests ? `Special requests: ${special_requests}` : ''}
+
+We will contact you with next steps shortly.
+
+Travooz Team
+      `;
+
+      await EmailService.sendEmail({
+        to: guest_email,
+        subject,
+        html,
+        text
+      });
+    } catch (error) {
+      console.error('⚠️ Failed to send stay booking confirmation email:', error.message);
+    }
+  }
+
+  async sendTourBookingConfirmationEmail(details) {
+    if (!details?.customer_email) return;
+    try {
+      const {
+        customer_name,
+        customer_email,
+        package_name,
+        booking_reference,
+        tour_date,
+        number_of_participants,
+        total_amount,
+        special_requests
+      } = details;
+
+      const subject = `Tour booking received for ${package_name || 'your tour'} (Ref ${booking_reference})`;
+      const html = `
+        <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+          <h2 style="color: #16a34a;">Hello ${customer_name || 'traveler'},</h2>
+          <p>Thanks for booking <strong>${package_name || 'your tour'}</strong> on Travooz.</p>
+          <ul>
+            <li><strong>Booking reference:</strong> ${booking_reference}</li>
+            <li><strong>Tour date:</strong> ${tour_date}</li>
+            <li><strong>Participants:</strong> ${number_of_participants}</li>
+            <li><strong>Total amount:</strong> ${Number(total_amount || 0).toLocaleString()} RWF</li>
+          </ul>
+          ${special_requests ? `<p><strong>Special requests:</strong> ${special_requests}</p>` : ''}
+          <p>We'll reach out soon with more details.</p>
+          <p>Best regards,<br/>Travooz Team</p>
+        </div>
+      `;
+      const text = `
+Hi ${customer_name || ''},
+We received your tour booking (${booking_reference}).
+Tour: ${package_name || 'Tour'}
+Date: ${tour_date}
+Participants: ${number_of_participants}
+Total: ${total_amount} RWF
+${special_requests ? `Special requests: ${special_requests}` : ''}
+We’ll follow up soon.
+Travooz Team`;
+
+      await EmailService.sendEmail({ to: customer_email, subject, html, text });
+    } catch (error) {
+      console.error('⚠️ Failed to send tour booking confirmation email:', error.message);
+    }
+  }
+
+  async sendRestaurantReservationConfirmationEmail(details) {
+    if (!details?.customer_email) return;
+    try {
+      const {
+        customer_name,
+        customer_email,
+        restaurant_name,
+        reservation_date,
+        reservation_time,
+        number_of_guests,
+        booking_reference,
+        special_requests
+      } = details;
+
+      const subject = `Restaurant reservation received (Ref ${booking_reference})`;
+      const html = `
+        <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+          <h2 style="color: #16a34a;">Hi ${customer_name || 'there'},</h2>
+          <p>Your reservation request for <strong>${restaurant_name || 'the restaurant'}</strong> has been received.</p>
+          <ul>
+            <li><strong>Booking reference:</strong> ${booking_reference}</li>
+            <li><strong>Date:</strong> ${reservation_date}</li>
+            <li><strong>Time:</strong> ${reservation_time}</li>
+            <li><strong>Guests:</strong> ${number_of_guests}</li>
+          </ul>
+          ${special_requests ? `<p><strong>Special requests:</strong> ${special_requests}</p>` : ''}
+          <p>We’ll confirm availability shortly.</p>
+          <p>Travooz Team</p>
+        </div>
+      `;
+      const text = `
+Hi ${customer_name || ''},
+We received your restaurant reservation (${booking_reference}).
+Restaurant: ${restaurant_name || 'Restaurant'}
+Date: ${reservation_date}
+Time: ${reservation_time}
+Guests: ${number_of_guests}
+${special_requests ? `Special requests: ${special_requests}` : ''}
+We'll confirm soon.
+Travooz Team`;
+
+      await EmailService.sendEmail({ to: customer_email, subject, html, text });
+    } catch (error) {
+      console.error('⚠️ Failed to send restaurant reservation confirmation email:', error.message);
+    }
+  }
+
+  async sendCarRentalBookingConfirmationEmail(details) {
+    if (!details?.customer_email) return;
+    try {
+      const {
+        customer_name,
+        customer_email,
+        car_name,
+        booking_reference,
+        pickup_date,
+        return_date,
+        pickup_location,
+        return_location,
+        total_amount,
+        days,
+        special_requests
+      } = details;
+
+      const subject = `Car rental booking received (Ref ${booking_reference})`;
+      const html = `
+        <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+          <h2 style="color: #16a34a;">Hello ${customer_name || 'traveler'},</h2>
+          <p>We’ve received your car rental booking${car_name ? ` for <strong>${car_name}</strong>` : ''}.</p>
+          <ul>
+            <li><strong>Booking reference:</strong> ${booking_reference}</li>
+            <li><strong>Pickup:</strong> ${pickup_date} ${pickup_location ? `at ${pickup_location}` : ''}</li>
+            <li><strong>Return:</strong> ${return_date} ${return_location ? `at ${return_location}` : ''}</li>
+            <li><strong>Duration:</strong> ${days} days</li>
+            <li><strong>Total amount:</strong> ${Number(total_amount || 0).toLocaleString()} RWF</li>
+          </ul>
+          ${special_requests ? `<p><strong>Notes:</strong> ${special_requests}</p>` : ''}
+          <p>We’ll contact you to finalize pickup instructions.</p>
+          <p>Travooz Team</p>
+        </div>
+      `;
+      const text = `
+Hi ${customer_name || ''},
+Your car rental booking (${booking_reference}) has been received.
+Car: ${car_name || 'Selected car'}
+Pickup: ${pickup_date} ${pickup_location ? `at ${pickup_location}` : ''}
+Return: ${return_date} ${return_location ? `at ${return_location}` : ''}
+Duration: ${days} days
+Total: ${total_amount} RWF
+${special_requests ? `Notes: ${special_requests}` : ''}
+We will follow up shortly.
+Travooz Team`;
+
+      await EmailService.sendEmail({ to: customer_email, subject, html, text });
+    } catch (error) {
+      console.error('⚠️ Failed to send car rental booking confirmation email:', error.message);
     }
   }
 }

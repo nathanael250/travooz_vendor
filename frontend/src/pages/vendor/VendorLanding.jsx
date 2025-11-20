@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Home, UtensilsCrossed, Plane, Car, Activity, 
+  Home, UtensilsCrossed, Plane, Car,
   CheckCircle, Users, Award, TrendingUp, Shield,
   Facebook, Twitter, Instagram, Linkedin, Mail, Phone, MapPin,
   Building2, Settings, Grid3x3
@@ -52,14 +52,6 @@ export default function VendorLanding() {
       description: 'List your car rental or transportation services',
       route: '/car-rental/list-your-car-rental',
       color: '#A855F7' // purple-500
-    },
-    {
-      id: 'activity',
-      name: 'Activity',
-      icon: Activity,
-      description: 'Promote your activities and experiences',
-      route: '/activity',
-      color: '#EF4444' // red-500
     }
   ];
 
@@ -131,7 +123,7 @@ export default function VendorLanding() {
                 Join Rwanda's leading tourism marketplace
               </p>
               <p className="text-lg text-white opacity-90 mb-8">
-                List your property, restaurant, tour packages, cars, or activities and reach thousands of travelers.
+                List your property, restaurant, tour packages, or cars and reach thousands of travelers.
                 Start growing your business today!
               </p>
             </div>
@@ -279,11 +271,6 @@ export default function VendorLanding() {
                 <li>
                   <button onClick={() => handleCategoryClick('/car-rental/list-your-car-rental')} className="hover:text-white transition-colors">
                     Car Rental
-                  </button>
-                </li>
-                <li>
-                  <button onClick={() => handleCategoryClick('/activity')} className="hover:text-white transition-colors">
-                    Activity
                   </button>
                 </li>
               </ul>
