@@ -99,7 +99,7 @@ class ClientBookingService {
       const room = rooms[0];
       
       const properties = await executeQuery(
-        `SELECT property_name, city, country FROM stays_properties WHERE property_id = ? LIMIT 1`,
+        `SELECT property_name, location, location_data FROM stays_properties WHERE property_id = ? LIMIT 1`,
         [property_id]
       );
       const property = properties && properties.length > 0 ? properties[0] : {};

@@ -9,7 +9,7 @@ export default function EmailVerification() {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const { userId, email, userName, tourBusinessId, verificationCode } = location.state || {};
+  const { userId, email, userName, tourBusinessId } = location.state || {};
   
   // Store tourBusinessId in localStorage if available from state
   useEffect(() => {
@@ -34,8 +34,8 @@ export default function EmailVerification() {
   const [isVerified, setIsVerified] = useState(false);
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
-  const [devCode, setDevCode] = useState(null);
   const [isSendingCode, setIsSendingCode] = useState(false);
+  const hasRequestedInitialCode = useRef(false);
   
   const inputRefs = useRef([]);
 
@@ -57,27 +57,23 @@ export default function EmailVerification() {
   // Send verification code automatically when component loads (after step 3)
   useEffect(() => {
     const sendInitialCode = async () => {
-      if (userId && email && userName && !devCode) {
-        setIsSendingCode(true);
-        try {
-          const result = await tourPackageSetupService.sendEmailVerificationCode(userId, email, userName);
-          if (result.code) {
-            setDevCode(result.code);
-          }
-        } catch (error) {
-          console.error('Error sending initial verification code:', error);
-          // Don't show error to user, they can resend if needed
-        } finally {
-          setIsSendingCode(false);
-        }
-      } else if (verificationCode) {
-        // If code was passed from previous step (for backward compatibility)
-        setDevCode(verificationCode);
+      if (!userId || !email || !userName || hasRequestedInitialCode.current) {
+        return;
+      }
+      hasRequestedInitialCode.current = true;
+      setIsSendingCode(true);
+      try {
+        await tourPackageSetupService.sendEmailVerificationCode(userId, email, userName);
+      } catch (error) {
+        console.error('Error sending initial verification code:', error);
+        // Let user try again manually
+      } finally {
+        setIsSendingCode(false);
       }
     };
 
     sendInitialCode();
-  }, [userId, email, userName, verificationCode, devCode]);
+  }, [userId, email, userName]);
 
   // Countdown timer
   useEffect(() => {
@@ -194,10 +190,7 @@ export default function EmailVerification() {
     setCountdown(60);
     
     try {
-      const result = await tourPackageSetupService.sendEmailVerificationCode(userId, email, userName);
-      if (result.code) {
-        setDevCode(result.code);
-      }
+      await tourPackageSetupService.sendEmailVerificationCode(userId, email, userName);
       setCode(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
     } catch (error) {
@@ -277,17 +270,6 @@ export default function EmailVerification() {
                   <div className="flex items-center gap-3">
                     <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
                     <p className="text-sm text-blue-800">Sending verification code to your email...</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Development Code Display */}
-              {devCode && !isSendingCode && (
-                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4">
-                  <p className="text-sm font-semibold text-yellow-800 mb-2">⚠️ Development Mode</p>
-                  <p className="text-xs text-yellow-700 mb-2">Email sending failed. Use this verification code:</p>
-                  <div className="bg-white border border-yellow-300 rounded p-3 text-center">
-                    <p className="text-2xl font-bold text-yellow-800 tracking-widest">{devCode}</p>
                   </div>
                 </div>
               )}

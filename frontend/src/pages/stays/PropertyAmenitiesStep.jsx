@@ -111,7 +111,7 @@ export default function PropertyAmenitiesStep() {
     housekeeping: 'yes',
     
     // Additional Amenities
-    uniqueAmenities: [],
+    additionalAmenities: [],
     newAmenity: '',
     
     // Themes (auto-generated but can be displayed)
@@ -139,10 +139,10 @@ export default function PropertyAmenitiesStep() {
   };
 
   const handleAddAmenity = () => {
-    if (formData.newAmenity.trim() && !formData.uniqueAmenities.includes(formData.newAmenity.trim())) {
+    if (formData.newAmenity.trim() && !formData.additionalAmenities.includes(formData.newAmenity.trim())) {
       setFormData(prev => ({
         ...prev,
-        uniqueAmenities: [...prev.uniqueAmenities, prev.newAmenity.trim()],
+        additionalAmenities: [...prev.additionalAmenities, prev.newAmenity.trim()],
         newAmenity: ''
       }));
     }
@@ -151,7 +151,7 @@ export default function PropertyAmenitiesStep() {
   const handleRemoveAmenity = (amenity) => {
     setFormData(prev => ({
       ...prev,
-      uniqueAmenities: prev.uniqueAmenities.filter(a => a !== amenity)
+      additionalAmenities: prev.additionalAmenities.filter(a => a !== amenity)
     }));
   };
 
@@ -1701,9 +1701,9 @@ export default function PropertyAmenitiesStep() {
                     </button>
                   </div>
                   
-                  {formData.uniqueAmenities.length > 0 && (
+                  {formData.additionalAmenities.length > 0 && (
                     <div className="flex flex-wrap gap-2">
-                      {formData.uniqueAmenities.map((amenity, index) => (
+                      {formData.additionalAmenities.map((amenity, index) => (
                         <span
                           key={index}
                           className="inline-flex items-center gap-2 px-3 py-1 bg-[#f0fdf4] border border-[#3CAF54] rounded-lg text-sm"

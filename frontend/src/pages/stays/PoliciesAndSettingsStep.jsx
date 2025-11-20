@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Plus, Search, X, AlertCircle } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Search, X, AlertCircle } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import { staysSetupService } from '../../services/staysService';
@@ -28,7 +28,6 @@ export default function PoliciesAndSettingsStep() {
     // Languages spoken
     languages: [],
     languageSearch: '',
-    newLanguage: '',
     
     // Payment methods
     acceptCreditDebitCards: true,
@@ -121,16 +120,6 @@ export default function PoliciesAndSettingsStep() {
       setErrors(prev => ({
         ...prev,
         [name]: ''
-      }));
-    }
-  };
-
-  const handleAddLanguage = () => {
-    if (formData.newLanguage.trim() && !formData.languages.includes(formData.newLanguage.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        languages: [...prev.languages, prev.newLanguage.trim()],
-        newLanguage: ''
       }));
     }
   };
@@ -298,30 +287,6 @@ export default function PoliciesAndSettingsStep() {
                   Which languages are spoken at your property?
                 </h2>
                 <div className="space-y-4">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={formData.newLanguage}
-                      onChange={(e) => setFormData(prev => ({ ...prev, newLanguage: e.target.value }))}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddLanguage();
-                        }
-                      }}
-                      placeholder="Add a language"
-                      className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddLanguage}
-                      className="px-4 py-2 text-white font-semibold rounded-lg transition-colors"
-                      style={{ backgroundColor: '#3CAF54' }}
-                    >
-                      <Plus className="h-5 w-5" />
-                    </button>
-                  </div>
-                  
                   {/* Selected Languages */}
                   {formData.languages.length > 0 && (
                     <div className="flex flex-wrap gap-2">

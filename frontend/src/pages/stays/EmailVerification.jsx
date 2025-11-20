@@ -9,7 +9,7 @@ export default function EmailVerification() {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const { userId, email, userName, propertyId, verificationCode } = location.state || {};
+  const { userId, email, userName, propertyId } = location.state || {};
   
   // Store propertyId in localStorage if available from state
   useEffect(() => {
@@ -34,7 +34,6 @@ export default function EmailVerification() {
   const [isVerified, setIsVerified] = useState(false);
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
-  const [devCode, setDevCode] = useState(verificationCode || null);
   
   const inputRefs = useRef([]);
 
@@ -215,17 +214,6 @@ export default function EmailVerification() {
             </div>
 
             <form onSubmit={handleVerify} className="space-y-6">
-              {/* Development Code Display */}
-              {devCode && (
-                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4">
-                  <p className="text-sm font-semibold text-yellow-800 mb-2">⚠️ Development Mode</p>
-                  <p className="text-xs text-yellow-700 mb-2">Email sending failed. Use this verification code:</p>
-                  <div className="bg-white border border-yellow-300 rounded p-3 text-center">
-                    <p className="text-2xl font-bold text-yellow-800 tracking-widest">{devCode}</p>
-                  </div>
-                </div>
-              )}
-
               {/* Code Input */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3 text-center">
