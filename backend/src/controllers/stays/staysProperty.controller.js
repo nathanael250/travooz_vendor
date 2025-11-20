@@ -3,6 +3,7 @@ const { validationSchemas, validate } = require('../../utils/validation');
 const { sendSuccess, sendError, sendValidationError, sendNotFound } = require('../../utils/response.utils');
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
+const path = require('path');
 
 const getUserIdFromRequest = (req) => req.user?.userId || req.user?.user_id || req.user?.id;
 
@@ -27,6 +28,109 @@ const cleanupUploadedFiles = (files = []) => {
             }
         }
     });
+};
+
+const PROPERTY_UPLOAD_DIR = path.join(__dirname, '../../uploads/stays/property-images');
+const ROOM_UPLOAD_DIR = path.join(__dirname, '../../uploads/stays/room-images');
+const BASE64_IMAGE_REGEX = /^data:(image\/[a-zA-Z0-9.+-]+);base64,/;
+
+const ensureDirectoryExists = (dirPath) => {
+    if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+    }
+};
+
+const saveBase64Image = async (dataUrl, targetDir) => {
+    if (!dataUrl || !BASE64_IMAGE_REGEX.test(dataUrl)) {
+        return null;
+    }
+
+    try {
+        ensureDirectoryExists(targetDir);
+        const [, mimeType] = dataUrl.match(BASE64_IMAGE_REGEX);
+        const base64Data = dataUrl.replace(BASE64_IMAGE_REGEX, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+        const extension = mimeType.split('/')[1] || 'png';
+        const fileName = `stays-${Date.now()}-${Math.round(Math.random() * 1e9)}.${extension}`;
+        const absolutePath = path.join(targetDir, fileName);
+        await fs.promises.writeFile(absolutePath, buffer);
+        return {
+            url: `/uploads/stays/${path.basename(targetDir)}/${fileName}`,
+            size: buffer.length,
+            type: mimeType,
+            name: fileName
+        };
+    } catch (error) {
+        console.error('❌ Failed to persist base64 image:', error);
+        return null;
+    }
+};
+
+const normalizeIncomingImages = async (items = [], targetDir) => {
+    if (!items || items.length === 0) {
+        return [];
+    }
+
+    const normalized = [];
+
+    for (let index = 0; index < items.length; index++) {
+        const entry = items[index];
+        let candidate = null;
+
+        if (typeof entry === 'string') {
+            if (BASE64_IMAGE_REGEX.test(entry)) {
+                const fileData = await saveBase64Image(entry, targetDir);
+                if (fileData) {
+                    candidate = { url: fileData.url };
+                }
+            } else {
+                candidate = { url: entry };
+            }
+        } else if (entry && typeof entry === 'object') {
+            const url = entry.url || entry.image_url || entry.photo_url;
+            if (url && BASE64_IMAGE_REGEX.test(url)) {
+                const fileData = await saveBase64Image(url, targetDir);
+                if (fileData) {
+                    candidate = {
+                        url: fileData.url,
+                        isPrimary: entry.isPrimary || entry.is_primary
+                    };
+                }
+            } else if (url) {
+                candidate = {
+                    url,
+                    isPrimary: entry.isPrimary || entry.is_primary
+                };
+            }
+        }
+
+        if (candidate && candidate.url) {
+            normalized.push({
+                url: candidate.url,
+                isPrimary: candidate.isPrimary ? 1 : 0,
+                image_order: candidate.image_order ?? index
+            });
+        }
+    }
+
+    return normalized;
+};
+
+const extractBase64Payload = (body, fieldName = 'images') => {
+    if (!body) return [];
+    const payload = body[fieldName] || body[`${fieldName}[]`] || body[`${fieldName}Array`];
+    if (!payload) return [];
+    try {
+        if (typeof payload === 'string') {
+            return JSON.parse(payload);
+        }
+        if (Array.isArray(payload)) {
+            return payload;
+        }
+    } catch (error) {
+        console.warn('⚠️ Failed to parse base64 image payload:', error.message);
+    }
+    return [];
 };
 
 const handleImageError = (res, error, fallbackMessage = 'Failed to process images') => {
@@ -258,13 +362,20 @@ const uploadPropertyImages = async (req, res) => {
             return sendError(res, 'Authentication required', 401);
         }
 
-        if (files.length === 0) {
+        const payloadFromFiles = files.map((file, index) => ({
+            url: `/uploads/stays/property-images/${file.filename}`,
+            image_order: index,
+            isPrimary: index === 0 ? 1 : 0
+        }));
+
+        const base64PayloadRaw = extractBase64Payload(req.body, 'images');
+        const payloadFromBase64 = await normalizeIncomingImages(base64PayloadRaw, PROPERTY_UPLOAD_DIR);
+
+        const payload = [...payloadFromFiles, ...payloadFromBase64];
+
+        if (payload.length === 0) {
             return sendError(res, 'Please attach at least one image', 400);
         }
-
-        const payload = files.map((file) => ({
-            url: `/uploads/stays/property-images/${file.filename}`
-        }));
 
         const images = await staysPropertyService.addPropertyImages(propertyId, userId, payload);
         return sendSuccess(res, images, 'Property images uploaded successfully');
@@ -328,8 +439,17 @@ const updatePropertyImage = async (req, res) => {
 const uploadRoomImages = async (req, res) => {
     const files = req.files || [];
     try {
-        const roomId = parseInt(req.params.roomId);
-        if (!roomId) {
+        const roomIdParam = req.params.roomId;
+        let roomId = parseInt(roomIdParam, 10);
+
+        if (Number.isNaN(roomId)) {
+            const digits = roomIdParam?.match(/\d+/g);
+            if (digits && digits.length > 0) {
+                roomId = parseInt(digits.join(''), 10);
+            }
+        }
+
+        if (!roomId || Number.isNaN(roomId)) {
             cleanupUploadedFiles(files);
             return sendError(res, 'Invalid room ID', 400);
         }
@@ -340,13 +460,20 @@ const uploadRoomImages = async (req, res) => {
             return sendError(res, 'Authentication required', 401);
         }
 
-        if (files.length === 0) {
+        const payloadFromFiles = files.map((file, index) => ({
+            url: `/uploads/stays/room-images/${file.filename}`,
+            image_order: index,
+            isPrimary: index === 0 ? 1 : 0
+        }));
+
+        const base64PayloadRaw = extractBase64Payload(req.body, 'images');
+        const payloadFromBase64 = await normalizeIncomingImages(base64PayloadRaw, ROOM_UPLOAD_DIR);
+
+        const payload = [...payloadFromFiles, ...payloadFromBase64];
+
+        if (payload.length === 0) {
             return sendError(res, 'Please attach at least one image', 400);
         }
-
-        const payload = files.map((file) => ({
-            url: `/uploads/stays/room-images/${file.filename}`
-        }));
 
         const images = await staysPropertyService.addRoomImages(roomId, userId, payload);
         return sendSuccess(res, images, 'Room images uploaded successfully');
