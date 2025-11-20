@@ -3,8 +3,10 @@ const router = express.Router();
 const clientBookingController = require('../controllers/client/clientBooking.controller');
 const clientPaymentController = require('../controllers/client/clientPayment.controller');
 const clientDiscoveryController = require('../controllers/client/clientDiscovery.controller');
+const clientAuthController = require('../controllers/client/clientAuth.controller');
 const restaurantOrderController = require('../controllers/restaurant/restaurantOrder.controller');
 const tableBookingController = require('../controllers/restaurant/tableBooking.controller');
+const { authenticate } = require('../middlewares/auth.middleware');
 
 // Client-facing discovery/browsing routes (public - no authentication required)
 // Properties (Stays)
@@ -24,6 +26,11 @@ router.get('/restaurants', clientDiscoveryController.getRestaurants);
 router.get('/restaurants/:restaurantId', clientDiscoveryController.getRestaurantById);
 router.get('/restaurants/:restaurantId/availability', clientDiscoveryController.checkRestaurantAvailability);
 router.get('/restaurants/:restaurantId/table-availability', tableBookingController.checkAvailability);
+
+// Client authentication routes
+router.post('/auth/register', clientAuthController.registerClient);
+router.post('/auth/login', clientAuthController.loginClient);
+router.get('/auth/profile', authenticate, clientAuthController.getClientProfile);
 
 // Car Rentals
 router.get('/car-rentals', clientDiscoveryController.getCarRentals);

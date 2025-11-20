@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, CreditCard, Home, Car, UtensilsCrossed, MapPin, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { BookOpen, CreditCard, Home, Car, UtensilsCrossed, MapPin, Copy, Check, ChevronDown, ChevronUp, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const APIDocumentation = () => {
@@ -63,7 +63,7 @@ const APIDocumentation = () => {
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Travooz API Documentation</h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Complete API reference for booking stays, tours, restaurants, and car rentals. 
-            All endpoints are publicly accessible and require no authentication.
+            Most discovery and booking endpoints are public, while client profile endpoints require a bearer token.
           </p>
           <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-lg">
             <span className="font-semibold">Base URL:</span>
@@ -75,6 +75,10 @@ const APIDocumentation = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Table of Contents</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <a href="#client-auth" className="flex items-center gap-2 text-blue-600 hover:text-blue-800">
+              <User className="h-4 w-4" />
+              <span>Client Authentication</span>
+            </a>
             <a href="#discovery-properties" className="flex items-center gap-2 text-blue-600 hover:text-blue-800">
               <Home className="h-4 w-4" />
               <span>Discover Properties (Stays)</span>
@@ -117,6 +121,84 @@ const APIDocumentation = () => {
             </a>
           </div>
         </div>
+
+        {/* Client Authentication */}
+        <section id="client-auth" className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <User className="h-8 w-8 text-[#3CAF54]" />
+            <h2 className="text-2xl font-bold text-gray-900">Client Authentication</h2>
+          </div>
+          <p className="text-gray-600 mb-6">
+            Public customers can create Travooz accounts to reuse their details across stays, restaurant orders, tours, and car rentals.
+            Registration and login are public endpoints, while profile retrieval requires a Bearer token returned during authentication.
+          </p>
+
+          <div className="space-y-8">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium mb-3">
+                POST {apiBase}/auth/register
+              </div>
+              <p className="text-gray-600 mb-4">
+                Create a new client account. Returns the profile plus an authentication token that can be reused for protected client endpoints.
+              </p>
+              <CodeBlock
+                id="client-register-body"
+                code={JSON.stringify({
+                  firstName: "Jane",
+                  lastName: "Doe",
+                  email: "jane@example.com",
+                  phoneCountryCode: "+250",
+                  phoneNumber: "789000111",
+                  password: "strongPassword123"
+                }, null, 2)}
+              />
+              <p className="text-sm text-gray-500 mt-2">All fields except phone are required. Password must be at least 6 characters.</p>
+            </div>
+
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium mb-3">
+                POST {apiBase}/auth/login
+              </div>
+              <p className="text-gray-600 mb-4">
+                Authenticate an existing client using email + password. Response mirrors the registration payload and includes the latest profile snapshot.
+              </p>
+              <CodeBlock
+                id="client-login-body"
+                code={JSON.stringify({
+                  email: "jane@example.com",
+                  password: "strongPassword123"
+                }, null, 2)}
+              />
+            </div>
+
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium mb-3">
+                GET {apiBase}/auth/profile
+              </div>
+              <p className="text-gray-600 mb-4">
+                Retrieve the authenticated client profile. <strong>Requires Authorization header:</strong> <code>Bearer &lt;token&gt;</code>.
+              </p>
+              <CodeBlock
+                id="client-profile-response"
+                code={JSON.stringify({
+                  success: true,
+                  data: {
+                    id: 12,
+                    firstName: "Jane",
+                    lastName: "Doe",
+                    email: "jane@example.com",
+                    phoneCountryCode: "+250",
+                    phoneNumber: "789000111",
+                    status: "active",
+                    emailVerified: false,
+                    lastLogin: "2025-01-20T13:04:10.000Z",
+                    createdAt: "2025-01-20T12:59:00.000Z"
+                  }
+                }, null, 2)}
+              />
+            </div>
+          </div>
+        </section>
 
         {/* Discovery: Properties (Stays) */}
         <section id="discovery-properties" className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-8">

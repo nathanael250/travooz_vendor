@@ -8,6 +8,11 @@ import VendorLanding from './pages/vendor/VendorLanding';
 // Auth Pages
 import ServiceSelection from './pages/auth/ServiceSelection';
 
+// Client Auth Pages
+import ClientRegister from './pages/client/ClientRegister';
+import ClientLogin from './pages/client/ClientLogin';
+import ClientAccount from './pages/client/ClientAccount';
+
 // Restaurant Pages
 import ListYourRestaurant from './pages/restaurant/ListYourRestaurant';
 import ListYourRestaurantStep2 from './pages/restaurant/ListYourRestaurantStep2';
@@ -148,6 +153,11 @@ function App() {
 
           {/* Auth Pages */}
           <Route path="/auth/service-selection" element={<ServiceSelection />} />
+
+          {/* Client Auth */}
+          <Route path="/client/register" element={<ClientRegister />} />
+          <Route path="/client/login" element={<ClientLogin />} />
+          <Route path="/client/account" element={<ClientAccount />} />
 
           {/* Restaurant Listing Flow */}
           <Route path="/restaurant/list-your-restaurant" element={<ListYourRestaurant />} />

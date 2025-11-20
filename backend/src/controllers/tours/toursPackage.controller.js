@@ -1,4 +1,99 @@
 const toursPackageService = require('../../services/tours/toursPackage.service');
+const fs = require('fs');
+const path = require('path');
+
+const TOUR_UPLOAD_DIR = path.join(__dirname, '../../uploads/tours/packages');
+
+const ensureUploadDir = () => {
+    if (!fs.existsSync(TOUR_UPLOAD_DIR)) {
+        fs.mkdirSync(TOUR_UPLOAD_DIR, { recursive: true });
+    }
+    return TOUR_UPLOAD_DIR;
+};
+
+const BASE64_IMAGE_REGEX = /^data:(image\/[a-zA-Z0-9.+-]+);base64,/;
+
+const saveBase64ImageToDisk = async (dataUrl) => {
+    if (!dataUrl || !BASE64_IMAGE_REGEX.test(dataUrl)) {
+        return null;
+    }
+
+    try {
+        const matches = dataUrl.match(BASE64_IMAGE_REGEX);
+        const mimeType = matches[1];
+        const base64Data = dataUrl.replace(BASE64_IMAGE_REGEX, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+        const extension = mimeType.split('/')[1] || 'png';
+        const filename = `tour-package-${Date.now()}-${Math.round(Math.random() * 1e9)}.${extension}`;
+        const uploadDir = ensureUploadDir();
+        const filePath = path.join(uploadDir, filename);
+
+        await fs.promises.writeFile(filePath, buffer);
+
+        return {
+            photo_url: `/uploads/tours/packages/${filename}`,
+            photo_name: filename,
+            photo_size: buffer.length,
+            photo_type: mimeType
+        };
+    } catch (error) {
+        console.error('❌ Failed to save base64 image:', error);
+        return null;
+    }
+};
+
+const normalizePhotoEntry = async (photo, index = 0) => {
+    if (!photo) return null;
+
+    const ensureOrdering = (entry) => {
+        if (entry.display_order === undefined || entry.display_order === null) {
+            entry.display_order = index;
+        }
+        if (entry.is_primary === undefined || entry.is_primary === null) {
+            entry.is_primary = index === 0 ? 1 : 0;
+        }
+        return entry;
+    };
+
+    if (typeof photo === 'string') {
+        if (BASE64_IMAGE_REGEX.test(photo)) {
+            const saved = await saveBase64ImageToDisk(photo);
+            if (!saved) return null;
+            return ensureOrdering({ ...saved });
+        }
+        return ensureOrdering({
+            photo_url: photo
+        });
+    }
+
+    if (typeof photo === 'object') {
+        const normalized = { ...photo };
+        const url = normalized.photo_url || normalized.image_url || normalized.url;
+        if (url && BASE64_IMAGE_REGEX.test(url)) {
+            const saved = await saveBase64ImageToDisk(url);
+            if (saved) {
+                normalized.photo_url = saved.photo_url;
+                normalized.photo_name = normalized.photo_name || saved.photo_name;
+                normalized.photo_size = saved.photo_size;
+                normalized.photo_type = saved.photo_type;
+            }
+        }
+        return ensureOrdering(normalized);
+    }
+
+    return null;
+};
+
+const normalizePhotosArray = async (photos = []) => {
+    const processed = [];
+    for (let i = 0; i < photos.length; i++) {
+        const normalized = await normalizePhotoEntry(photos[i], i);
+        if (normalized && normalized.photo_url) {
+            processed.push(normalized);
+        }
+    }
+    return processed;
+};
 
 // Helper function to convert undefined to null recursively
 const cleanData = (obj) => {
@@ -100,6 +195,8 @@ class ToursPackageController {
 
             // Add tour_business_id to packageData (like stays adds propertyId)
             packageData.tour_business_id = tourBusinessId;
+
+            let photosNormalized = false;
 
             // Handle file uploads - process req.files from multer
             const uploadedPhotos = [];
@@ -228,13 +325,10 @@ class ToursPackageController {
             if (uploadedPhotos.length > 0 || existingPhotos.length > 0) {
                 // Combine existing photos (with their original display_order) and new photos
                 const allPhotos = [...existingPhotos, ...uploadedPhotos];
-                // Reorder to ensure proper display_order
-                allPhotos.forEach((photo, index) => {
-                    if (!photo.display_order) photo.display_order = index;
-                    if (photo.is_primary === undefined) photo.is_primary = index === 0 ? 1 : 0;
-                });
-                packageData.photos = allPhotos;
-                console.log(`📸 Total photos to save: ${allPhotos.length} (${existingPhotos.length} existing + ${uploadedPhotos.length} new)`);
+                // Normalize (handles base64 uploads and ordering)
+                packageData.photos = await normalizePhotosArray(allPhotos);
+                photosNormalized = true;
+                console.log(`📸 Total photos to save: ${packageData.photos.length} (${existingPhotos.length} existing + ${uploadedPhotos.length} new)`);
             } else {
                 // If no photos at all, check if we should clear them or keep existing
                 // For updates, if photos field is explicitly empty array, clear photos
@@ -255,6 +349,10 @@ class ToursPackageController {
             // Remove processed fields from packageData
             delete packageData.existingPhotos;
             delete packageData.photosArray;
+
+            if (!photosNormalized && packageData.photos && Array.isArray(packageData.photos) && packageData.photos.length > 0) {
+                packageData.photos = await normalizePhotosArray(packageData.photos);
+            }
 
             // Clean undefined values (like stays system does)
             const cleanedData = cleanData(packageData);

@@ -27,9 +27,14 @@ apiClient.interceptors.request.use((config) => {
     '/menu-items' // Menu items endpoint (public when used with restaurant_id)
   ];
   
+  const isClientAuthRoute = config.url?.startsWith('/client/auth/');
+  const isClientAuthProtectedRoute = isClientAuthRoute && 
+    !config.url?.includes('/client/auth/register') &&
+    !config.url?.includes('/client/auth/login');
+  
   // Check if this is a public endpoint - use exact path matching
   // IMPORTANT: Only match exact paths, not paths that contain the endpoint string
-  const isPublicEndpoint = publicEndpoints.some(endpoint => {
+  let isPublicEndpoint = publicEndpoints.some(endpoint => {
     if (!config.url) return false;
     const url = config.url;
     
@@ -68,6 +73,10 @@ apiClient.interceptors.request.use((config) => {
     return false;
   });
   
+  if (isClientAuthProtectedRoute) {
+    isPublicEndpoint = false;
+  }
+  
   // Debug logging for categories endpoint
   if (config.url && config.url.includes('/restaurant/menu/categories')) {
     console.log('Categories endpoint detected:', config.url);
@@ -78,24 +87,32 @@ apiClient.interceptors.request.use((config) => {
   
   // Only add token for non-public endpoints
   if (!isPublicEndpoint) {
-    // Check all possible token keys to support different apps
-    // Admin token takes priority for admin routes
     const isAdminRoute = config.url && config.url.includes('/admin/');
-    const token = isAdminRoute 
-      ? localStorage.getItem('admin_token') || localStorage.getItem('token') || localStorage.getItem('auth_token')
-      : localStorage.getItem('token') || 
+    let token = null;
+
+    if (isClientAuthProtectedRoute) {
+      token = localStorage.getItem('client_token');
+    } else if (isAdminRoute) {
+      token = localStorage.getItem('admin_token') || localStorage.getItem('token') || localStorage.getItem('auth_token');
+    } else {
+      token = localStorage.getItem('token') || 
         localStorage.getItem('auth_token') || 
         localStorage.getItem('stays_token') ||
         localStorage.getItem('admin_token');
+    }
+
+    // Fallback to client token for other protected client endpoints
+    if (!token && config.url?.startsWith('/client/')) {
+      token = localStorage.getItem('client_token');
+    }
+
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
       if (config.url && config.url.includes('/restaurant/menu/categories')) {
         console.log('Token added to request header');
       }
-    } else {
-      if (config.url && config.url.includes('/restaurant/menu/categories')) {
-        console.warn('No token found in localStorage for categories request');
-      }
+    } else if (config.url && config.url.includes('/restaurant/menu/categories')) {
+      console.warn('No token found in localStorage for categories request');
     }
   } else {
     if (config.url && config.url.includes('/restaurant/menu/categories')) {
@@ -117,7 +134,8 @@ apiClient.interceptors.response.use(
     const isLoginEndpoint = config?.url?.includes('/auth/login') || 
                            config?.url?.includes('/tours/auth/login') ||
                            config?.url?.includes('/stays/auth/login') ||
-                           config?.url?.includes('/admin/auth/login');
+                           config?.url?.includes('/admin/auth/login') ||
+                           config?.url?.includes('/client/auth/login');
     
     if (response && response.status === 401 && !isLoginEndpoint) {
       // Check if we're on a restaurant route - don't clear tokens for restaurant routes
@@ -127,6 +145,8 @@ apiClient.interceptors.response.use(
       const isStaysRoute = currentPath.includes('/stays/');
       const isTourRoute = currentPath.includes('/tours/');
       const isCarRentalRoute = currentPath.includes('/car-rental/');
+      const isClientRoute = currentPath.includes('/client/');
+      const isClientRequest = config?.url?.startsWith('/client/');
       
       // CRITICAL: Don't clear tokens on restaurant routes - let the layout handle auth
       // This prevents the session from being killed when API calls fail
@@ -139,6 +159,11 @@ apiClient.interceptors.response.use(
         // This prevents clearing tokens when navigating between service dashboards
         localStorage.removeItem('token');
         localStorage.removeItem('auth_token');
+      }
+      
+      if (isClientRoute || isClientRequest) {
+        localStorage.removeItem('client_token');
+        localStorage.removeItem('client_user');
       }
       // Don't redirect here - let the component handle it
     }
