@@ -386,6 +386,8 @@ class CarRentalSetupService {
       .join(' ')
       .trim() || business.carRentalBusinessName || user.email.split('@')[0];
 
+    const formattedPhone = this.#formatPhone(user.phone, user.countryCode, { allowDefault: true });
+
     const insertResult = await pool.execute(
       `INSERT INTO car_rental_users (role, name, email, phone, password_hash)
        VALUES (?, ?, ?, ?, ?)`,
@@ -393,7 +395,7 @@ class CarRentalSetupService {
         'vendor',
         fullName,
         user.email,
-        user.phone || null,
+        formattedPhone,
         hashedPassword
       ]
     );
@@ -420,6 +422,8 @@ class CarRentalSetupService {
       }
     }
 
+    const businessPhone = this.#formatPhone(business.phone, business.countryCode);
+
     if (targetBusinessId) {
       await pool.execute(
         `UPDATE car_rental_businesses
@@ -437,7 +441,7 @@ class CarRentalSetupService {
           business.carTypeName || null,
           business.subcategoryId || null,
           business.description || null,
-          business.phone || null,
+          businessPhone,
           business.currency || 'RWF',
           targetBusinessId
         ]
@@ -467,7 +471,7 @@ class CarRentalSetupService {
         business.carTypeName || null,
         business.subcategoryId || null,
         business.description || null,
-        business.phone || null,
+        businessPhone,
         business.currency || 'RWF'
       ]
     );
@@ -497,6 +501,21 @@ class CarRentalSetupService {
         updated_at = CURRENT_TIMESTAMP`,
       [carRentalBusinessId, userId, step, status]
     );
+  }
+
+  #formatPhone(phone, countryCode, { allowDefault = false } = {}) {
+    const raw = (phone || '').toString().replace(/\s+/g, '');
+    if (!raw) return null;
+    if (raw.startsWith('+')) return raw;
+
+    const codeSource = (countryCode || (allowDefault ? '+250' : '')).toString().replace(/\s+/g, '');
+    if (!codeSource) {
+      return raw;
+    }
+
+    const codeWithPlus = codeSource.startsWith('+') ? codeSource : `+${codeSource}`;
+    const numberPart = raw.replace(/^\+/, '');
+    return `${codeWithPlus}${numberPart}`;
   }
 }
 

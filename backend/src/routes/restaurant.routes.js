@@ -8,6 +8,27 @@ const fs = require('fs');
 
 const router = express.Router();
 
+const formatUserPhone = (phone, countryCode, defaultCode = '+250') => {
+  const raw = (phone || '').toString().replace(/\s+/g, '');
+  if (!raw) return null;
+  if (raw.startsWith('+')) return raw;
+
+  const codeSource = (countryCode || defaultCode || '').toString().replace(/\s+/g, '');
+  if (!codeSource) {
+    return raw.startsWith('+') ? raw : `+${raw.replace(/^\+/, '')}`;
+  }
+
+  const codeWithPlus = codeSource.startsWith('+') ? codeSource : `+${codeSource}`;
+  const numberPart = raw.replace(/^\+/, '');
+  return `${codeWithPlus}${numberPart}`;
+};
+
+const cleanBusinessPhone = (phone) => {
+  const raw = (phone || '').toString().trim();
+  if (!raw) return null;
+  return raw.replace(/\s+/g, '');
+};
+
 /**
  * Check if user exists in restaurant_users table
  * POST /api/v1/restaurant/check-user
@@ -97,6 +118,9 @@ router.post('/listing', async (req, res) => {
       locationData
     } = req.body;
 
+    const normalizedUserPhone = formatUserPhone(userPhone, countryCode);
+    const normalizedRestaurantPhone = cleanBusinessPhone(restaurantPhone);
+
     // If user is already logged in, use their ID
     let userId = null;
     try {
@@ -142,7 +166,7 @@ router.post('/listing', async (req, res) => {
           const [result] = await pool.execute(
             `INSERT INTO restaurant_users (email, password_hash, name, phone, role, is_active)
              VALUES (?, ?, ?, ?, ?, ?)`,
-            [email, hashedPassword, fullName, userPhone || null, 'vendor', 1]
+            [email, hashedPassword, fullName, normalizedUserPhone, 'vendor', 1]
           );
           
           // Get the AUTO_INCREMENT user_id
@@ -182,7 +206,7 @@ router.post('/listing', async (req, res) => {
           userId, 
           restaurantName, 
           description || null,
-          restaurantPhone || null,
+          normalizedRestaurantPhone,
           restaurantTypeName || restaurantType || null,
           subcategoryId || null,
           currency || 'RWF',
@@ -204,7 +228,7 @@ router.post('/listing', async (req, res) => {
             userId, 
             restaurantName, 
             description || null,
-            restaurantPhone || null,
+            normalizedRestaurantPhone,
             location || null,
             'pending'
           ]

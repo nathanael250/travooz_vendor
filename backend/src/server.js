@@ -20,6 +20,7 @@ const defaultOrigins = [
   'https://travooz.com',
   'https://travoozapp.com',
   'https://travooz.com',
+  'https://vendor.travooz.rw',
   'http://travooz.com'
 ];
 const extraOrigins = (process.env.CORS_ORIGIN || '')

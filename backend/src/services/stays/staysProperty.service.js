@@ -36,6 +36,12 @@ class StaysPropertyService {
             // Create user account first if user data is provided (Step 3)
             let userId = data.user_id;
             
+            const normalizedCountryCode = (data.countryCode || '+250').trim();
+            const normalizedPhone = (data.phone || '').replace(/\s+/g, '');
+            const userPhone = normalizedPhone
+                ? `${normalizedCountryCode.replace(/\s+/g, '')}${normalizedPhone.replace(/^\+/, '')}`
+                : null;
+
             if (!userId && data.email && data.password) {
                 // Create new user account
                 const hashedPassword = await bcrypt.hash(data.password, 10);
@@ -53,7 +59,7 @@ class StaysPropertyService {
                         'vendor',
                         fullName,
                         data.email,
-                        data.countryCode && data.phone ? `${data.countryCode}${data.phone}` : data.phone || null,
+                        userPhone,
                         hashedPassword,
                         null, // address
                         null, // gender
