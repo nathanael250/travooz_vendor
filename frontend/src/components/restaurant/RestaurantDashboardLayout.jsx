@@ -11,7 +11,8 @@ import {
   Menu,
   LogOut,
   Bell,
-  User as UserIcon
+  User as UserIcon,
+  Image as ImageIcon
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -85,6 +86,7 @@ const RestaurantDashboardLayout = () => {
     // POS temporarily disabled - system is for online orders only
     // { icon: ShoppingCart, label: 'POS', path: '/restaurant/pos', category: 'Main' },
     { icon: Store, label: 'My Restaurant', path: '/restaurant/restaurants', category: 'Main' },
+    { icon: ImageIcon, label: 'Restaurant Gallery', path: '/restaurant/gallery', category: 'Main' },
     { icon: Utensils, label: 'Menu Items', path: '/restaurant/menu-items', category: 'Operations' },
     { icon: ShoppingBag, label: 'Orders', path: '/restaurant/orders', category: 'Operations' },
     { icon: FileText, label: 'Reports', path: '/restaurant/reports', category: 'Analytics' },

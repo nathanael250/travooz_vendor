@@ -1,4 +1,5 @@
 const { executeQuery } = require('../../../config/database');
+const ToursApprovalNotificationService = require('./toursApprovalNotification.service');
 
 class ToursAdminService {
     /**
@@ -144,6 +145,7 @@ class ToursAdminService {
      * @param {string} rejectionReason 
      */
     async updateSubmissionStatus(submissionId, status, adminId, notes = null, rejectionReason = null) {
+        let approvalEmailData = null;
         try {
             const validStatuses = ['pending_review', 'approved', 'rejected', 'in_progress'];
             if (!validStatuses.includes(status)) {
@@ -196,6 +198,28 @@ class ToursAdminService {
                      WHERE tour_business_id = ?`,
                     [existing[0].tour_business_id]
                 );
+
+                // Fetch vendor details for notification (supports tours_users and stays_users)
+                const [ownerInfo] = await executeQuery(
+                    `SELECT 
+                        COALESCE(tu.email, su.email) AS email,
+                        COALESCE(tu.name, su.name) AS name,
+                        tb.tour_business_name
+                    FROM tours_businesses tb
+                    LEFT JOIN tours_users tu ON tb.user_id = tu.user_id
+                    LEFT JOIN stays_users su ON tb.user_id = su.user_id
+                    WHERE tb.tour_business_id = ?
+                    LIMIT 1`,
+                    [existing[0].tour_business_id]
+                );
+
+                if (ownerInfo?.email) {
+                    approvalEmailData = {
+                        email: ownerInfo.email,
+                        name: ownerInfo.name,
+                        businessName: ownerInfo.tour_business_name
+                    };
+                }
             } else if (status === 'rejected') {
                 await executeQuery(
                     `UPDATE tours_businesses 
@@ -213,6 +237,24 @@ class ToursAdminService {
         } catch (error) {
             console.error('Error updating submission status:', error);
             throw error;
+        } finally {
+            // Send approval email after DB operations complete
+            if (approvalEmailData) {
+                const dashboardUrl = process.env.TOURS_VENDOR_DASHBOARD_URL 
+                    || process.env.VENDOR_DASHBOARD_URL 
+                    || 'https://vendor.travoozapp.com/tours/dashboard';
+
+                try {
+                    await ToursApprovalNotificationService.sendApprovalEmail({
+                        email: approvalEmailData.email,
+                        name: approvalEmailData.name,
+                        businessName: approvalEmailData.businessName,
+                        dashboardUrl
+                    });
+                } catch (emailError) {
+                    console.error('Error sending vendor approval email:', emailError);
+                }
+            }
         }
     }
 

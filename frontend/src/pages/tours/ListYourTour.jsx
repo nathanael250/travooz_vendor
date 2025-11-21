@@ -136,6 +136,15 @@ export default function ListYourTour() {
   const [selectedMapLocation, setSelectedMapLocation] = useState(null);
   const [mapError, setMapError] = useState('');
   const [isGeocoding, setIsGeocoding] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
+  const [suggestionError, setSuggestionError] = useState('');
+  const [useBackupSuggestions, setUseBackupSuggestions] = useState(false);
+  const suggestionsServiceRef = useRef(null);
+  const placesServiceRef = useRef(null);
+  const suggestionDebounceRef = useRef(null);
+  const suggestionsRef = useRef(null);
 
   // Enable scrolling for this page
   useEffect(() => {
@@ -145,7 +154,125 @@ export default function ListYourTour() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!useBackupSuggestions || !showSuggestions) {
+      return;
+    }
+
+    const handleClickOutside = (event) => {
+      const inputEl = inputRef.current;
+      const suggestionsEl = suggestionsRef.current;
+
+      if (!inputEl || !suggestionsEl) {
+        return;
+      }
+
+      if (!suggestionsEl.contains(event.target) && !inputEl.contains(event.target)) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSuggestions, useBackupSuggestions]);
+
+  useEffect(() => {
+    return () => {
+      if (suggestionDebounceRef.current) {
+        clearTimeout(suggestionDebounceRef.current);
+      }
+    };
+  }, []);
+
   const GOOGLE_MAPS_API_KEY = 'AIzaSyD2arEwy-YlQ7NU7fWOIxbJgTOLiH6RUqc'; // Not used - loaded from index.html
+
+  const fetchPlaceSuggestions = (inputValue) => {
+    if (!useBackupSuggestions) {
+      return;
+    }
+    if (!suggestionsServiceRef.current || !window.google || !window.google.maps) {
+      return;
+    }
+
+    if (!inputValue.trim()) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setSuggestionError('');
+      return;
+    }
+
+    setIsFetchingSuggestions(true);
+    suggestionsServiceRef.current.getPlacePredictions(
+      {
+        input: inputValue,
+        types: ['establishment', 'geocode']
+      },
+      (predictions, status) => {
+        setIsFetchingSuggestions(false);
+
+        const statusOk = window.google?.maps?.places?.PlacesServiceStatus?.OK;
+        const statusZero = window.google?.maps?.places?.PlacesServiceStatus?.ZERO_RESULTS;
+
+        if (status !== statusOk || !predictions) {
+          if (status === statusZero) {
+            setSuggestions([]);
+            setSuggestionError('No matches found. Try typing a more specific name or address.');
+          } else {
+            setSuggestionError('Unable to fetch suggestions right now. Please try again in a moment.');
+          }
+          setShowSuggestions(!!inputValue.trim());
+          return;
+        }
+
+        setSuggestionError('');
+        setSuggestions(predictions);
+        setShowSuggestions(true);
+      }
+    );
+  };
+
+  const handleSuggestionSelect = (prediction) => {
+    if (!prediction || !placesServiceRef.current || !window.google || !window.google.maps) {
+      return;
+    }
+
+    setIsFetchingSuggestions(true);
+    placesServiceRef.current.getDetails(
+      {
+        placeId: prediction.place_id,
+        fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components']
+      },
+      (place, status) => {
+        setIsFetchingSuggestions(false);
+        const statusOk = window.google?.maps?.places?.PlacesServiceStatus?.OK;
+        if (status !== statusOk || !place) {
+          setSuggestionError('Unable to load place details. Please try another suggestion.');
+          return;
+        }
+
+        const locationInfo = {
+          name: place.name || place.formatted_address,
+          formatted_address: place.formatted_address,
+          place_id: place.place_id,
+          lat: place.geometry?.location?.lat(),
+          lng: place.geometry?.location?.lng(),
+          address_components: place.address_components
+        };
+
+        setLocation(place.name || place.formatted_address);
+        setLocationData(locationInfo);
+        setSelectedMapLocation(locationInfo);
+        if (useBackupSuggestions) {
+          setSuggestions([]);
+          setShowSuggestions(false);
+          setSuggestionError('');
+        }
+        setError('');
+      }
+    );
+  };
 
   // Initialize Google Places Autocomplete
   const initializeAutocomplete = () => {
@@ -159,6 +286,14 @@ export default function ListYourTour() {
     });
 
     autocompleteRef.current = autocomplete;
+
+    if (!suggestionsServiceRef.current) {
+      suggestionsServiceRef.current = new window.google.maps.places.AutocompleteService();
+    }
+
+    if (!placesServiceRef.current) {
+      placesServiceRef.current = new window.google.maps.places.PlacesService(document.createElement('div'));
+    }
 
     // Listen for place selection
     autocomplete.addListener('place_changed', () => {
@@ -182,6 +317,9 @@ export default function ListYourTour() {
       setLocationData(locationInfo);
       setLocation(place.name || place.formatted_address);
       setError('');
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setSuggestionError('');
     });
   };
 
@@ -578,8 +716,29 @@ export default function ListYourTour() {
                   id="location-input"
                   value={location}
                   onChange={(e) => {
-                    setLocation(e.target.value);
+                    const value = e.target.value;
+                    setLocation(value);
                     setError('');
+                    setSuggestionError('');
+
+                    if (useBackupSuggestions) {
+                      if (suggestionDebounceRef.current) {
+                        clearTimeout(suggestionDebounceRef.current);
+                      }
+  
+                      if (!value.trim()) {
+                        setSuggestions([]);
+                        setShowSuggestions(false);
+                        return;
+                      }
+  
+                      if (isGoogleMapsLoaded && suggestionsServiceRef.current) {
+                        setShowSuggestions(true);
+                        suggestionDebounceRef.current = setTimeout(() => {
+                          fetchPlaceSuggestions(value);
+                        }, 250);
+                      }
+                    }
                   }}
                   placeholder="Enter business name or address..."
                   className={`w-full pl-12 pr-4 py-4 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 placeholder-gray-400 ${
@@ -593,6 +752,9 @@ export default function ListYourTour() {
                       e.target.style.borderColor = '#3CAF54';
                       e.target.style.boxShadow = '0 0 0 2px rgba(60, 175, 84, 0.2)';
                     }
+                    if (useBackupSuggestions && suggestions.length > 0) {
+                      setShowSuggestions(true);
+                    }
                   }}
                   onBlur={(e) => {
                     if (!error) {
@@ -601,7 +763,42 @@ export default function ListYourTour() {
                     }
                   }}
                   autoFocus
+                  autoComplete="off"
                 />
+                {useBackupSuggestions && showSuggestions && (
+                  <div
+                    ref={suggestionsRef}
+                    className="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-y-auto"
+                  >
+                    {isFetchingSuggestions && (
+                      <div className="px-4 py-3 text-sm text-gray-500">Searching...</div>
+                    )}
+                    {!isFetchingSuggestions && suggestionError && (
+                      <div className="px-4 py-3 text-sm text-yellow-700 bg-yellow-50 border-b border-yellow-100">
+                        {suggestionError}
+                      </div>
+                    )}
+                    {!isFetchingSuggestions && !suggestionError && suggestions.length === 0 && location.trim() && (
+                      <div className="px-4 py-3 text-sm text-gray-500">No suggestions yet. Keep typing...</div>
+                    )}
+                    {suggestions.map((prediction) => (
+                      <button
+                        key={prediction.place_id}
+                        type="button"
+                        onClick={() => handleSuggestionSelect(prediction)}
+                        className="w-full text-left px-4 py-3 hover:bg-green-50 focus:bg-green-50 focus:outline-none transition-colors"
+                      >
+                        <p className="text-sm font-medium text-gray-900">{prediction.structured_formatting?.main_text || prediction.description}</p>
+                        {prediction.structured_formatting?.secondary_text && (
+                          <p className="text-xs text-gray-500">{prediction.structured_formatting.secondary_text}</p>
+                        )}
+                        {!prediction.structured_formatting?.secondary_text && (
+                          <p className="text-xs text-gray-500">{prediction.description}</p>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               {!isGoogleMapsLoaded && !googleMapsError && (
                 <p className="mt-2 text-sm text-gray-500">Loading location services...</p>
@@ -639,8 +836,8 @@ export default function ListYourTour() {
               {locationData && (
                 <p className="mt-2 text-sm text-green-600">✓ Location selected: {locationData.formatted_address}</p>
               )}
-              {isGoogleMapsLoaded && (
-                <div className="mt-3 text-center">
+              <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-center sm:text-left">
+                {isGoogleMapsLoaded && (
                   <button
                     type="button"
                     onClick={handleOpenMap}
@@ -649,8 +846,25 @@ export default function ListYourTour() {
                   >
                     Pick location on map
                   </button>
-                </div>
-              )}
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextValue = !useBackupSuggestions;
+                    setUseBackupSuggestions(nextValue);
+                    if (!nextValue) {
+                      setSuggestions([]);
+                      setShowSuggestions(false);
+                      setSuggestionError('');
+                    } else if (location.trim()) {
+                      fetchPlaceSuggestions(location);
+                    }
+                  }}
+                  className="text-xs font-medium underline hover:no-underline text-gray-500"
+                >
+                  {useBackupSuggestions ? 'Hide backup suggestions' : "Suggestions missing? Try backup list"}
+                </button>
+              </div>
             </div>
 
             <button

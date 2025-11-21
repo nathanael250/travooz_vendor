@@ -212,6 +212,7 @@ export default function ListYourTourStep3() {
         subcategoryId: parseInt(step2Data.subcategoryId),
         description: step2Data.description,
         phone: step2Data.phone,
+        countryCode: step2Data.countryCode,
         currency: step2Data.currency,
         location: location.state?.location || '',
         locationData: locationData

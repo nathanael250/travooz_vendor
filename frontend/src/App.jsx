@@ -63,6 +63,7 @@ import RestaurantDashboard from './pages/restaurant/Dashboard';
 // POS temporarily disabled - system is for online orders only
 // import RestaurantPOS from './pages/restaurant/POS';
 import Restaurants from './pages/restaurant/Restaurants';
+import RestaurantGallery from './pages/restaurant/RestaurantGallery';
 import RestaurantOrders from './pages/restaurant/Orders';
 import OrderDetails from './pages/restaurant/OrderDetails';
 import RestaurantMenuItems from './pages/restaurant/MenuItems';
@@ -224,6 +225,7 @@ function App() {
             {/* POS temporarily disabled - system is for online orders only */}
             {/* <Route path="pos" element={<RestaurantPOS />} /> */}
             <Route path="restaurants" element={<Restaurants />} />
+            <Route path="gallery" element={<RestaurantGallery />} />
             <Route path="menu-items" element={<RestaurantMenuItems />} />
             <Route path="menu-items/create" element={<CreateMenu />} />
             <Route path="orders" element={<RestaurantOrders />} />

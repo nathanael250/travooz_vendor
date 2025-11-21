@@ -40,6 +40,12 @@ class ToursBusinessService {
                 needsUserCreation: needsUserCreation
             });
             
+            const normalizedCountryCode = (data.countryCode || '+250').trim();
+            const normalizedPhone = (data.phone || '').replace(/\s+/g, '');
+            const userPhone = normalizedPhone 
+                ? `${normalizedCountryCode.replace(/\s+/g, '')}${normalizedPhone.replace(/^\+/, '')}`
+                : null;
+
             if (needsUserCreation) {
                 console.log('✅ Creating user account for email:', email);
                 
@@ -65,7 +71,7 @@ class ToursBusinessService {
                 } else {
                     // Create new user account - try tours_users first, fallback to stays_users
                     const hashedPassword = await bcrypt.hash(password, 10);
-                    
+
                     // Combine first_name and last_name into a single name field
                     const fullName = [data.firstName || '', data.lastName || ''].filter(Boolean).join(' ').trim() || email.split('@')[0];
                     
@@ -81,7 +87,7 @@ class ToursBusinessService {
                                 'vendor',
                                 fullName,
                                 email,
-                                data.countryCode && data.phone ? `${data.countryCode}${data.phone}` : data.phone || null,
+                                userPhone,
                                 hashedPassword,
                                 null, // address
                                 null, // gender
@@ -102,7 +108,7 @@ class ToursBusinessService {
                                 'vendor',
                                 fullName,
                                 email,
-                                data.countryCode && data.phone ? `${data.countryCode}${data.phone}` : data.phone || null,
+                                userPhone,
                                 hashedPassword,
                                 null, // address
                                 null, // gender
@@ -169,8 +175,8 @@ class ToursBusinessService {
                 tour_type_name: data.tourTypeName,
                 subcategory_id: data.subcategoryId,
                 description: data.description,
-                phone: data.phone,
-                country_code: data.countryCode || '+250',
+                phone: userPhone || data.phone,
+                country_code: normalizedCountryCode || '+250',
                 currency: data.currency || 'RWF',
                 status: 'draft'
             });

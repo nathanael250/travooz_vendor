@@ -98,7 +98,7 @@ export default function VendorLanding() {
             </div>
 
             {/* Navigation Links */}
-            <div className="hidden md:flex items-center gap-6">
+            <div className="md:flex items-center gap-6">
               <button
                 onClick={() => navigate('/auth/service-selection')}
                 className="text-white hover:text-gray-200 transition-colors"

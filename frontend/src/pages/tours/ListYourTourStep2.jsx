@@ -24,6 +24,7 @@ export default function ListYourTourStep2() {
     tourTypeName: '',
     subcategoryId: '',
     description: '',
+    countryCode: '+250', // Default to Rwanda
     phone: '',
     currency: 'RWF',
   });
@@ -47,6 +48,21 @@ export default function ListYourTourStep2() {
     { value: 'RWF', label: 'RWF - Rwandan Franc' },
     { value: 'USD', label: 'USD - US Dollar' },
     { value: 'EUR', label: 'EUR - Euro' }
+  ];
+
+  // Common country codes (focusing on East Africa)
+  const countryCodes = [
+    { code: '+250', country: 'Rwanda' },
+    { code: '+256', country: 'Uganda' },
+    { code: '+255', country: 'Tanzania' },
+    { code: '+254', country: 'Kenya' },
+    { code: '+251', country: 'Ethiopia' },
+    { code: '+1', country: 'USA/Canada' },
+    { code: '+44', country: 'UK' },
+    { code: '+33', country: 'France' },
+    { code: '+49', country: 'Germany' },
+    { code: '+234', country: 'Nigeria' },
+    { code: '+27', country: 'South Africa' }
   ];
 
   const handleChange = (e) => {
@@ -100,12 +116,21 @@ export default function ListYourTourStep2() {
       return;
     }
 
+    // Format phone with country code for downstream steps
+    const formattedPhone = formData.phone.trim()
+      ? `${formData.countryCode} ${formData.phone.trim()}`
+      : '';
+
     // Just collect data and navigate to next step (no API call yet)
     // The tour business will be created in Step 3 along with the user account
     navigate('/tours/list-your-tour/step-3', {
       state: {
         ...location.state,
-        step2Data: formData
+        step2Data: {
+          ...formData,
+          phone: formData.phone.trim(),
+          countryCode: formData.countryCode
+        }
       }
     });
   };
@@ -227,17 +252,41 @@ export default function ListYourTourStep2() {
                   <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
                     Phone Number *
                   </label>
-                  <input
-                    type="tel"
-                    id="phone"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="+250 7XX XXX XXX"
-                    className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
-                      errors.phone ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
-                    }`}
-                  />
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="sm:w-32">
+                      <select
+                        id="countryCode"
+                        name="countryCode"
+                        value={formData.countryCode}
+                        onChange={handleChange}
+                        className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
+                          errors.countryCode ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
+                        }`}
+                      >
+                        {countryCodes.map(code => (
+                          <option key={code.code} value={code.code}>
+                            {code.code}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <input
+                        type="tel"
+                        id="phone"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleChange}
+                        placeholder="7XX XXX XXX"
+                        className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
+                          errors.phone ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Enter the country code first, then your local phone number.
+                  </p>
                   {errors.phone && (
                     <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
                   )}

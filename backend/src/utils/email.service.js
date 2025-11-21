@@ -166,6 +166,75 @@ If you didn't request this verification code, please ignore this email.
             text: text
         });
     }
+
+    /**
+     * Send vendor approval email once admin verifies the account
+     * @param {Object} params
+     * @param {string} params.email - Recipient email
+     * @param {string} params.name - Vendor name
+     * @param {string} params.businessName - Approved business name
+     * @param {string} params.dashboardUrl - URL to vendor dashboard
+     * @param {string} params.serviceName - Service name (e.g. Tours)
+     */
+    static async sendVendorApprovalEmail({
+        email,
+        name = 'there',
+        businessName = 'your business',
+        dashboardUrl = 'https://vendor.travoozapp.com',
+        serviceName = 'your business'
+    }) {
+        const safeDashboardUrl = dashboardUrl || 'https://vendor.travoozapp.com';
+        const html = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background-color: #3CAF54; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+                    <h1 style="color: white; margin: 0;">Travooz</h1>
+                </div>
+                <div style="background-color: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+                    <h2 style="color: #1f2937; margin-top: 0;">Your ${serviceName} listing is live!</h2>
+                    <p style="color: #4b5563; font-size: 16px;">Hi ${name || 'there'},</p>
+                    <p style="color: #4b5563; font-size: 16px;">
+                        Great news! Your ${serviceName.toLowerCase()} listing <strong>${businessName}</strong> has been reviewed and approved by our team.
+                    </p>
+                    <p style="color: #4b5563; font-size: 16px;">
+                        You can now access your vendor dashboard to manage bookings, update your listing, and track performance.
+                    </p>
+                    <div style="margin: 30px 0; text-align: center;">
+                        <a href="${safeDashboardUrl}" style="display: inline-block; background-color: #3CAF54; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold;">
+                            Go to Dashboard
+                        </a>
+                    </div>
+                    <p style="color: #4b5563; font-size: 14px;">
+                        If the button above doesn’t work, copy and paste this link into your browser:<br />
+                        <a href="${safeDashboardUrl}" style="color: #3CAF54;">${safeDashboardUrl}</a>
+                    </p>
+                    <p style="color: #4b5563; font-size: 14px; margin-top: 30px;">
+                        We’re excited to have you onboard. If you need any help, simply reply to this email and our support team will assist you right away.
+                    </p>
+                </div>
+                <div style="background-color: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; text-align: center; border: 1px solid #e5e7eb; border-top: none;">
+                    <p style="color: #6b7280; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} Travooz. All rights reserved.</p>
+                </div>
+            </div>
+        `;
+
+        const text = `
+Congratulations! Your ${serviceName} listing "${businessName}" has been approved.
+
+You can now manage your business from the Travooz vendor dashboard:
+${safeDashboardUrl}
+
+If you have any questions, just reply to this email and our team will help.
+
+© ${new Date().getFullYear()} Travooz. All rights reserved.
+        `;
+
+        return await this.sendEmail({
+            to: email,
+            subject: `Your ${serviceName} listing is approved`,
+            html,
+            text
+        });
+    }
 }
 
 module.exports = EmailService;

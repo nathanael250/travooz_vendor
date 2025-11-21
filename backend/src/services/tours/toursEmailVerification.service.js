@@ -172,6 +172,134 @@ class ToursEmailVerificationService {
             return false; // Don't block on error
         }
     }
+
+    /**
+     * Send confirmation email after verification succeeds
+     */
+    static async sendVerificationSuccessEmail({ userId, email, tourBusinessId }) {
+        if (!email) {
+            console.warn('⚠️  Post-verification email skipped: email missing');
+            return;
+        }
+
+        try {
+            const userName = await this.getUserDisplayName(userId);
+            const businessName = await this.getBusinessName(tourBusinessId);
+
+            const dashboardUrl = process.env.TOURS_VENDOR_DASHBOARD_URL 
+                || process.env.VENDOR_DASHBOARD_URL 
+                || 'https://vendor.travoozapp.com/tours/dashboard';
+
+            const safeName = userName || (email?.split('@')[0]) || 'there';
+            const safeBusiness = businessName || 'your tour business';
+
+            console.log('\n📧 Sending verification success email:', {
+                email,
+                safeName,
+                safeBusiness
+            });
+
+            const html = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <div style="background-color: #3CAF54; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+                        <h1 style="color: white; margin: 0;">Travooz</h1>
+                    </div>
+                    <div style="background-color: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+                        <h2 style="color: #1f2937; margin-top: 0;">You're verified, ${safeName}!</h2>
+                        <p style="color: #4b5563; font-size: 16px;">
+                            Thanks for confirming your email for <strong>${safeBusiness}</strong>. You can now continue setting up your listing and manage everything from your vendor dashboard.
+                        </p>
+                        <div style="margin: 30px 0; text-align: center;">
+                            <a href="${dashboardUrl}" style="display: inline-block; background-color: #3CAF54; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold;">
+                                Go to Dashboard
+                            </a>
+                        </div>
+                        <p style="color: #4b5563; font-size: 14px;">
+                            If the button above doesn’t work, copy and paste this link into your browser:<br />
+                            <a href="${dashboardUrl}" style="color: #3CAF54;">${dashboardUrl}</a>
+                        </p>
+                        <p style="color: #4b5563; font-size: 14px; margin-top: 30px;">
+                            Need help? Just reply to this email and our support team will assist you.
+                        </p>
+                    </div>
+                    <div style="background-color: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; text-align: center; border: 1px solid #e5e7eb; border-top: none;">
+                        <p style="color: #6b7280; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} Travooz. All rights reserved.</p>
+                    </div>
+                </div>
+            `;
+
+            const text = `
+Hi ${safeName},
+
+Thanks for verifying your email for ${safeBusiness}. You can now access your Travooz vendor dashboard:
+${dashboardUrl}
+
+If the link doesn’t work, copy and paste it into your browser. Need help? Just reply to this email.
+
+© ${new Date().getFullYear()} Travooz. All rights reserved.
+            `;
+
+            const isConnected = await EmailService.verifyConnection();
+            if (!isConnected) {
+                console.warn('⚠️  SMTP verification failed before post-verification email, attempting send anyway...');
+            }
+
+            await EmailService.sendEmail({
+                to: email,
+                subject: 'You’re verified! Access your Travooz dashboard',
+                html,
+                text
+            });
+
+            console.log('✅ Verification success email sent');
+        } catch (error) {
+            console.error('❌ Failed to send verification success email:', error.message);
+            if (error.response) console.error('SMTP Response:', error.response);
+            if (error.responseCode) console.error('SMTP Response Code:', error.responseCode);
+            // Don't throw to avoid blocking verification success
+        }
+    }
+
+    static async getUserDisplayName(userId) {
+        if (!userId) return null;
+
+        try {
+            const [result] = await executeQuery(
+                `SELECT name FROM tours_users WHERE user_id = ? LIMIT 1`,
+                [userId]
+            );
+            if (result?.name) return result.name;
+        } catch (error) {
+            console.warn('⚠️  Failed to get user name from tours_users:', error.message);
+        }
+
+        try {
+            const [result] = await executeQuery(
+                `SELECT name FROM stays_users WHERE user_id = ? LIMIT 1`,
+                [userId]
+            );
+            if (result?.name) return result.name;
+        } catch (error) {
+            console.warn('⚠️  Failed to get user name from stays_users:', error.message);
+        }
+
+        return null;
+    }
+
+    static async getBusinessName(tourBusinessId) {
+        if (!tourBusinessId) return null;
+
+        try {
+            const [result] = await executeQuery(
+                `SELECT tour_business_name FROM tours_businesses WHERE tour_business_id = ? LIMIT 1`,
+                [tourBusinessId]
+            );
+            return result?.tour_business_name || null;
+        } catch (error) {
+            console.warn('⚠️  Failed to get business name:', error.message);
+            return null;
+        }
+    }
 }
 
 module.exports = ToursEmailVerificationService;

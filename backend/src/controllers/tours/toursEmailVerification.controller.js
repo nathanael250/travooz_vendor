@@ -66,6 +66,15 @@ const verifyCode = async (req, res) => {
             }
         }
 
+        // Send confirmation email with dashboard link (non-blocking)
+        ToursEmailVerificationService.sendVerificationSuccessEmail({
+            userId,
+            email,
+            tourBusinessId
+        }).catch(err => {
+            console.warn('Failed to send post-verification email:', err.message);
+        });
+
         return sendSuccess(res, { verified: true }, 'Email verified successfully');
     } catch (error) {
         console.error('Verify code error:', error);

@@ -152,16 +152,27 @@ router.put('/:id', authenticateToken, async (req, res) => {
       available_seats,
       address,
       phone,
-      image_url,
+      image_url, // Ignored - images are stored in separate images table
       status
     } = req.body;
     const userId = req.user.id || req.user.userId || req.user.user_id; // Get user ID from JWT token
+    const userType = req.user.userType || 'profile'; // 'restaurant_user' or 'profile'
 
-    // First check if restaurant belongs to user
-    const [checkRows] = await pool.execute(
-      'SELECT * FROM restaurants WHERE id = ? AND user_id = ?',
-      [req.params.id, userId]
-    );
+    // First check if restaurant belongs to user (handle both INT and VARCHAR user_id)
+    let checkQuery = '';
+    let checkParams = [];
+
+    if (userType === 'restaurant_user') {
+      // Restaurant user: user_id is INT, restaurants.user_id might be varchar or int
+      checkQuery = 'SELECT * FROM restaurants WHERE id = ? AND CAST(user_id AS UNSIGNED) = ?';
+      checkParams = [req.params.id, userId];
+    } else {
+      // Profile user: user_id might be varchar or int
+      checkQuery = 'SELECT * FROM restaurants WHERE id = ? AND (user_id = ? OR CAST(user_id AS UNSIGNED) = ?)';
+      checkParams = [req.params.id, String(userId), userId];
+    }
+
+    const [checkRows] = await pool.execute(checkQuery, checkParams);
 
     if (checkRows.length === 0) {
       return res.status(404).json({ error: 'Restaurant not found or access denied' });
@@ -170,23 +181,37 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const updateFields = [];
     const params = [];
 
+    // Only update fields that exist in the restaurants table
+    // Note: image_url is NOT in the restaurants table - images are stored in separate images table
     if (name !== undefined) { updateFields.push('name = ?'); params.push(name); }
     if (description !== undefined) { updateFields.push('description = ?'); params.push(description); }
     if (capacity !== undefined) { updateFields.push('capacity = ?'); params.push(capacity); }
     if (available_seats !== undefined) { updateFields.push('available_seats = ?'); params.push(available_seats); }
     if (address !== undefined) { updateFields.push('address = ?'); params.push(address); }
     if (phone !== undefined) { updateFields.push('phone = ?'); params.push(phone); }
-    if (image_url !== undefined) { updateFields.push('image_url = ?'); params.push(image_url); }
+    // image_url is ignored - images are managed via separate images API
     if (status !== undefined) { updateFields.push('status = ?'); params.push(status); }
 
     if (updateFields.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
 
-    params.push(req.params.id, userId);
+    // Build WHERE clause with proper user_id handling
+    let whereClause = '';
+    let whereParams = [];
+
+    if (userType === 'restaurant_user') {
+      whereClause = 'id = ? AND CAST(user_id AS UNSIGNED) = ?';
+      whereParams = [req.params.id, userId];
+    } else {
+      whereClause = 'id = ? AND (user_id = ? OR CAST(user_id AS UNSIGNED) = ?)';
+      whereParams = [req.params.id, String(userId), userId];
+    }
+
+    params.push(...whereParams);
 
     await pool.execute(
-      `UPDATE restaurants SET ${updateFields.join(', ')} WHERE id = ? AND user_id = ?`,
+      `UPDATE restaurants SET ${updateFields.join(', ')} WHERE ${whereClause}`,
       params
     );
 
@@ -195,10 +220,32 @@ router.put('/:id', authenticateToken, async (req, res) => {
       [req.params.id]
     );
 
-    res.json(rows[0]);
+    // Fetch images for this restaurant
+    const [imageRows] = await pool.execute(
+      'SELECT * FROM images WHERE entity_type = ? AND entity_id = ? ORDER BY is_primary DESC, display_order ASC',
+      ['restaurant', req.params.id]
+    );
+
+    res.json({
+      ...rows[0],
+      images: imageRows
+    });
   } catch (error) {
     console.error('Error updating restaurant:', error);
-    res.status(500).json({ error: 'Failed to update restaurant' });
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+      sql: error.sql
+    });
+    res.status(500).json({ 
+      error: 'Failed to update restaurant',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? {
+        code: error.code,
+        sqlMessage: error.sqlMessage
+      } : undefined
+    });
   }
 });
 
