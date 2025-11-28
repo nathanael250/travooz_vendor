@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Search, X, AlertCircle } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
+import ProgressIndicator from '../../components/stays/ProgressIndicator';
 import { staysSetupService } from '../../services/staysService';
 
 export default function PoliciesAndSettingsStep() {
@@ -32,18 +33,18 @@ export default function PoliciesAndSettingsStep() {
     // Payment methods
     acceptCreditDebitCards: true,
     cardTypes: {
-      debitCards: false,
-      jcb: false,
       visa: false,
-      discover: false,
       mastercard: false,
-      carteBlanche: false,
-      americanExpress: false,
       unionPay: false,
-      dinersClub: false
+      travoozCard: false
     },
     installmentsAtFrontDesk: false,
-    acceptCash: false,
+    acceptOtherPayment: false,
+    otherPaymentTypes: {
+      cash: false,
+      momo: false,
+      airtelMoney: false
+    },
     
     // Deposits
     requireDeposits: 'yes',
@@ -57,7 +58,6 @@ export default function PoliciesAndSettingsStep() {
     incidentalsPaymentForm: 'cash_only',
     
     // Cancellation policy
-    propertyTimeZone: '(GMT+03:00) Nairobi',
     cancellationWindow: '24_hour',
     cancellationFee: 'first_night_plus_tax',
     
@@ -65,10 +65,7 @@ export default function PoliciesAndSettingsStep() {
     vatPercentage: 18.00,
     tourismTaxPercentage: 3.00,
     taxesIncludedInRate: true,
-    requestTaxTeamAssistance: false,
-    
-    // Billing currency
-    billingCurrency: 'RWF'
+    requestTaxTeamAssistance: false
   });
 
   const [errors, setErrors] = useState({});
@@ -97,6 +94,15 @@ export default function PoliciesAndSettingsStep() {
         cardTypes: {
           ...prev.cardTypes,
           [cardType]: checked
+        }
+      }));
+    } else if (name.startsWith('otherPaymentTypes.')) {
+      const paymentType = name.split('.')[1];
+      setFormData(prev => ({
+        ...prev,
+        otherPaymentTypes: {
+          ...prev.otherPaymentTypes,
+          [paymentType]: checked
         }
       }));
     } else if (name.startsWith('depositTypes.')) {
@@ -151,6 +157,13 @@ export default function PoliciesAndSettingsStep() {
       }
     }
 
+    if (formData.acceptOtherPayment) {
+      const hasOtherPaymentType = Object.values(formData.otherPaymentTypes).some(val => val === true);
+      if (!hasOtherPaymentType) {
+        newErrors.otherPaymentTypes = 'Please select at least one other payment method';
+      }
+    }
+
     if (formData.requireDeposits === 'yes') {
       const hasDepositType = Object.values(formData.depositTypes).some(val => val === true);
       if (!hasDepositType) {
@@ -185,21 +198,20 @@ export default function PoliciesAndSettingsStep() {
       // Transform formData to match backend API expectations
       const policiesData = {
         languages: formData.languages,
-        acceptCash: formData.acceptCash,
         acceptCreditDebitCards: formData.acceptCreditDebitCards,
         cardTypes: Object.keys(formData.cardTypes).filter(key => formData.cardTypes[key]),
         installmentsAtFrontDesk: formData.installmentsAtFrontDesk,
+        acceptOtherPayment: formData.acceptOtherPayment,
+        otherPaymentTypes: Object.keys(formData.otherPaymentTypes).filter(key => formData.otherPaymentTypes[key]),
         requireDeposits: formData.requireDeposits,
         depositTypes: Object.keys(formData.depositTypes).filter(key => formData.depositTypes[key]),
         incidentalsPaymentForm: formData.incidentalsPaymentForm,
-        propertyTimeZone: formData.propertyTimeZone,
         cancellationWindow: formData.cancellationWindow,
         cancellationFee: formData.cancellationFee,
         vatPercentage: formData.vatPercentage,
         tourismTaxPercentage: formData.tourismTaxPercentage,
         taxesIncludedInRate: formData.taxesIncludedInRate,
-        requestTaxTeamAssistance: formData.requestTaxTeamAssistance,
-        billingCurrency: formData.billingCurrency
+        requestTaxTeamAssistance: formData.requestTaxTeamAssistance
       };
 
       // Save policies via API
@@ -238,40 +250,7 @@ export default function PoliciesAndSettingsStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-4xl mx-auto">
           {/* Progress Indicator */}
-          <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="flex items-center space-x-2">
-                {/* Step 1 - Completed */}
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  <span>✓</span>
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                
-                {/* Step 2 - Completed */}
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  <span>✓</span>
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                
-                {/* Step 3 - Current */}
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  3
-                </div>
-                <div className="w-16 h-1 bg-gray-300"></div>
-                
-                {/* Steps 4-10 - Not completed */}
-                {[4, 5, 6, 7, 8, 9, 10].map((step) => (
-                  <React.Fragment key={step}>
-                    <div className="w-8 h-8 text-gray-400 rounded-full flex items-center justify-center text-sm font-semibold bg-white border-2 border-gray-300">
-                      {step}
-                    </div>
-                    {step < 10 && <div className="w-16 h-1 bg-gray-300"></div>}
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Step 3 of 10</p>
-          </div>
+          <ProgressIndicator currentStep={3} totalSteps={10} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>
@@ -356,17 +335,12 @@ export default function PoliciesAndSettingsStep() {
                   {formData.acceptCreditDebitCards && (
                     <div className="ml-7 space-y-3">
                       <p className="text-sm font-medium text-gray-700">Types of card you accept</p>
-                      <div className="grid md:grid-cols-3 gap-3">
+                      <div className="grid md:grid-cols-2 gap-3">
                         {[
-                          { key: 'visa', label: 'Visa' },
-                          { key: 'mastercard', label: 'Mastercard' },
-                          { key: 'americanExpress', label: 'American Express' },
-                          { key: 'discover', label: 'Discover' },
-                          { key: 'dinersClub', label: 'Diners Club' },
-                          { key: 'jcb', label: 'JCB International' },
-                          { key: 'unionPay', label: 'UnionPay' },
-                          { key: 'carteBlanche', label: 'Carte Blanche' },
-                          { key: 'debitCards', label: 'Debit cards' }
+                          { key: 'visa', label: 'Visa (Credit & Debit)' },
+                          { key: 'mastercard', label: 'Mastercard (Credit & Debit)' },
+                          { key: 'unionPay', label: 'UnionPay (optional)' },
+                          { key: 'travoozCard', label: 'Travooz Card' }
                         ].map((card) => (
                           <label key={card.key} className="flex items-center gap-2 cursor-pointer">
                             <input
@@ -389,33 +363,67 @@ export default function PoliciesAndSettingsStep() {
                     </div>
                   )}
 
-                  <div className="ml-7">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Other settings</p>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          name="installmentsAtFrontDesk"
-                          checked={formData.installmentsAtFrontDesk}
-                          onChange={handleChange}
-                          className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                        />
-                        <span className="text-sm text-gray-700">
-                          Installments payments offered at front desk (for locals only)
-                        </span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          name="acceptCash"
-                          checked={formData.acceptCash}
-                          onChange={handleChange}
-                          className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                        />
-                        <span className="text-sm text-gray-700">Cash</span>
-                      </label>
+                  {formData.acceptCreditDebitCards && (
+                    <div className="ml-7">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Other settings</p>
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            name="installmentsAtFrontDesk"
+                            checked={formData.installmentsAtFrontDesk}
+                            onChange={handleChange}
+                            className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
+                          />
+                          <span className="text-sm text-gray-700">
+                            Installments payments offered at front desk (for locals only)
+                          </span>
+                        </label>
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Other Payment Methods */}
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="acceptOtherPayment"
+                      checked={formData.acceptOtherPayment}
+                      onChange={handleChange}
+                      className="w-5 h-5 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Other payment methods</span>
+                  </label>
+
+                  {formData.acceptOtherPayment && (
+                    <div className="ml-7 space-y-3">
+                      <p className="text-sm font-medium text-gray-700">Types of other payment you accept</p>
+                      <div className="grid md:grid-cols-3 gap-3">
+                        {[
+                          { key: 'cash', label: 'Cash' },
+                          { key: 'momo', label: 'MoMo' },
+                          { key: 'airtelMoney', label: 'Airtel Money' }
+                        ].map((payment) => (
+                          <label key={payment.key} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              name={`otherPaymentTypes.${payment.key}`}
+                              checked={formData.otherPaymentTypes[payment.key]}
+                              onChange={handleChange}
+                              className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
+                            />
+                            <span className="text-sm text-gray-700">{payment.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {errors.otherPaymentTypes && (
+                        <p className="text-sm text-red-600 flex items-center gap-1">
+                          <AlertCircle className="h-4 w-4" />
+                          {errors.otherPaymentTypes}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -509,24 +517,6 @@ export default function PoliciesAndSettingsStep() {
                 </p>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Property time zone
-                    </label>
-                    <select
-                      name="propertyTimeZone"
-                      value={formData.propertyTimeZone}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                    >
-                      <option value="(GMT+02:00) Harare, Pretoria">(GMT+02:00) Harare, Pretoria</option>
-                      <option value="(GMT+03:00) Nairobi">(GMT+03:00) Nairobi</option>
-                      <option value="(GMT+03:00) Dar es Salaam">(GMT+03:00) Dar es Salaam</option>
-                      <option value="(GMT+03:00) Kampala">(GMT+03:00) Kampala</option>
-                      <option value="(GMT+02:00) Cairo">(GMT+02:00) Cairo</option>
-                    </select>
-                  </div>
-
-                  <div>
                     <p className="text-sm text-gray-600 mb-3">
                       A cancellation window is the amount of time before your local cancellation cutoff (18:00) on the day of check-in.
                     </p>
@@ -534,8 +524,7 @@ export default function PoliciesAndSettingsStep() {
                       {[
                         { value: '24_hour', label: '24-hour cancellation window', desc: 'Travelers who cancel 24 hours or more before 18:00 on the day of check-in are charged no fee.', defaultFee: 'first_night_plus_tax' },
                         { value: '48_hour', label: '48-hour cancellation window', desc: 'Travelers who cancel 48 hours or more before 18:00 on the day of check-in are charged no fee.', defaultFee: 'first_night_plus_tax' },
-                        { value: '72_hour', label: '72-hour cancellation window', desc: 'Travelers who cancel 72 hours or more before 18:00 on the day of check-in are charged no fee.', defaultFee: 'first_night_plus_tax' },
-                        { value: 'non_refundable', label: 'Non-refundable', desc: 'Travelers who cancel are charged the full amount.', defaultFee: 'full_amount' }
+                        { value: '72_hour', label: '72-hour cancellation window', desc: 'Travelers who cancel 72 hours or more before 18:00 on the day of check-in are charged no fee.', defaultFee: 'first_night_plus_tax' }
                       ].map((option) => (
                         <div key={option.value} className="border-2 rounded-lg p-4" style={{ borderColor: formData.cancellationWindow === option.value ? '#3CAF54' : '#dcfce7' }}>
                           <label className="flex items-start gap-3 cursor-pointer">
@@ -550,7 +539,7 @@ export default function PoliciesAndSettingsStep() {
                             <div className="flex-1">
                               <div className="font-semibold text-gray-900 mb-1">{option.label}</div>
                               <p className="text-sm text-gray-600 mb-2">{option.desc}</p>
-                              {formData.cancellationWindow === option.value && option.value !== 'non_refundable' && (
+                              {formData.cancellationWindow === option.value && (
                                 <>
                                   <p className="text-sm text-gray-600 mb-2">
                                     Travelers who cancel less than {option.value.replace('_hour', '')} before 18:00 on the day of check-in (including no-shows) are charged:
@@ -602,13 +591,7 @@ export default function PoliciesAndSettingsStep() {
                         <span className="text-sm text-gray-700">
                           Yes, taxes are included in rate
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => {/* Show example modal */}}
-                          className="text-sm text-[#3CAF54] hover:underline ml-2"
-                        >
-                          See an example
-                        </button>
+                        
                       </label>
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -622,13 +605,7 @@ export default function PoliciesAndSettingsStep() {
                         <span className="text-sm text-gray-700">
                           No, add these taxes to the rate
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => {/* Show example modal */}}
-                          className="text-sm text-[#3CAF54] hover:underline ml-2"
-                        >
-                          See an example
-                        </button>
+                        
                       </label>
                     </div>
                   </div>
@@ -647,35 +624,6 @@ export default function PoliciesAndSettingsStep() {
                     />
                     <span className="text-sm text-gray-700">Request tax team assistance</span>
                   </label>
-                </div>
-              </div>
-
-              {/* Billing Currency */}
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                  What currency would you like to use to pay Travooz?
-                </h2>
-                <p className="text-sm text-gray-600 mb-4">
-                  Under the Travooz Traveler Preference business model, you have the flexibility to choose how you want to receive payment.
-                </p>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Billing currency
-                  </label>
-                  <select
-                    name="billingCurrency"
-                    value={formData.billingCurrency}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                  >
-                    <option value="RWF">Rwandan Franc</option>
-                    <option value="USD">US Dollars</option>
-                    <option value="EUR">Euro</option>
-                    <option value="GBP">British Pound</option>
-                    <option value="KES">Kenyan Shilling</option>
-                    <option value="UGX">Ugandan Shilling</option>
-                    <option value="TZS">Tanzanian Shilling</option>
-                  </select>
                 </div>
               </div>
 

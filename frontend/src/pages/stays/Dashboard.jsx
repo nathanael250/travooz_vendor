@@ -584,41 +584,25 @@ export default function StaysDashboard() {
           </header>
 
           {/* Not Live Message - Responsive */}
-          <main className="flex-1 overflow-y-auto bg-gray-100 p-4 sm:p-6 flex items-center justify-center">
+          <main className="flex-1 overflow-y-auto bg-gray-100 p-4 sm:p-6 pt-8 sm:pt-12 flex items-center justify-center">
             <div className="max-w-2xl w-full bg-white rounded-lg shadow-xl p-6 sm:p-8 border text-center">
               <div className="mb-4 sm:mb-6">
                 <div className="h-16 w-16 sm:h-20 sm:w-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <AlertCircle className="h-8 w-8 sm:h-12 sm:w-12 text-yellow-600" />
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-3">Property Under Review</h2>
-                <p className="text-base sm:text-lg text-gray-600 mb-2">
-                  Your property <strong className="break-words">{currentProperty?.property_name || 'property'}</strong> has been submitted for review.
+                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">Property Under Review</h2>
+                <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-5">
+                  Your property <strong className="break-words">{currentProperty?.property_name || 'property'}</strong> is being reviewed by our admin team. 
+                  You'll receive an email notification once a decision is made. This typically takes 2-3 business days.
                 </p>
-                <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
-                  Our admin team is currently reviewing your property information and user details. 
-                  Once approved, your property will go live and you'll have full access to the dashboard.
-                </p>
-                <div className="bg-blue-50 border-l-4 border-blue-400 p-3 sm:p-4 text-left mb-4 sm:mb-6">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <AlertCircle className="h-5 w-5 text-blue-400" />
-                    </div>
-                    <div className="ml-2 sm:ml-3 min-w-0 flex-1">
-                      <p className="text-xs sm:text-sm text-blue-700 font-semibold mb-2">
-                        What happens next?
-                      </p>
-                      <ul className="text-xs sm:text-sm text-blue-700 list-disc list-inside space-y-1">
-                        <li>Our team will verify your property information</li>
-                        <li>We'll review your user account details</li>
-                        <li>You'll receive a notification once your property is approved</li>
-                        <li>All dashboard features will be enabled once your property goes live</li>
-                      </ul>
-                    </div>
-                  </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4 text-left">
+                  <p className="text-xs sm:text-sm text-gray-600 mb-2">
+                    <strong>Need to logout?</strong>
+                  </p>
+                  <p className="text-xs sm:text-sm text-gray-600">
+                    Click on the <strong>three horizontal lines (☰)</strong> icon in the top left corner to open the menu, then select <strong>"Logout"</strong> to sign out. You can return later to check your property status.
+                  </p>
                 </div>
-                <p className="text-xs sm:text-sm text-gray-500">
-                  This process typically takes 2-3 business days. Thank you for your patience!
-                </p>
               </div>
             </div>
           </main>

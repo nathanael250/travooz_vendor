@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, Edit, Home, Bed, Briefcase, FileText, Building, Calendar, Link, AlertCircle, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
+import { getPropertyListing, getPropertyImageLibrary, staysAuthService } from '../../services/staysService';
 
 export default function ReviewListingStep() {
   const navigate = useNavigate();
@@ -27,50 +28,146 @@ export default function ReviewListingStep() {
   const [expandedSections, setExpandedSections] = useState({});
   const [loading, setLoading] = useState(true);
 
-  // Load all data from localStorage and state
+  // Load all data from API and localStorage
   useEffect(() => {
-    // Try to get property from state first, then localStorage
-    const stateProperty = location.state?.property || {};
-    const storedProperty = JSON.parse(localStorage.getItem('stays_property') || '{}');
-    const property = { ...storedProperty, ...stateProperty };
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        
+        // Get propertyId from state or localStorage
+        const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
+        
+        let property = {};
+        let propertyImages = [];
+        
+        // Try to fetch from API if propertyId exists
+        if (propertyId && propertyId > 0) {
+          try {
+            // Fetch property data from API
+            const propertyData = await getPropertyListing(propertyId);
+            property = {
+              propertyId: propertyId,
+              propertyName: propertyData.property_name || propertyData.propertyName || '',
+              location: propertyData.location || '',
+              address: propertyData.location_data?.formatted_address || 
+                       propertyData.location_data?.name || 
+                       propertyData.location || 
+                       '',
+              phone: propertyData.phone || '',
+              ...propertyData
+            };
+            
+            // Fetch user profile to get phone number
+            try {
+              const userProfile = await staysAuthService.getProfile();
+              if (userProfile?.phone) {
+                property.phone = userProfile.phone;
+              }
+            } catch (profileError) {
+              console.log('Could not fetch user profile:', profileError);
+              // Try to get phone from localStorage user data
+              const storedUser = JSON.parse(localStorage.getItem('stays_user') || '{}');
+              if (storedUser?.phone) {
+                property.phone = storedUser.phone;
+              }
+            }
+            
+            // Fetch property images from API
+            const imageLibrary = await getPropertyImageLibrary(propertyId);
+            propertyImages = imageLibrary?.propertyImages || imageLibrary?.images || [];
+            
+            // Update localStorage with fetched data
+            if (propertyImages.length > 0) {
+              localStorage.setItem('stays_property_images', JSON.stringify(propertyImages));
+            }
+          } catch (apiError) {
+            console.log('Could not fetch from API, using localStorage:', apiError);
+            // Fallback to localStorage if API fails
+            const storedProperty = JSON.parse(localStorage.getItem('stays_property') || '{}');
+            property = { ...storedProperty };
+            
+            // Try to get phone from localStorage user data
+            const storedUser = JSON.parse(localStorage.getItem('stays_user') || '{}');
+            if (storedUser?.phone && !property.phone) {
+              property.phone = storedUser.phone;
+            }
+            
+            propertyImages = JSON.parse(localStorage.getItem('stays_property_images') || '[]');
+          }
+        } else {
+          // No propertyId, use localStorage only
+          const storedProperty = JSON.parse(localStorage.getItem('stays_property') || '{}');
+          property = { ...storedProperty };
+          
+          // Try to get phone from localStorage user data
+          const storedUser = JSON.parse(localStorage.getItem('stays_user') || '{}');
+          if (storedUser?.phone && !property.phone) {
+            property.phone = storedUser.phone;
+          }
+          
+          propertyImages = JSON.parse(localStorage.getItem('stays_property_images') || '[]');
+        }
+        
+        // Merge with state data
+        const stateProperty = location.state?.property || {};
+        property = { ...property, ...stateProperty };
+        
+        if (location.state?.propertyName) {
+          property.propertyName = location.state.propertyName;
+        }
+        if (location.state?.location) {
+          property.location = location.state.location;
+        }
+        if (location.state?.address) {
+          property.address = location.state.address;
+        }
+        if (location.state?.phone) {
+          property.phone = location.state.phone;
+        }
+
+        // Load other data from localStorage
+        const policies = JSON.parse(localStorage.getItem('stays_policies') || '{}');
+        const amenities = JSON.parse(localStorage.getItem('stays_amenities') || '{}');
+        const rooms = JSON.parse(localStorage.getItem('stays_rooms') || '[]');
+        const taxData = JSON.parse(localStorage.getItem('stays_tax_data') || '{}');
+        const connectivityData = JSON.parse(localStorage.getItem('stays_connectivity_data') || '{}');
+
+        setPropertyData({
+          property,
+          policies,
+          amenities,
+          rooms: rooms.filter(r => r.roomSetupComplete),
+          propertyImages,
+          taxData,
+          connectivityData
+        });
+      } catch (error) {
+        console.error('Error loading review data:', error);
+        // Fallback to localStorage only on error
+        const storedProperty = JSON.parse(localStorage.getItem('stays_property') || '{}');
+        const propertyImages = JSON.parse(localStorage.getItem('stays_property_images') || '[]');
+        const policies = JSON.parse(localStorage.getItem('stays_policies') || '{}');
+        const amenities = JSON.parse(localStorage.getItem('stays_amenities') || '{}');
+        const rooms = JSON.parse(localStorage.getItem('stays_rooms') || '[]');
+        const taxData = JSON.parse(localStorage.getItem('stays_tax_data') || '{}');
+        const connectivityData = JSON.parse(localStorage.getItem('stays_connectivity_data') || '{}');
+        
+        setPropertyData({
+          property: storedProperty,
+          policies,
+          amenities,
+          rooms: rooms.filter(r => r.roomSetupComplete),
+          propertyImages,
+          taxData,
+          connectivityData
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    // Merge with initial property data from step 1 and 2
-    // Get propertyId from state or localStorage
-    const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
-    if (propertyId && propertyId > 0) {
-      property.propertyId = propertyId;
-    }
-    if (location.state?.propertyName) {
-      property.propertyName = location.state.propertyName;
-    }
-    if (location.state?.location) {
-      property.location = location.state.location;
-    }
-    if (location.state?.address) {
-      property.address = location.state.address;
-    }
-    if (location.state?.phone) {
-      property.phone = location.state.phone;
-    }
-
-    const policies = JSON.parse(localStorage.getItem('stays_policies') || '{}');
-    const amenities = JSON.parse(localStorage.getItem('stays_amenities') || '{}');
-    const rooms = JSON.parse(localStorage.getItem('stays_rooms') || '[]');
-    const propertyImages = JSON.parse(localStorage.getItem('stays_property_images') || '[]');
-    const taxData = JSON.parse(localStorage.getItem('stays_tax_data') || '{}');
-    const connectivityData = JSON.parse(localStorage.getItem('stays_connectivity_data') || '{}');
-
-    setPropertyData({
-      property,
-      policies,
-      amenities,
-      rooms: rooms.filter(r => r.roomSetupComplete),
-      propertyImages,
-      taxData,
-      connectivityData
-    });
-    setLoading(false);
-  }, []);
+    loadData();
+  }, [location.state]);
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
@@ -157,8 +254,14 @@ export default function ReviewListingStep() {
             </div>
             
             <div className="space-y-2 mb-4">
-              <p className="text-gray-900 font-medium">{property.propertyName || 'Property Name'}</p>
-              <p className="text-gray-600 text-sm">{property.address || 'Address not set'}</p>
+              <p className="text-gray-900 font-medium">{property.propertyName || property.property_name || 'Property Name'}</p>
+              <p className="text-gray-600 text-sm">
+                {property.address || 
+                 property.location_data?.formatted_address || 
+                 property.location_data?.name || 
+                 property.location || 
+                 'Address not set'}
+              </p>
               <p className="text-gray-600 text-sm">{property.phone || 'Phone not set'}</p>
             </div>
 
@@ -175,15 +278,15 @@ export default function ReviewListingStep() {
                   <span>Edit</span>
                 </button>
               </div>
-              {propertyImages.length < 6 ? (
+              {propertyImages.length < 4 ? (
                 <div className="flex items-center gap-2 text-red-600">
                   <AlertCircle className="h-5 w-5" />
-                  <p className="text-sm">You are required to have 6 photos to go live.</p>
+                  <p className="text-sm">You are required to have at least 4 photos to go live. You currently have {propertyImages.length} photo{propertyImages.length !== 1 ? 's' : ''}.</p>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 text-[#3CAF54]">
                   <CheckCircle className="h-5 w-5" />
-                  <p className="text-sm">{propertyImages.length} photos uploaded</p>
+                  <p className="text-sm">{propertyImages.length} photo{propertyImages.length !== 1 ? 's' : ''} uploaded</p>
                 </div>
               )}
             </div>
@@ -212,7 +315,7 @@ export default function ReviewListingStep() {
                   <div key={room.id || index} className="border rounded-lg p-4" style={{ borderColor: '#dcfce7' }}>
                     <p className="font-semibold text-gray-900 mb-2">{room.roomName || 'Room'}</p>
                     <div className="text-sm text-gray-600 space-y-1">
-                      <p>Base rate: USD {room.baseRate?.toFixed(2) || '0.00'}</p>
+                      <p>Base rate:  {room.baseRate?.toFixed(2) || '0.00'}</p>
                       {room.numberOfBeds && (
                         <p>{room.numberOfBeds.length} {room.numberOfBeds[0]?.bedType || 'bed'}{room.numberOfBeds.length > 1 ? 's' : ''}</p>
                       )}

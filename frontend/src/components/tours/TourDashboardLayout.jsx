@@ -66,6 +66,7 @@ const TourDashboardLayout = () => {
             }
             
             const submissionStatus = status?.status || status?.data?.status || status?.data?.data?.status;
+            const prevStatus = localStorage.getItem('tour_submission_status');
             
             if (submissionStatus === null || submissionStatus === undefined) {
               console.log('⚠️ No submission data found. Clearing stale data and redirecting...');
@@ -76,9 +77,15 @@ const TourDashboardLayout = () => {
             }
             
             if (submissionStatus !== 'approved') {
+              if (prevStatus === 'approved') {
+                toast.error('Your submission was moved back to review. Please fix the requested items.');
+              }
+              localStorage.setItem('tour_submission_status', submissionStatus);
               navigate('/tours/setup/complete', { replace: true });
               return;
             }
+
+            localStorage.setItem('tour_submission_status', 'approved');
           } catch (error) {
             // If 404 or "not found", database was cleared
             if (error.response?.status === 404 || 

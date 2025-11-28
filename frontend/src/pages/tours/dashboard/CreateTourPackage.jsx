@@ -122,18 +122,30 @@ const CreateTourPackage = () => {
   });
   const [locationSearch, setLocationSearch] = useState('');
   const [tagInput, setTagInput] = useState('');
+  const [keywordSearch, setKeywordSearch] = useState('');
+  const [transportationSearch, setTransportationSearch] = useState('');
   const [languageSearch, setLanguageSearch] = useState('');
   const [notSuitableSearch, setNotSuitableSearch] = useState('');
   const [showNotSuitableDropdown, setShowNotSuitableDropdown] = useState(false);
+  const [notAllowedSearch, setNotAllowedSearch] = useState('');
+  const [showNotAllowedDropdown, setShowNotAllowedDropdown] = useState(false);
   const [mandatoryItemsSearch, setMandatoryItemsSearch] = useState('');
   const [showMandatoryItemsDropdown, setShowMandatoryItemsDropdown] = useState(false);
+  const [photoUploadError, setPhotoUploadError] = useState('');
   const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = useState(false);
   const locationInputRef = useRef(null);
   const autocompleteRef = useRef(null);
   const notSuitableDropdownRef = useRef(null);
+  const notAllowedDropdownRef = useRef(null);
   const mandatoryItemsDropdownRef = useRef(null);
   
   const TOTAL_SUB_STEPS = 4; // Title, Description, Location, Tags
+
+  // Photo upload limits
+  const MIN_PHOTOS = 4; // Minimum number of photos required
+  const MAX_PHOTOS = 20; // Maximum number of photos allowed
+  const MAX_FILE_SIZE = 7 * 1024 * 1024; // 7MB in bytes
+  const MIN_IMAGE_WIDTH = 1280; // Minimum image width in pixels
 
   // Not suitable for options list
   const NOT_SUITABLE_OPTIONS = [
@@ -245,6 +257,46 @@ const CreateTourPackage = () => {
     'Vegetarians',
     'Visually impaired people',
     'Wheelchair users'
+  ];
+
+  // Not allowed options list
+  const NOT_ALLOWED_OPTIONS = [
+    'Alcohol',
+    'Alcoholic beverages',
+    'Animals',
+    'Backpacks',
+    'Bags',
+    'Cameras',
+    'Children under 12',
+    'Children under 16',
+    'Children under 18',
+    'Clothing that reveals too much',
+    'Drones',
+    'Drugs',
+    'Electronic devices',
+    'Firearms',
+    'Food',
+    'Glass containers',
+    'Illegal substances',
+    'Large bags',
+    'Loud music',
+    'Mobile phones',
+    'Outside food and drinks',
+    'Pets',
+    'Photography',
+    'Professional cameras',
+    'Recording devices',
+    'Selfie sticks',
+    'Smoking',
+    'Strollers',
+    'Tripods',
+    'Umbrellas',
+    'Valuables',
+    'Video recording',
+    'Weapons',
+    'Weapons or sharp objects',
+    'Wheelchairs',
+    'Wheeled luggage'
   ];
 
   // Mandatory items options list
@@ -371,6 +423,24 @@ const CreateTourPackage = () => {
     'Your own vehicle'
   ];
 
+  // Language options list
+  const LANGUAGE_OPTIONS = [
+    'English', 'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Dutch', 'Russian',
+    'Chinese (Mandarin)', 'Chinese (Cantonese)', 'Japanese', 'Korean', 'Arabic', 'Hindi',
+    'Turkish', 'Polish', 'Swedish', 'Norwegian', 'Danish', 'Finnish', 'Greek', 'Czech',
+    'Hungarian', 'Romanian', 'Bulgarian', 'Croatian', 'Serbian', 'Slovak', 'Slovenian',
+    'Estonian', 'Latvian', 'Lithuanian', 'Ukrainian', 'Hebrew', 'Thai', 'Vietnamese',
+    'Indonesian', 'Malay', 'Tagalog', 'Swahili', 'Zulu', 'Afrikaans', 'Amharic',
+    'Bengali', 'Tamil', 'Telugu', 'Marathi', 'Gujarati', 'Punjabi', 'Urdu', 'Persian',
+    'Kiswahili', 'Luganda', 'Kinyarwanda', 'Kirundi', 'Somali', 'Oromo', 'Hausa',
+    'Yoruba', 'Igbo', 'Fulani', 'Wolof', 'Mandinka', 'Bambara', 'Twi', 'Akan',
+    'Catalan', 'Basque', 'Galician', 'Welsh', 'Irish', 'Scottish Gaelic', 'Breton',
+    'Icelandic', 'Maltese', 'Luxembourgish', 'Albanian', 'Macedonian', 'Bosnian',
+    'Montenegrin', 'Moldovan', 'Georgian', 'Armenian', 'Azerbaijani', 'Kazakh',
+    'Uzbek', 'Mongolian', 'Nepali', 'Sinhala', 'Burmese', 'Khmer', 'Lao',
+    'Javanese', 'Sundanese', 'Cebuano', 'Ilocano', 'Hiligaynon', 'Bicolano'
+  ];
+
   // Enable scrolling for this page
   useEffect(() => {
     document.body.classList.add('auth-page');
@@ -429,6 +499,13 @@ const CreateTourPackage = () => {
         setShowNotSuitableDropdown(false);
       }
       if (
+        notAllowedDropdownRef.current &&
+        !notAllowedDropdownRef.current.contains(event.target) &&
+        !event.target.closest('input[placeholder*="Search for restrictions or type"]')
+      ) {
+        setShowNotAllowedDropdown(false);
+      }
+      if (
         mandatoryItemsDropdownRef.current &&
         !mandatoryItemsDropdownRef.current.contains(event.target) &&
         !event.target.closest('input[placeholder="Search for items"]')
@@ -437,7 +514,7 @@ const CreateTourPackage = () => {
       }
     };
 
-    if (showNotSuitableDropdown || showMandatoryItemsDropdown) {
+    if (showNotSuitableDropdown || showNotAllowedDropdown || showMandatoryItemsDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
@@ -446,15 +523,9 @@ const CreateTourPackage = () => {
     };
   }, [showNotSuitableDropdown, showMandatoryItemsDropdown]);
 
-  // Initialize Google Places Autocomplete for locations
+  // Initialize Google Places Autocomplete for locations (same as ListYourTour.jsx)
   const initializeLocationAutocomplete = () => {
     if (!locationInputRef.current || !window.google || !window.google.maps || !window.google.maps.places) {
-      console.log('Autocomplete initialization skipped:', {
-        hasInputRef: !!locationInputRef.current,
-        hasGoogle: !!window.google,
-        hasMaps: !!(window.google && window.google.maps),
-        hasPlaces: !!(window.google && window.google.maps && window.google.maps.places)
-      });
       return;
     }
 
@@ -466,7 +537,7 @@ const CreateTourPackage = () => {
 
     try {
       const autocomplete = new window.google.maps.places.Autocomplete(locationInputRef.current, {
-        types: ['(cities)', 'establishment', 'geocode'], // Cities, places, and addresses
+        types: ['establishment', 'geocode'], // Allow both places and addresses (same as ListYourTour.jsx)
         fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components']
       });
 
@@ -534,28 +605,45 @@ const CreateTourPackage = () => {
       return;
     }
 
-    // Set up error handler for Google Maps authentication failures
-    window.gm_authFailure = () => {
-      console.error('Google Maps API requires billing to be enabled. Please enable billing in your Google Cloud Console.');
-    };
-
-    // Check if Google Maps is already loaded and input is available
+    // Check if Google Maps is already loaded
     const checkGoogleMaps = () => {
       if (window.google && window.google.maps && window.google.maps.places && locationInputRef.current) {
         setIsGoogleMapsLoaded(true);
-        // Use setTimeout to ensure the input is fully rendered
-        setTimeout(() => {
           initializeLocationAutocomplete();
-        }, 100);
         return true;
       }
       return false;
     };
 
-    // If already loaded, initialize immediately (with a small delay to ensure input is rendered)
+    // Listen for global Google Maps error events (same as ListYourTour.jsx)
+    const handleGoogleMapsError = (event) => {
+      const error = event.detail?.error;
+      if (error) {
+        console.error('Google Maps error detected:', error);
+        if (error.type === 'auth_failure') {
+          console.error('Google Maps API authentication failed. Please check your API key and ensure billing is enabled in Google Cloud Console.');
+        } else if (error.type === 'script_load_failed' || error.type === 'max_attempts_reached') {
+          console.error('Failed to load Google Maps. Please check your API key and network connection.');
+        } else if (error.type === 'callback_timeout') {
+          console.error('Google Maps API is taking too long to load. Please refresh the page or check your network connection.');
+        } else {
+          console.error('An error occurred while loading Google Maps:', error.message);
+        }
+      }
+    };
+
+    // Check for existing error state
+    if (window.googleMapsLoadError) {
+      handleGoogleMapsError({ detail: { error: window.googleMapsLoadError } });
+    }
+
+    // If already loaded, initialize immediately
     if (checkGoogleMaps()) {
       return;
     }
+
+    // Listen for error events
+    window.addEventListener('googlemaps:error', handleGoogleMapsError);
 
     // Wait for Google Maps to load (it's loaded in index.html)
     let checkInterval = setInterval(() => {
@@ -564,20 +652,23 @@ const CreateTourPackage = () => {
       }
     }, 100);
 
-    // Timeout after 10 seconds
+    // Timeout after 15 seconds (matching index.html timeout)
     const timeout = setTimeout(() => {
       clearInterval(checkInterval);
       if (!window.google || !window.google.maps) {
+        // Only log error if not already set by global error handler
+        if (!window.googleMapsLoadError) {
         console.error('Failed to load Google Maps. Please check your API key and network connection.');
+        }
       } else if (!locationInputRef.current) {
         console.warn('Google Maps loaded but input field not available yet');
       }
-    }, 10000);
+    }, 15000);
 
     return () => {
       clearInterval(checkInterval);
       clearTimeout(timeout);
-      delete window.gm_authFailure;
+      window.removeEventListener('googlemaps:error', handleGoogleMapsError);
     };
   }, [currentStep, currentSubStep]);
 
@@ -769,7 +860,7 @@ const CreateTourPackage = () => {
     const hasBasicInfo = data.name && data.category && data.shortDescription && data.locations && data.locations.length > 0;
     const hasInclusions = data.whatsIncluded || data.guideType;
     const hasExtraInfo = data.knowBeforeYouGo || (data.notSuitableFor && data.notSuitableFor.length > 0);
-    const hasPhotos = data.photos && data.photos.length >= 4;
+    const hasPhotos = data.photos && data.photos.length >= MIN_PHOTOS;
     const hasOptions = data.availabilityType && data.pricingType && data.pricePerPerson && parseFloat(data.pricePerPerson) > 0;
     
     return hasBasicInfo && hasInclusions && hasExtraInfo && hasPhotos && hasOptions;
@@ -924,7 +1015,7 @@ const CreateTourPackage = () => {
       case 3:
         return data.knowBeforeYouGo || data.notSuitableFor.length > 0;
       case 4:
-        return data.photos.length >= 4;
+        return data.photos.length >= MIN_PHOTOS;
       case 5:
         return data.availabilityType && data.pricingType;
       default:
@@ -1096,8 +1187,12 @@ const CreateTourPackage = () => {
       setCurrentSubStep(1);
     } else if (currentStep === 4) {
       // Step 4: Photos (no substeps)
-      if (formData.photos.length < 4) {
-        alert('Please upload at least 4 photos');
+      if (formData.photos.length < MIN_PHOTOS) {
+        alert(`Please upload at least ${MIN_PHOTOS} photos. You currently have ${formData.photos.length} photo(s).`);
+        return;
+      }
+      if (formData.photos.length > MAX_PHOTOS) {
+        alert(`You have uploaded ${formData.photos.length} photos, but the maximum is ${MAX_PHOTOS}. Please remove ${formData.photos.length - MAX_PHOTOS} photo(s).`);
         return;
       }
       setCurrentStep(5);
@@ -1129,10 +1224,7 @@ const CreateTourPackage = () => {
           // Capacity
           setAvailabilitySubStep(4);
         } else if (availabilitySubStep === 4) {
-          // Price
-          setAvailabilitySubStep(5);
-        } else if (availabilitySubStep === 5) {
-          // Add-ons (optional) - complete Availability & Pricing
+          // Price - complete Availability & Pricing
           // Move to review step
           setCurrentStep(6);
         }
@@ -1309,7 +1401,7 @@ const CreateTourPackage = () => {
                 {currentStep === 2 && ` - Inclusions (Substep ${currentSubStep} of 4)`}
                 {currentStep === 5 && currentSubStep === 1 && ` - Options (Substep ${currentSubStep} of 3: Option setup)`}
                 {currentStep === 5 && currentSubStep === 2 && ` - Options (Substep ${currentSubStep} of 3: Meeting point or pickup)`}
-                {currentStep === 5 && currentSubStep === 3 && ` - Options (Substep ${currentSubStep} of 3: Availability & Pricing - Step ${availabilitySubStep} of 5)`}
+                {currentStep === 5 && currentSubStep === 3 && ` - Options (Substep ${currentSubStep} of 3: Availability & Pricing - Step ${availabilitySubStep} of 4)`}
                 {currentStep === 6 && ` - Review & Submit`}
               </p>
               {(isSaving || lastSaved) && (
@@ -1622,9 +1714,92 @@ const CreateTourPackage = () => {
 
                     {/* Suggested Keywords */}
                     <div>
-                      <p className="text-xs font-semibold text-gray-700 mb-2 uppercase">Suggestions</p>
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <p className="text-xs font-semibold text-gray-700 uppercase">Suggestions</p>
+                          {!keywordSearch.trim() && (
+                            <p className="text-xs text-gray-500 mt-0.5">Showing popular keywords. Search for more...</p>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          value={keywordSearch}
+                          onChange={(e) => setKeywordSearch(e.target.value)}
+                          placeholder="Search keywords..."
+                          className="text-xs px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#3CAF54] focus:border-transparent w-40"
+                        />
+                      </div>
+                      
+                      {(() => {
+                        // All available keywords
+                        const allKeywords = [
+                          // Activities & Experiences
+                          'Adventure', 'Hiking', 'Trekking', 'Swimming', 'Snorkeling', 'Diving', 'Kayaking', 'Rafting', 'Cycling', 'Biking',
+                          'Photography', 'Bird Watching', 'Safari', 'Game Drive', 'Fishing', 'Camping', 'Rock Climbing', 'Ziplining',
+                          'Paragliding', 'Hot Air Balloon', 'Boat Tour', 'Cruise', 'Sailing', 'Surfing', 'Water Sports',
+                          
+                          // Themes & Interests
+                          'Educational', 'History', 'Cultural', 'Heritage', 'Archaeology', 'Museums', 'Art', 'Architecture',
+                          'Nature', 'Wildlife', 'Conservation', 'Ecology', 'Botanical', 'Geology', 'Astronomy',
+                          'Food & Drink', 'Culinary', 'Wine Tasting', 'Local Cuisine', 'Street Food', 'Cooking Class',
+                          'Music', 'Dance', 'Festivals', 'Nightlife', 'Entertainment', 'Theater', 'Performance',
+                          
+                          // Tour Types
+                          'City Tour', 'Walking Tour', 'Bus Tour', 'Private Tour', 'Group Tour', 'Small Group',
+                          'Day Trip', 'Multi-Day', 'Half Day', 'Full Day', 'Sunset Tour', 'Sunrise Tour',
+                          'Night Tour', 'Morning Tour', 'Afternoon Tour',
+                          
+                          // Locations & Settings
+                          'Mountain', 'Beach', 'Coastal', 'Island', 'Forest', 'Jungle', 'Desert', 'Valley',
+                          'Waterfall', 'Lake', 'River', 'Ocean', 'Volcano', 'Cave', 'Canyon', 'National Park',
+                          'Village', 'Rural', 'Urban', 'Downtown', 'Historic District', 'Market', 'Bazaar',
+                          
+                          // Experiences & Atmosphere
+                          'Scenic', 'Relaxation', 'Wellness', 'Spa', 'Meditation', 'Yoga', 'Retreat',
+                          'Romantic', 'Honeymoon', 'Family-Friendly', 'Kids', 'Senior-Friendly', 'Accessible',
+                          'Luxury', 'Budget-Friendly', 'Backpacking', 'Eco-Tourism', 'Sustainable',
+                          
+                          // Guides & Services
+                          'Local Guides', 'Expert Guide', 'English Speaking', 'Multi-Language', 'Professional',
+                          'Skip the Line', 'VIP', 'All-Inclusive', 'Transportation Included', 'Meals Included',
+                          'Hotel Pickup', 'Flexible Schedule', 'Instant Confirmation',
+                          
+                          // Special Interests
+                          'Photography Tour', 'Instagram Worthy', 'Hidden Gems', 'Off the Beaten Path',
+                          'Local Culture', 'Traditions', 'Customs', 'Religious', 'Spiritual', 'Pilgrimage',
+                          'Shopping', 'Souvenirs', 'Handicrafts', 'Markets', 'Boutique',
+                          
+                          // Outdoor Recreation
+                          'Outdoor Recreation', 'Fresh Air', 'Exercise', 'Fitness', 'Active', 'Strenuous',
+                          'Easy', 'Moderate', 'Challenging', 'Beginner Friendly', 'Advanced',
+                          
+                          // Seasonal & Weather
+                          'Summer', 'Winter', 'Spring', 'Fall', 'Rainy Season', 'Dry Season',
+                          'Indoor', 'Weather Dependent', 'All Weather'
+                        ];
+
+                        // Popular keywords to show initially
+                        const popularKeywords = [
+                          'Adventure', 'History', 'Nature', 'Cultural', 'Wildlife', 'Photography',
+                          'City Tour', 'Beach', 'Mountain', 'Food & Drink', 'Local Guides', 'Family-Friendly'
+                        ];
+
+                        // Filter keywords based on search
+                        const filteredKeywords = keywordSearch.trim() 
+                          ? allKeywords.filter(keyword => 
+                              keyword.toLowerCase().includes(keywordSearch.toLowerCase())
+                            )
+                          : popularKeywords;
+
+                        // Remove already selected keywords
+                        const availableKeywords = filteredKeywords.filter(
+                          keyword => !formData.tags.includes(keyword)
+                        );
+
+                        return (
                       <div className="flex flex-wrap gap-2">
-                        {['Educational', 'History', 'Nature', 'Scenic', 'City Tour', 'Outdoor Recreation', 'Relaxation', 'Wildlife', 'Local Guides', 'Local culture'].map((suggestion) => (
+                            {availableKeywords.length > 0 ? (
+                              availableKeywords.map((suggestion) => (
                           <button
                             key={suggestion}
                             type="button"
@@ -1634,6 +1809,7 @@ const CreateTourPackage = () => {
                                   ...prev,
                                   tags: [...prev.tags, suggestion]
                                 }));
+                                      setKeywordSearch(''); // Clear search after selection
                               }
                             }}
                             disabled={formData.tags.includes(suggestion) || formData.tags.length >= 15}
@@ -1645,8 +1821,17 @@ const CreateTourPackage = () => {
                           >
                             {suggestion}
                           </button>
-                        ))}
+                              ))
+                            ) : (
+                              <p className="text-sm text-gray-500 italic">
+                                {keywordSearch.trim() 
+                                  ? `No keywords found matching "${keywordSearch}"`
+                                  : 'All popular keywords have been selected'}
+                              </p>
+                            )}
                       </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Selected Tags */}
@@ -1896,7 +2081,6 @@ const CreateTourPackage = () => {
                       <h2 className="text-xl font-semibold text-gray-900">
                         Food & drinks
                       </h2>
-                      <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">Customizable</span>
                     </div>
                   </div>
 
@@ -1915,7 +2099,7 @@ const CreateTourPackage = () => {
                             type="radio"
                             name="foodIncluded"
                             checked={!formData.foodIncluded}
-                            onChange={() => setFormData(prev => ({ ...prev, foodIncluded: false, meals: [] }))}
+                            onChange={() => setFormData(prev => ({ ...prev, foodIncluded: false }))}
                           />
                           <span className="text-gray-700">No</span>
                         </label>
@@ -1924,99 +2108,14 @@ const CreateTourPackage = () => {
                             type="radio"
                             name="foodIncluded"
                             checked={formData.foodIncluded}
-                            onChange={() => setFormData(prev => ({ ...prev, foodIncluded: true, meals: prev.meals.length === 0 ? [{ type: '', format: '' }] : prev.meals }))}
+                            onChange={() => setFormData(prev => ({ ...prev, foodIncluded: true }))}
                           />
                           <span className="text-gray-700">Yes</span>
                         </label>
                       </div>
                     </div>
 
-                    {/* Meals section - only show if food is included */}
-                    {formData.foodIncluded && (
-                      <div className="space-y-4">
-                        {formData.meals.map((meal, index) => (
-                          <div key={index} className="flex items-end gap-3 p-4 border border-gray-200 rounded-lg">
-                            <div className="flex-1">
-                              <label className="block text-xs text-gray-600 mb-1">
-                                Type of meal
-                              </label>
-                              <select
-                                value={meal.type}
-                                onChange={(e) => {
-                                  const updatedMeals = [...formData.meals];
-                                  updatedMeals[index].type = e.target.value;
-                                  setFormData(prev => ({ ...prev, meals: updatedMeals }));
-                                }}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent"
-                              >
-                                <option value="">Select meal type</option>
-                                <option value="breakfast">Breakfast</option>
-                                <option value="lunch">Lunch</option>
-                                <option value="dinner">Dinner</option>
-                                <option value="snack">Snack</option>
-                                <option value="brunch">Brunch</option>
-                                <option value="tea">Tea</option>
-                                <option value="coffee">Coffee</option>
-                              </select>
-                            </div>
-                            <div className="flex-1">
-                              <label className="block text-xs text-gray-600 mb-1">
-                                Format
-                              </label>
-                              <select
-                                value={meal.format}
-                                onChange={(e) => {
-                                  const updatedMeals = [...formData.meals];
-                                  updatedMeals[index].format = e.target.value;
-                                  setFormData(prev => ({ ...prev, meals: updatedMeals }));
-                                }}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent"
-                              >
-                                <option value="">Select format</option>
-                                <option value="food-tasting">Food tasting</option>
-                                <option value="buffet">Buffet</option>
-                                <option value="set-menu">Set menu</option>
-                                <option value="a-la-carte">À la carte</option>
-                                <option value="picnic">Picnic</option>
-                                <option value="street-food">Street food</option>
-                                <option value="cooking-class">Cooking class</option>
-                              </select>
-                            </div>
-                            {formData.meals.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setFormData(prev => ({
-                                    ...prev,
-                                    meals: prev.meals.filter((_, i) => i !== index)
-                                  }));
-                                }}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Remove meal"
-                              >
-                                <X className="h-5 w-5" />
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFormData(prev => ({
-                              ...prev,
-                              meals: [...prev.meals, { type: '', format: '' }]
-                            }));
-                          }}
-                          className="flex items-center gap-2 px-4 py-2 text-[#3CAF54] hover:bg-green-50 rounded-lg transition-colors text-sm font-medium"
-                        >
-                          <Plus className="h-4 w-4" />
-                          <span>Meal</span>
-                        </button>
-                      </div>
-                    )}
-
                     {/* Drinks included */}
-                    {formData.foodIncluded && (
                       <div className="flex items-center gap-2">
                         <input
                           type="checkbox"
@@ -2028,10 +2127,8 @@ const CreateTourPackage = () => {
                           Drinks are included
                         </label>
                       </div>
-                    )}
 
                     {/* Dietary restrictions */}
-                    {formData.foodIncluded && (
                       <div className="space-y-4 border-t pt-6">
                         <div className="flex items-center justify-between">
                           <label className="text-sm font-medium text-gray-700">
@@ -2098,7 +2195,6 @@ const CreateTourPackage = () => {
                           </div>
                         )}
                       </div>
-                    )}
                   </div>
                 </>
               )}
@@ -2144,6 +2240,7 @@ const CreateTourPackage = () => {
                     </div>
 
                     {formData.transportationUsed && (
+                      <div className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Search for items
@@ -2154,12 +2251,123 @@ const CreateTourPackage = () => {
                           </div>
                           <input
                             type="text"
-                            placeholder="Search for transportation types"
+                              value={transportationSearch}
+                              onChange={(e) => setTransportationSearch(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && transportationSearch.trim()) {
+                                  e.preventDefault();
+                                  const trimmed = transportationSearch.trim();
+                                  if (!formData.transportationTypes.includes(trimmed)) {
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      transportationTypes: [...prev.transportationTypes, trimmed]
+                                    }));
+                                    setTransportationSearch('');
+                                  }
+                                }
+                              }}
+                              placeholder="Search for transportation types or type and press Enter"
                             className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent"
                           />
                         </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Press Enter to add a custom transportation type
+                          </p>
+                        </div>
+
+                        {/* Transportation Type Suggestions */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-semibold text-gray-700 uppercase">Suggestions</p>
+                            {!transportationSearch.trim() && (
+                              <p className="text-xs text-gray-500">Showing popular types. Search for more...</p>
+                            )}
+                          </div>
+                          {(() => {
+                            // All available transportation types
+                            const allTransportationTypes = [
+                              // Land Transportation
+                              'Walking', 'Hiking', 'Trekking', 'Running', 'Jogging',
+                              'Bicycle', 'Bike', 'Mountain Bike', 'E-bike', 'Electric Bike',
+                              'Scooter', 'E-scooter', 'Electric Scooter', 'Segway',
+                              'Car', 'SUV', 'Van', 'Minivan', 'Bus', 'Coach', 'Shuttle',
+                              'Motorcycle', 'Scooter (Motorcycle)', 'Tuk-tuk', 'Rickshaw',
+                              'Taxi', 'Ride Share', 'Private Vehicle', 'Luxury Car',
+                              
+                              // Water Transportation
+                              'Boat', 'Speedboat', 'Yacht', 'Sailboat', 'Catamaran',
+                              'Ferry', 'Cruise Ship', 'Canoe', 'Kayak', 'Paddle Boat',
+                              'Jet Ski', 'Water Taxi', 'Dhow', 'Traditional Boat',
+                              
+                              // Air Transportation
+                              'Helicopter', 'Hot Air Balloon', 'Airplane', 'Small Aircraft',
+                              
+                              // Public Transportation
+                              'Metro', 'Subway', 'Train', 'Railway', 'Tram', 'Trolley',
+                              'Cable Car', 'Funicular', 'Gondola', 'Chairlift',
+                              
+                              // Special/Unique
+                              'Horseback', 'Horse', 'Camel', 'Elephant', 'Donkey',
+                              'ATV', 'Quad Bike', 'Dune Buggy', 'Jeep', '4x4',
+                              'Tractor', 'Trolley', 'Cart', 'Wagon'
+                            ];
+
+                            // Popular transportation types to show initially
+                            const popularTransportationTypes = [
+                              'Walking', 'Bicycle', 'Car', 'Bus', 'Boat', 'Train',
+                              'Motorcycle', 'Scooter', 'Taxi', 'Helicopter'
+                            ];
+
+                            // Filter transportation types based on search
+                            const filteredTypes = transportationSearch.trim()
+                              ? allTransportationTypes.filter(type =>
+                                  type.toLowerCase().includes(transportationSearch.toLowerCase())
+                                )
+                              : popularTransportationTypes;
+
+                            // Remove already selected types
+                            const availableTypes = filteredTypes.filter(
+                              type => !formData.transportationTypes.includes(type)
+                            );
+
+                            return (
+                              <div className="flex flex-wrap gap-2">
+                                {availableTypes.length > 0 ? (
+                                  availableTypes.map((type) => (
+                                    <button
+                                      key={type}
+                                      type="button"
+                                      onClick={() => {
+                                        if (!formData.transportationTypes.includes(type)) {
+                                          setFormData(prev => ({
+                                            ...prev,
+                                            transportationTypes: [...prev.transportationTypes, type]
+                                          }));
+                                          setTransportationSearch('');
+                                        }
+                                      }}
+                                      className="px-3 py-1 rounded-full text-sm border transition-colors bg-white text-blue-600 border-blue-300 hover:bg-blue-50"
+                                    >
+                                      {type}
+                                    </button>
+                                  ))
+                                ) : (
+                                  <p className="text-sm text-gray-500 italic">
+                                    {transportationSearch.trim()
+                                      ? `No transportation types found matching "${transportationSearch}"`
+                                      : 'All popular types have been selected'}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Selected Transportation Types */}
                         {formData.transportationTypes.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-3">
+                          <div>
+                            <p className="text-xs font-semibold text-gray-700 mb-2">Selected Transportation Types</p>
+                            <div className="flex flex-wrap gap-2">
                             {formData.transportationTypes.map((type, index) => (
                               <div key={index} className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-full text-sm text-gray-700">
                                 <span>{type}</span>
@@ -2175,6 +2383,7 @@ const CreateTourPackage = () => {
                                 </button>
                               </div>
                             ))}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -2355,9 +2564,67 @@ const CreateTourPackage = () => {
                     </div>
                     <input
                       type="text"
-                      placeholder="Search for restrictions"
+                      value={notAllowedSearch}
+                      onChange={(e) => {
+                        setNotAllowedSearch(e.target.value);
+                        setShowNotAllowedDropdown(true);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && notAllowedSearch.trim()) {
+                          e.preventDefault();
+                          const trimmed = notAllowedSearch.trim();
+                          if (!formData.notAllowed.includes(trimmed)) {
+                            setFormData(prev => ({
+                              ...prev,
+                              notAllowed: [...prev.notAllowed, trimmed]
+                            }));
+                            setNotAllowedSearch('');
+                            setShowNotAllowedDropdown(false);
+                          }
+                        }
+                      }}
+                      onFocus={() => setShowNotAllowedDropdown(true)}
+                      placeholder="Search for restrictions or type and press Enter"
                       className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent"
                     />
+                    {showNotAllowedDropdown && (
+                      <div 
+                        ref={notAllowedDropdownRef}
+                        className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                      >
+                        {NOT_ALLOWED_OPTIONS
+                          .filter(option => 
+                            option.toLowerCase().includes(notAllowedSearch.toLowerCase()) &&
+                            !formData.notAllowed.includes(option)
+                          )
+                          .map((option) => (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  notAllowed: [...prev.notAllowed, option]
+                                }));
+                                setNotAllowedSearch('');
+                                setShowNotAllowedDropdown(false);
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-gray-700 transition-colors"
+                            >
+                              {option}
+                            </button>
+                          ))}
+                        {NOT_ALLOWED_OPTIONS
+                          .filter(option => 
+                            option.toLowerCase().includes(notAllowedSearch.toLowerCase()) &&
+                            !formData.notAllowed.includes(option)
+                          ).length === 0 && notAllowedSearch && (
+                            <div className="px-4 py-2 text-sm text-gray-500">
+                              No results found. Press Enter to add "{notAllowedSearch}"
+                            </div>
+                          )}
+                      </div>
+                    )}
                   </div>
                   {formData.notAllowed.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-3">
@@ -2617,43 +2884,197 @@ const CreateTourPackage = () => {
                 <h2 className="text-xl font-semibold text-gray-900 mb-2">
                   Add photos to your product
                 </h2>
-                <p className="text-sm text-gray-600">
-                  Images help customers visualize joining your activity. You need at least 4.
+                <p className="text-sm text-gray-600 mb-2">
+                  Images help customers visualize joining your activity.
                 </p>
+                <div className="flex flex-wrap gap-4 text-xs text-gray-500">
+                  <span className="flex items-center gap-1">
+                    <span className="font-medium text-gray-700">Minimum:</span> {MIN_PHOTOS} photos required
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="font-medium text-gray-700">Maximum:</span> {MAX_PHOTOS} photos allowed
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="font-medium text-gray-700">File size:</span> Max 7MB per image
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="font-medium text-gray-700">Dimensions:</span> Min {MIN_IMAGE_WIDTH}px width
+                  </span>
+                </div>
+                {formData.photos.length > 0 && (
+                  <div className="mt-2">
+                    <p className={`text-sm font-medium ${formData.photos.length < MIN_PHOTOS ? 'text-orange-600' : formData.photos.length >= MAX_PHOTOS ? 'text-red-600' : 'text-green-600'}`}>
+                      {formData.photos.length} / {MAX_PHOTOS} photos uploaded
+                      {formData.photos.length < MIN_PHOTOS && ` (${MIN_PHOTOS - formData.photos.length} more needed for minimum)`}
+                      {formData.photos.length >= MAX_PHOTOS && ' (Maximum reached)'}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-6">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center">
+                <div className={`border-2 border-dashed rounded-lg p-12 text-center ${
+                  formData.photos.length >= MAX_PHOTOS 
+                    ? 'border-gray-200 bg-gray-50 opacity-60' 
+                    : 'border-gray-300'
+                }`}>
                   <input
                     type="file"
                     multiple
                     accept="image/*"
-                    onChange={(e) => {
+                    disabled={formData.photos.length >= MAX_PHOTOS}
+                    onChange={async (e) => {
                       const files = Array.from(e.target.files);
+                      setPhotoUploadError('');
+                      
+                      if (files.length === 0) {
+                        e.target.value = ''; // Reset input
+                        return;
+                      }
+                      
+                      // Check if adding these files would exceed maximum
+                      const currentPhotoCount = formData.photos.length;
+                      if (currentPhotoCount + files.length > MAX_PHOTOS) {
+                        setPhotoUploadError(
+                          `Maximum ${MAX_PHOTOS} photos allowed. You have ${currentPhotoCount} photo(s) and tried to add ${files.length} more. Please remove some photos first.`
+                        );
+                        e.target.value = ''; // Reset input
+                        return;
+                      }
+                      
+                      // Validate each file
+                      const validFiles = [];
+                      const errors = [];
+                      
+                      // Process files sequentially to avoid race conditions
+                      for (const file of files) {
+                        // Check file size
+                        if (file.size > MAX_FILE_SIZE) {
+                          errors.push(`${file.name}: exceeds 7MB limit (${(file.size / (1024 * 1024)).toFixed(2)}MB)`);
+                          continue;
+                        }
+                        
+                        // Check file type
+                        if (!file.type.startsWith('image/')) {
+                          errors.push(`${file.name}: not a valid image file`);
+                          continue;
+                        }
+                        
+                        // Validate image dimensions (async)
+                        try {
+                          const isValid = await new Promise((resolve) => {
+                            const img = new Image();
+                            const objectUrl = URL.createObjectURL(file);
+                            
+                            img.onload = () => {
+                              URL.revokeObjectURL(objectUrl);
+                              if (img.width < MIN_IMAGE_WIDTH) {
+                                resolve({ valid: false, error: `${file.name}: width ${img.width}px is less than minimum ${MIN_IMAGE_WIDTH}px` });
+                              } else {
+                                resolve({ valid: true });
+                              }
+                            };
+                            
+                            img.onerror = () => {
+                              URL.revokeObjectURL(objectUrl);
+                              resolve({ valid: false, error: `${file.name}: could not be loaded as an image` });
+                            };
+                            
+                            img.src = objectUrl;
+                          });
+                          
+                          if (isValid.valid) {
+                            validFiles.push(file);
+                          } else {
+                            errors.push(isValid.error);
+                          }
+                        } catch (error) {
+                          errors.push(`${file.name}: validation error`);
+                        }
+                      }
+                      
+                      // Update form data with valid files
+                      if (validFiles.length > 0) {
                       setFormData(prev => ({
                         ...prev,
-                        photos: [...prev.photos, ...files]
+                          photos: [...prev.photos, ...validFiles]
                       }));
+                      }
+                      
+                      // Show errors if any
+                      if (errors.length > 0) {
+                        setPhotoUploadError(errors.join('. '));
+                      }
+                      
+                      // Reset input
+                      e.target.value = '';
                     }}
                     className="hidden"
                     id="photo-upload"
                   />
                   <label
                     htmlFor="photo-upload"
-                    className="cursor-pointer flex flex-col items-center gap-4"
+                    className={`flex flex-col items-center gap-4 ${
+                      formData.photos.length >= MAX_PHOTOS 
+                        ? 'cursor-not-allowed' 
+                        : 'cursor-pointer'
+                    }`}
                   >
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
-                      <Plus className="h-8 w-8 text-gray-400" />
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center ${
+                      formData.photos.length >= MAX_PHOTOS 
+                        ? 'bg-gray-200' 
+                        : 'bg-gray-100'
+                    }`}>
+                      <Plus className={`h-8 w-8 ${
+                        formData.photos.length >= MAX_PHOTOS 
+                          ? 'text-gray-300' 
+                          : 'text-gray-400'
+                      }`} />
                     </div>
                     <div>
+                      {formData.photos.length >= MAX_PHOTOS ? (
+                        <>
+                          <p className="text-sm font-medium text-gray-500">Maximum photos reached</p>
+                          <p className="text-xs text-gray-400 mt-1">Remove photos to upload more</p>
+                        </>
+                      ) : (
+                        <>
                       <p className="text-sm font-medium text-gray-700">Drag photos here</p>
                       <p className="text-xs text-gray-500 mt-1">or click to upload</p>
+                        </>
+                      )}
                     </div>
+                    {formData.photos.length < MAX_PHOTOS && (
                     <p className="text-xs text-gray-500">
-                      Landscape images, minimum 1280px wide. JPG, PNG, or GIF (max 7MB)
+                        JPG, PNG, or GIF format. Minimum {MIN_IMAGE_WIDTH}px width. Max 7MB per file.
                     </p>
+                    )}
                   </label>
                 </div>
+                
+                {/* Error message display */}
+                {photoUploadError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-red-800">Upload Error</p>
+                        <p className="text-sm text-red-700 mt-1">{photoUploadError}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPhotoUploadError('')}
+                        className="flex-shrink-0 text-red-500 hover:text-red-700"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {formData.photos.length > 0 && (
                   <div className="grid grid-cols-3 gap-4">
@@ -2826,6 +3247,7 @@ const CreateTourPackage = () => {
                       <p className="text-xs text-gray-600 mb-2">
                         List all available languages to attract more customers.
                       </p>
+                      <div className="space-y-4">
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                           <Search className="h-5 w-5 text-gray-400" />
@@ -2838,24 +3260,85 @@ const CreateTourPackage = () => {
                             if (e.key === 'Enter' && languageSearch.trim()) {
                               e.preventDefault();
                               const lang = languageSearch.trim();
-                              setFormData(prev => {
-                                if (!prev.languages.includes(lang)) {
-                                  return {
+                                if (!formData.languages.includes(lang)) {
+                                  setFormData(prev => ({
                                     ...prev,
                                     languages: [...prev.languages, lang]
-                                  };
-                                }
-                                return prev;
-                              });
+                                  }));
                               setLanguageSearch('');
+                                }
                             }
                           }}
                           placeholder="Search for language or type and press Enter"
                           className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent"
                         />
                       </div>
+
+                        {/* Language Suggestions */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-semibold text-gray-700 uppercase">Suggestions</p>
+                            {!languageSearch.trim() && (
+                              <p className="text-xs text-gray-500">Showing popular languages. Search for more...</p>
+                            )}
+                          </div>
+                          {(() => {
+                            // Popular languages to show initially
+                            const popularLanguages = [
+                              'English', 'Spanish', 'French', 'German', 'Italian', 'Portuguese',
+                              'Chinese (Mandarin)', 'Japanese', 'Arabic', 'Hindi', 'Russian', 'Dutch'
+                            ];
+
+                            // Filter languages based on search
+                            const filteredLanguages = languageSearch.trim()
+                              ? LANGUAGE_OPTIONS.filter(lang =>
+                                  lang.toLowerCase().includes(languageSearch.toLowerCase())
+                                )
+                              : popularLanguages;
+
+                            // Remove already selected languages
+                            const availableLanguages = filteredLanguages.filter(
+                              lang => !formData.languages.includes(lang)
+                            );
+
+                            return (
+                              <div className="flex flex-wrap gap-2">
+                                {availableLanguages.length > 0 ? (
+                                  availableLanguages.map((lang) => (
+                                    <button
+                                      key={lang}
+                                      type="button"
+                                      onClick={() => {
+                                        if (!formData.languages.includes(lang)) {
+                                          setFormData(prev => ({
+                                            ...prev,
+                                            languages: [...prev.languages, lang]
+                                          }));
+                                          setLanguageSearch('');
+                                        }
+                                      }}
+                                      className="px-3 py-1 rounded-full text-sm border transition-colors bg-white text-blue-600 border-blue-300 hover:bg-blue-50"
+                                    >
+                                      {lang}
+                                    </button>
+                                  ))
+                                ) : (
+                                  <p className="text-sm text-gray-500 italic">
+                                    {languageSearch.trim()
+                                      ? `No languages found matching "${languageSearch}"`
+                                      : 'All popular languages have been selected'}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Selected Languages */}
                       {formData.languages.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-3">
+                          <div>
+                            <p className="text-xs font-semibold text-gray-700 mb-2">Selected Languages</p>
+                            <div className="flex flex-wrap gap-2">
                           {formData.languages.map((lang, index) => (
                             <div key={index} className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-full text-sm text-gray-700">
                               <span>{lang}</span>
@@ -2871,53 +3354,10 @@ const CreateTourPackage = () => {
                               </button>
                             </div>
                           ))}
+                            </div>
                         </div>
                       )}
                     </div>
-
-                    {/* Guide materials */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-4">
-                        <input
-                          type="checkbox"
-                          checked={formData.guideMaterials}
-                          onChange={(e) => setFormData(prev => ({ ...prev, guideMaterials: e.target.checked }))}
-                          className="w-5 h-5"
-                        />
-                        <label className="text-sm font-medium text-gray-700">
-                          Add guide materials (optional)
-                        </label>
-                      </div>
-
-                      {formData.guideMaterials && (
-                        <div className="ml-7 space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              What guide materials do you provide in which languages? Choose all that apply. (optional)
-                            </label>
-                            <div className="space-y-2 mb-3">
-                              <label className="flex items-center gap-2">
-                                <input type="checkbox" />
-                                <span className="text-sm text-gray-700">Audio guides and headphones</span>
-                              </label>
-                              <label className="flex items-center gap-2">
-                                <input type="checkbox" />
-                                <span className="text-sm text-gray-700">Information booklets</span>
-                              </label>
-                            </div>
-                            <div className="relative">
-                              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <Search className="h-5 w-5 text-gray-400" />
-                              </div>
-                              <input
-                                type="text"
-                                placeholder="Search for language"
-                                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
                     </div>
 
                     {/* Private activity */}
@@ -2953,48 +3393,6 @@ const CreateTourPackage = () => {
                       </div>
                     </div>
 
-                    {/* Skip the line */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Will the customer skip the line to get in? If so, which line?
-                      </label>
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-4">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="skipTheLine"
-                              checked={!formData.skipTheLine}
-                              onChange={() => setFormData(prev => ({ ...prev, skipTheLine: false, skipTheLineType: '' }))}
-                            />
-                            <span className="text-gray-700">No</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="skipTheLine"
-                              checked={formData.skipTheLine}
-                              onChange={() => setFormData(prev => ({ ...prev, skipTheLine: true }))}
-                            />
-                            <span className="text-gray-700">Yes</span>
-                          </label>
-                        </div>
-                        {formData.skipTheLine && (
-                          <select
-                            name="skipTheLineType"
-                            value={formData.skipTheLineType}
-                            onChange={handleChange}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent"
-                          >
-                            <option value="">Choose one...</option>
-                            <option value="express-elevators">Skip the line through express elevators</option>
-                            <option value="priority-entrance">Priority entrance</option>
-                            <option value="fast-track">Fast track access</option>
-                            <option value="vip-entrance">VIP entrance</option>
-                          </select>
-                        )}
-                      </div>
-                    </div>
 
                     {/* Wheelchair accessible */}
                     <div>
@@ -3448,8 +3846,7 @@ const CreateTourPackage = () => {
                         { id: 1, label: '1 Schedule', name: 'Schedule' },
                         { id: 2, label: '2 Pricing Categories', name: 'Pricing Categories' },
                         { id: 3, label: '3 Capacity', name: 'Capacity' },
-                        { id: 4, label: '4 Price', name: 'Price' },
-                        { id: 5, label: '5 Add-ons (optional)', name: 'Add-ons' }
+                        { id: 4, label: '4 Price', name: 'Price' }
                       ].map((tab) => (
                         <button
                           key={tab.id}
@@ -4103,32 +4500,6 @@ const CreateTourPackage = () => {
                       </div>
                     )}
 
-                    {/* Tab 5: Add-ons */}
-                    {availabilitySubStep === 5 && (
-                      <div className="space-y-6">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                            Add-ons (optional)
-                          </h3>
-                          <p className="text-sm text-gray-600 mb-4">
-                            What's an add-on? Sell additional services or items for your activities to enhance travelers' experience.
-                          </p>
-                          <div className="relative mb-4">
-                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                              <Search className="h-5 w-5 text-gray-400" />
-                            </div>
-                            <input
-                              type="text"
-                              placeholder="Search..."
-                              className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent"
-                            />
-                          </div>
-                          <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
-                            <p className="text-sm">No add-ons added yet. Search above to add one.</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* Navigation Buttons */}
@@ -4163,7 +4534,7 @@ const CreateTourPackage = () => {
                         onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
                         onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
                       >
-                        <span>{availabilitySubStep === 5 ? 'Continue' : 'Save and continue'}</span>
+                        <span>{availabilitySubStep === 4 ? 'Continue' : 'Save and continue'}</span>
                         <ArrowRight className="h-4 w-4" />
                       </button>
                     </div>

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Plus, Eye, ChevronDown, Check, X, AlertCircle, Loader2 } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
+import ProgressIndicator from '../../components/stays/ProgressIndicator';
 import { staysSetupService } from '../../services/staysService';
 
 export default function RatePlansStep() {
@@ -242,12 +243,12 @@ export default function RatePlansStep() {
   };
 
   const handleBack = () => {
-    // Go back to step 5 with room data
+    // Go back to step 4 (Base Rate) with room data
     navigate('/stays/setup/base-rate', {
       state: {
         ...location.state,
         roomData: roomData,
-        roomSetupStep: 5
+        roomSetupStep: 4
       }
     });
   };
@@ -265,32 +266,7 @@ export default function RatePlansStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-6xl mx-auto">
           {/* Progress Indicator */}
-          <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="flex items-center space-x-2">
-                {/* Steps 1-5 - Completed */}
-                {[1, 2, 3, 4, 5].map((step) => (
-                  <React.Fragment key={step}>
-                    <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                      <span>✓</span>
-                    </div>
-                    <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                  </React.Fragment>
-                ))}
-                
-                {/* Steps 6-10 - Not completed */}
-                {[6, 7, 8, 9, 10].map((step) => (
-                  <React.Fragment key={step}>
-                    <div className="w-8 h-8 text-gray-400 rounded-full flex items-center justify-center text-sm font-semibold bg-white border-2 border-gray-300">
-                      {step}
-                    </div>
-                    {step < 10 && <div className="w-16 h-1 bg-gray-300"></div>}
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Step 5 of 10</p>
-          </div>
+          <ProgressIndicator currentStep={5} totalSteps={10} />
 
           {/* Navigation Link */}
           <button
@@ -537,7 +513,7 @@ export default function RatePlansStep() {
                     <span>Back</span>
                   </button>
                   <div className="text-sm text-gray-500">
-                    <span className="font-medium">6/6</span>
+                    <span className="font-medium">5/5</span>
                   </div>
                   <button
                     type="button"

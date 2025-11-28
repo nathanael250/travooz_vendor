@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Edit2 } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
+import ProgressIndicator from '../../components/stays/ProgressIndicator';
 
 export default function ReviewRoomNameStep() {
   const navigate = useNavigate();
@@ -86,8 +87,8 @@ export default function ReviewRoomNameStep() {
       step: 3
     };
 
-    // Navigate to next step (step 4/6 - Pricing Model)
-    navigate('/stays/setup/pricing-model', {
+    // Navigate to next step (step 4/5 - Base Rate, skipping Pricing Model)
+    navigate('/stays/setup/base-rate', {
       state: {
         ...location.state,
         roomData: updatedRoomData,
@@ -120,38 +121,7 @@ export default function ReviewRoomNameStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-6xl mx-auto">
           {/* Progress Indicator */}
-          <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="flex items-center space-x-2">
-                {/* Steps 1-4 - Completed */}
-                {[1, 2, 3, 4].map((step) => (
-                  <React.Fragment key={step}>
-                    <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                      <span>✓</span>
-                    </div>
-                    <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                  </React.Fragment>
-                ))}
-                
-                {/* Step 5 - Current */}
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  5
-                </div>
-                <div className="w-16 h-1 bg-gray-300"></div>
-                
-                {/* Steps 6-10 - Not completed */}
-                {[6, 7, 8, 9, 10].map((step) => (
-                  <React.Fragment key={step}>
-                    <div className="w-8 h-8 text-gray-400 rounded-full flex items-center justify-center text-sm font-semibold bg-white border-2 border-gray-300">
-                      {step}
-                    </div>
-                    {step < 10 && <div className="w-16 h-1 bg-gray-300"></div>}
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Step 5 of 10</p>
-          </div>
+          <ProgressIndicator currentStep={5} totalSteps={10} />
 
           {/* Navigation Link */}
           <button
@@ -244,7 +214,7 @@ export default function ReviewRoomNameStep() {
                     <span>Back</span>
                   </button>
                   <div className="text-sm text-gray-500">
-                    <span className="font-medium">3/6</span>
+                    <span className="font-medium">3/4</span>
                   </div>
                   <button
                     type="button"

@@ -3,18 +3,21 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Check, Edit, Building2, FileText, User, CreditCard, Award, AlertCircle } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
+import apiClient from '../../services/apiClient';
 
 export default function ReviewTourDataStep() {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const step2Data = location.state?.step2Data || {};
-  const businessOwnerInfo = location.state?.businessOwnerInfo || {};
-  const identityProof = location.state?.identityProof || {};
-  const businessProof = location.state?.businessProof || {};
-  const userId = location.state?.userId;
+  const tourBusinessId = location.state?.tourBusinessId || localStorage.getItem('tour_business_id');
+  const userId = location.state?.userId || JSON.parse(localStorage.getItem('user') || '{}')?.userId || JSON.parse(localStorage.getItem('user') || '{}')?.id;
 
+  const [step2Data, setStep2Data] = useState(location.state?.step2Data || {});
+  const [businessOwnerInfo, setBusinessOwnerInfo] = useState(location.state?.businessOwnerInfo || {});
+  const [identityProof, setIdentityProof] = useState(location.state?.identityProof || {});
+  const [businessProof, setBusinessProof] = useState(location.state?.businessProof || {});
   const [validationErrors, setValidationErrors] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   // Enable scrolling for this page
   React.useEffect(() => {
@@ -23,6 +26,109 @@ export default function ReviewTourDataStep() {
       document.body.classList.remove('auth-page');
     };
   }, []);
+
+  // Load existing data from API if tourBusinessId exists but no data in state
+  useEffect(() => {
+    const loadExistingData = async () => {
+      // Only load if we have tourBusinessId but no data in location.state
+      if (tourBusinessId && userId && (!location.state?.step2Data || !location.state?.businessOwnerInfo)) {
+        setLoading(true);
+        try {
+          // Fetch business data (step 2)
+          try {
+            const businessRes = await apiClient.get(`/tours/businesses/${tourBusinessId}`);
+            if (businessRes.data?.data) {
+              const business = businessRes.data.data;
+              let tourTypeNames = [];
+              if (business.tour_type_names) {
+                try {
+                  tourTypeNames = typeof business.tour_type_names === 'string' 
+                    ? JSON.parse(business.tour_type_names) 
+                    : business.tour_type_names;
+                } catch (e) {
+                  tourTypeNames = [];
+                }
+              }
+              
+              let locationData = null;
+              if (business.location_data) {
+                try {
+                  locationData = typeof business.location_data === 'string'
+                    ? JSON.parse(business.location_data)
+                    : business.location_data;
+                } catch (e) {
+                  locationData = null;
+                }
+              }
+
+              setStep2Data({
+                tourBusinessName: business.tour_business_name,
+                description: business.description,
+                tourTypeName: business.tour_type_name,
+                selectedTourTypeNames: tourTypeNames,
+                location: business.location,
+                locationData: locationData,
+                phone: business.phone,
+                currency: business.currency
+              });
+            }
+          } catch (err) {
+            console.warn('Could not load business data:', err);
+          }
+
+          // Fetch business owner info
+          try {
+            const ownerRes = await apiClient.get(`/tours/setup/business-owner-info?tourBusinessId=${tourBusinessId}`);
+            if (ownerRes.data?.data) {
+              const owner = ownerRes.data.data;
+              setBusinessOwnerInfo({
+                firstName: owner.first_name,
+                lastName: owner.last_name,
+                email: owner.email,
+                countryOfResidence: owner.country_of_residence
+              });
+            }
+          } catch (err) {
+            console.warn('Could not load owner info:', err);
+          }
+
+          // Fetch identity proof
+          try {
+            const identityRes = await apiClient.get(`/tours/setup/identity-proof?tourBusinessId=${tourBusinessId}`);
+            if (identityRes.data?.data) {
+              const identity = identityRes.data.data;
+              setIdentityProof({
+                idCountry: identity.id_country,
+                idCardPhoto: identity.id_card_photo_url || identity.id_card_photo
+              });
+            }
+          } catch (err) {
+            console.warn('Could not load identity proof:', err);
+          }
+
+          // Fetch business proof
+          try {
+            const businessProofRes = await apiClient.get(`/tours/setup/business-proof?tourBusinessId=${tourBusinessId}`);
+            if (businessProofRes.data?.data) {
+              const proof = businessProofRes.data.data;
+              setBusinessProof({
+                businessLegalName: proof.business_legal_name,
+                professionalCertificate: proof.professional_certificate_url || proof.professional_certificate
+              });
+            }
+          } catch (err) {
+            console.warn('Could not load business proof:', err);
+          }
+        } catch (error) {
+          console.error('Error loading existing data:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadExistingData();
+  }, [tourBusinessId, userId, location.state]);
 
   // Validate all information
   useEffect(() => {
@@ -41,15 +147,25 @@ export default function ReviewTourDataStep() {
   }, [step2Data, businessOwnerInfo, identityProof, businessProof]);
 
   const handleEdit = (step) => {
+    const stateData = {
+      ...location.state,
+      step2Data,
+      businessOwnerInfo,
+      identityProof,
+      businessProof,
+      userId,
+      tourBusinessId
+    };
+    
     switch(step) {
       case 'owner':
-        navigate('/tours/setup/business-owner-info', { state: location.state });
+        navigate('/tours/setup/business-owner-info', { state: stateData });
         break;
       case 'identity':
-        navigate('/tours/setup/prove-identity', { state: location.state });
+        navigate('/tours/setup/prove-identity', { state: stateData });
         break;
       case 'business':
-        navigate('/tours/setup/prove-business', { state: location.state });
+        navigate('/tours/setup/prove-business', { state: stateData });
         break;
       default:
         break;
@@ -68,10 +184,21 @@ export default function ReviewTourDataStep() {
         businessOwnerInfo,
         identityProof,
         businessProof,
-        userId
+        userId,
+        tourBusinessId
       }
     });
   };
+
+  const resolvedTourTypeNames = Array.isArray(step2Data.selectedTourTypeNames) && step2Data.selectedTourTypeNames.length > 0
+    ? step2Data.selectedTourTypeNames
+    : step2Data.tourTypeName
+      ? [step2Data.tourTypeName]
+      : [];
+
+  const formattedTourTypes = resolvedTourTypeNames.length
+    ? resolvedTourTypeNames.join(', ')
+    : 'Not provided';
 
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: '#f0fdf4' }}>
@@ -120,6 +247,12 @@ export default function ReviewTourDataStep() {
               Please review all the information you've entered. Make sure all required fields are completed before submitting.
             </p>
 
+            {loading && (
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">Loading your existing information...</p>
+              </div>
+            )}
+
             {/* Validation Errors */}
             {validationErrors.length > 0 && (
               <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -163,7 +296,7 @@ export default function ReviewTourDataStep() {
                   </div>
                   <div>
                     <span className="font-medium text-gray-700">Tour Type:</span>
-                    <span className="ml-2 text-gray-900">{step2Data.tourTypeName || 'Not provided'}</span>
+                    <span className="ml-2 text-gray-900">{formattedTourTypes}</span>
                   </div>
                   <div>
                     <span className="font-medium text-gray-700">Description:</span>
@@ -269,7 +402,17 @@ export default function ReviewTourDataStep() {
               <div className="flex gap-4 pt-4">
                 <button
                   type="button"
-                  onClick={() => navigate('/tours/setup/prove-business', { state: location.state })}
+                  onClick={() => navigate('/tours/setup/prove-business', { 
+                    state: {
+                      ...location.state,
+                      step2Data,
+                      businessOwnerInfo,
+                      identityProof,
+                      businessProof,
+                      userId,
+                      tourBusinessId
+                    }
+                  })}
                   className="flex-1 px-6 py-3 border-2 rounded-lg font-semibold transition-colors text-gray-700 hover:bg-gray-50"
                   style={{ borderColor: '#d1d5db' }}
                 >

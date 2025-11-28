@@ -3,7 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Info, ExternalLink, AlertCircle } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
-import { staysSetupService } from '../../services/staysService';
+import ProgressIndicator from '../../components/stays/ProgressIndicator';
+import { staysSetupService, getPropertyListing } from '../../services/staysService';
 
 export default function TaxesStep() {
   const navigate = useNavigate();
@@ -31,14 +32,43 @@ export default function TaxesStep() {
     vatId: ''
   });
 
+  // Load property name and pre-fill legal name
   useEffect(() => {
-    const savedTaxData = JSON.parse(localStorage.getItem('stays_tax_data') || '{}');
-    setFormData({
-      legalName: savedTaxData.legalName || '',
-      vatRegistered: savedTaxData.vatRegistered || '',
-      vatId: savedTaxData.vatId || ''
-    });
-  }, []);
+    const loadPropertyData = async () => {
+      const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
+      
+      // Try to get property name from API first
+      let propertyName = '';
+      if (propertyId && propertyId > 0) {
+        try {
+          const property = await getPropertyListing(propertyId);
+          propertyName = property?.property_name || property?.propertyName || '';
+        } catch (error) {
+          console.log('Could not fetch property from API, trying localStorage');
+        }
+      }
+      
+      // Fallback to localStorage or state
+      if (!propertyName) {
+        const savedProperty = JSON.parse(localStorage.getItem('stays_property') || '{}');
+        propertyName = savedProperty.propertyName || savedProperty.property_name || location.state?.propertyName || '';
+      }
+      
+      // Load saved tax data
+      const savedTaxData = JSON.parse(localStorage.getItem('stays_tax_data') || '{}');
+      
+      // Pre-fill legal name with property name if not already set
+      const legalName = savedTaxData.legalName || propertyName;
+      
+      setFormData({
+        legalName: legalName,
+        vatRegistered: savedTaxData.vatRegistered || '',
+        vatId: savedTaxData.vatId || ''
+      });
+    };
+    
+    loadPropertyData();
+  }, [location.state]);
 
   const handleChange = (field, value) => {
     const updated = { ...formData, [field]: value };
@@ -109,27 +139,7 @@ export default function TaxesStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-4xl mx-auto">
           {/* Progress Indicator */}
-          <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="flex items-center space-x-2">
-                {/* Steps 1-9 - Completed */}
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((step) => (
-                  <React.Fragment key={step}>
-                    <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                      <span>✓</span>
-                    </div>
-                    <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                  </React.Fragment>
-                ))}
-                
-                {/* Step 10 - Not completed */}
-                <div className="w-8 h-8 text-gray-400 rounded-full flex items-center justify-center text-sm font-semibold bg-white border-2 border-gray-300">
-                  10
-                </div>
-              </div>
-            </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Step 9 of 10</p>
-          </div>
+          <ProgressIndicator currentStep={9} totalSteps={10} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border mb-8" style={{ borderColor: '#dcfce7' }}>
@@ -155,11 +165,11 @@ export default function TaxesStep() {
               />
             </div>
 
-            {/* VAT/GST Registration Section */}
+            {/* VAT Registration Section */}
             <div className="mb-8">
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">Is this property registered for VAT/GST?</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">Is this property registered for VAT?</h2>
               <p className="text-sm text-gray-600 mb-4">
-                Let us know if you collect and pay value-added tax (VAT) or goods and services tax (GST) for your property's services.
+                Let us know if you collect and pay value-added tax (VAT) for your property's services.
               </p>
               <div className="space-y-3">
                 <label className="flex items-center gap-3 cursor-pointer">
@@ -187,32 +197,20 @@ export default function TaxesStep() {
               </div>
             </div>
 
-            {/* VAT/GST ID Section */}
+            {/* VAT ID Section */}
             {formData.vatRegistered === 'yes' && (
               <div className="mb-8">
-                <h2 className="text-lg font-semibold text-gray-900 mb-2">VAT/GST ID</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-2">VAT ID</h2>
                 <p className="text-sm text-gray-600 mb-4">
-                  We display this number on your invoices to identify your business for tax purposes. 
-                  Please select the appropriate number according to the rules of your business or region.
+                  We display this number on your invoices to identify your business for tax purposes.
                 </p>
                 <input
                   type="text"
                   value={formData.vatId}
                   onChange={(e) => handleChange('vatId', e.target.value)}
-                  placeholder="VAT/GST ID"
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54] text-base mb-2"
+                  placeholder="VAT ID"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54] text-base"
                 />
-                <button
-                  type="button"
-                  className="text-sm text-[#3CAF54] hover:text-[#2d8f42] font-medium flex items-center gap-1"
-                  onClick={() => {
-                    // Show examples modal or information
-                    alert('VAT/GST ID Examples:\n\n• EU: DE123456789\n• UK: GB123456789\n• Australia: 12 345 678 901\n• Canada: RT123456789');
-                  }}
-                >
-                  <span>Some examples</span>
-                  <Info className="h-4 w-4" />
-                </button>
               </div>
             )}
 

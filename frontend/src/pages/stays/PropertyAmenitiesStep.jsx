@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Plus, AlertCircle, Wifi, Car, Coffee, Users, Home, Sparkles } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Plus, AlertCircle, Wifi, Car, Coffee, Users, Home, Sparkles, X } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
+import ProgressIndicator from '../../components/stays/ProgressIndicator';
 import { staysSetupService } from '../../services/staysService';
 
 export default function PropertyAmenitiesStep() {
@@ -28,32 +29,18 @@ export default function PropertyAmenitiesStep() {
   
   const [formData, setFormData] = useState({
     // Check-in / Check-out
-    hasFrontDesk: 'yes',
+    hasFrontDesk: 'no',
     frontDeskSchedule: 'everyday', // 'everyday' or 'select_days'
     deskOpens: '',
     deskCloses: '',
     frontDesk24Hours: false,
-    selfCheckInAvailable: 'yes',
-    guestAccessMethod: '',
-    mobileAppRequired: '',
     checkInFrom: '',
     checkInTo: '',
     noCheckInEndTime: false,
-    lateCheckInAvailable: 'yes',
-    lateCheckInCost: 'surcharge', // 'free' or 'surcharge'
-    lateCheckInChargeType: 'amount', // 'amount', 'percent', 'varies'
-    lateCheckInAmount: '',
-    lateCheckInSurchargeFrom: '',
-    lateCheckInSurchargeTo: '',
-    advanceNoticeRequired: false,
-    advanceNoticeHours: '',
-    lateCheckInDifferentLocation: false,
-    lateCheckInAddress: '',
-    checkOutTime: '',
     minimumCheckInAge: '15',
     
     // Internet
-    offerInternet: 'yes',
+    offerInternet: 'no',
     wifiInGuestrooms: true,
     wifiGuestroomsFree: true,
     wifiGuestroomsSurcharge: '',
@@ -65,50 +52,22 @@ export default function PropertyAmenitiesStep() {
     wifiPublicAreasRestrictions: false,
     
     // Parking
-    offerParking: 'yes',
-    selfParking: true,
-    selfParkingFree: true,
-    selfParkingSurcharge: '',
-    selfParkingCovered: false,
-    selfParkingUncovered: false,
-    selfParkingSecured: false,
-    valetParking: true,
-    valetParkingFree: true,
-    valetParkingSurcharge: '',
-    valetParkingCovered: false,
-    valetParkingUncovered: false,
-    valetParkingSecured: false,
-    extendedParking: true,
-    extendedParkingCost: '',
-    extendedParkingCovered: false,
-    extendedParkingUncovered: false,
-    extendedParkingSecured: false,
-    offsiteParking: true,
-    offsiteParkingFree: true,
-    offsiteParkingSurcharge: '',
-    offsiteParkingDistance: '',
-    offsiteParkingDistanceUnit: '',
-    offsiteParkingLotHours: false,
-    offsiteParkingReservationsRequired: false,
-    streetParking: false,
-    offStreetParking: true,
-    offStreetParkingGarage: false,
-    offStreetParkingCarport: false,
+    offerParking: 'no',
     
     // Breakfast
-    offerBreakfast: 'yes',
+    offerBreakfast: 'no',
     
     // Popular facilities and services
-    poolAccess: 'yes',
-    diningVenues: 'yes',
-    spaServices: 'yes',
-    allowPets: 'yes',
-    accessibilityFeatures: 'yes',
-    guestServices: 'yes',
+    poolAccess: 'no',
+    diningVenues: 'no',
+    spaServices: 'no',
+    allowPets: 'no',
+    accessibilityFeatures: 'no',
+    guestServices: 'no',
     
     // Room conveniences
-    inRoomConveniences: 'yes',
-    housekeeping: 'yes',
+    inRoomConveniences: 'no',
+    housekeeping: 'no',
     
     // Additional Amenities
     additionalAmenities: [],
@@ -168,26 +127,6 @@ export default function PropertyAmenitiesStep() {
       }
     }
 
-    if (formData.selfCheckInAvailable === 'yes' && !formData.guestAccessMethod) {
-      newErrors.guestAccessMethod = 'Guest access method is required';
-    }
-
-    if (!formData.checkOutTime) {
-      newErrors.checkOutTime = 'Check-out time is required';
-    }
-
-    if (formData.lateCheckInAvailable === 'yes' && formData.lateCheckInCost === 'surcharge') {
-      if (formData.lateCheckInChargeType === 'amount' && !formData.lateCheckInAmount) {
-        newErrors.lateCheckInAmount = 'Late check-in amount is required';
-      }
-      if (formData.advanceNoticeRequired && !formData.advanceNoticeHours) {
-        newErrors.advanceNoticeHours = 'Advance notice hours is required';
-      }
-      if (formData.lateCheckInDifferentLocation && !formData.lateCheckInAddress.trim()) {
-        newErrors.lateCheckInAddress = 'Late check-in address is required';
-      }
-    }
-
     if (formData.offerInternet === 'yes' && formData.wifiInGuestrooms && !formData.wifiGuestroomsMinSpeed) {
       newErrors.wifiGuestroomsMinSpeed = 'Minimum Wi-Fi speed is required';
     }
@@ -234,22 +173,11 @@ export default function PropertyAmenitiesStep() {
         minCheckInAge: formData.minCheckInAge ? parseInt(formData.minCheckInAge) : null,
         checkInTime: formData.checkInTime || null,
         checkInEnds: formData.checkInEnds || null,
-        checkOutTime: formData.checkOutTime || null,
         hasFrontDesk: formData.hasFrontDesk || 'no',
         frontDeskSchedule: formData.frontDeskSchedule || null,
         frontDesk24Hours: formData.frontDesk24Hours || false,
         deskOpens: formData.deskOpens || null,
         deskCloses: formData.deskCloses || null,
-        selfCheckInAvailable: formData.selfCheckInAvailable || 'no',
-        guestAccessMethod: formData.guestAccessMethod || null,
-        lateCheckInAvailable: formData.lateCheckInAvailable || 'no',
-        lateCheckInCost: formData.lateCheckInCost || null,
-        lateCheckInChargeType: formData.lateCheckInChargeType || null,
-        lateCheckInAmount: formData.lateCheckInAmount ? parseFloat(formData.lateCheckInAmount) : null,
-        advanceNoticeRequired: formData.advanceNoticeRequired || false,
-        advanceNoticeHours: formData.advanceNoticeHours ? parseInt(formData.advanceNoticeHours) : null,
-        lateCheckInDifferentLocation: formData.lateCheckInDifferentLocation || false,
-        lateCheckInAddress: formData.lateCheckInAddress || null,
         offerBreakfast: formData.offerBreakfast || 'no',
         breakfastType: formData.breakfastType || null,
         offerInternet: formData.offerInternet || 'no',
@@ -259,10 +187,6 @@ export default function PropertyAmenitiesStep() {
         wiredInternet: formData.wiredInternet || false,
         wiredInternetInGuestrooms: formData.wiredInternetInGuestrooms || false,
         offerParking: formData.offerParking || 'no',
-        selfParking: formData.selfParking || false,
-        valetParking: formData.valetParking || false,
-        electricCarCharging: formData.electricCarCharging || false,
-        parkingFee: formData.parkingFee ? parseFloat(formData.parkingFee) : null,
         hasPool: formData.hasPool || false,
         poolType: formData.poolType || null,
         hasSpa: formData.hasSpa || false,
@@ -319,46 +243,7 @@ export default function PropertyAmenitiesStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-5xl mx-auto">
           {/* Progress Indicator */}
-          <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="flex items-center space-x-2">
-                {/* Step 1 - Completed */}
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  <span>✓</span>
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                
-                {/* Step 2 - Completed */}
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  <span>✓</span>
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                
-                {/* Step 3 - Completed */}
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  <span>✓</span>
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                
-                {/* Step 4 - Current */}
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  4
-                </div>
-                <div className="w-16 h-1 bg-gray-300"></div>
-                
-                {/* Steps 5-10 - Not completed */}
-                {[5, 6, 7, 8, 9, 10].map((step) => (
-                  <React.Fragment key={step}>
-                    <div className="w-8 h-8 text-gray-400 rounded-full flex items-center justify-center text-sm font-semibold bg-white border-2 border-gray-300">
-                      {step}
-                    </div>
-                    {step < 10 && <div className="w-16 h-1 bg-gray-300"></div>}
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Step 4 of 10</p>
-          </div>
+          <ProgressIndicator currentStep={4} totalSteps={10} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>
@@ -385,17 +270,7 @@ export default function PropertyAmenitiesStep() {
                   >
                     Standard options
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('advanced')}
-                    className={`px-4 py-2 font-medium transition-colors ${
-                      activeTab === 'advanced'
-                        ? 'text-[#3CAF54] border-b-2 border-[#3CAF54]'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Advanced options
-                  </button>
+                  
                 </div>
 
                 <div className="space-y-6">
@@ -531,81 +406,6 @@ export default function PropertyAmenitiesStep() {
                     )}
                   </div>
 
-                  {/* Self Check-in */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Is self check-in available?
-                    </label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="selfCheckInAvailable"
-                          value="yes"
-                          checked={formData.selfCheckInAvailable === 'yes'}
-                          onChange={handleChange}
-                          className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                        />
-                        <span className="text-sm text-gray-700">Yes</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="selfCheckInAvailable"
-                          value="no"
-                          checked={formData.selfCheckInAvailable === 'no'}
-                          onChange={handleChange}
-                          className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                        />
-                        <span className="text-sm text-gray-700">No</span>
-                      </label>
-                    </div>
-
-                    {formData.selfCheckInAvailable === 'yes' && (
-                      <div className="ml-7 mt-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          How will guests access their unit?
-                        </label>
-                        <select
-                          name="guestAccessMethod"
-                          value={formData.guestAccessMethod}
-                          onChange={handleChange}
-                          className={`w-full px-4 py-2 border-2 rounded-lg focus:outline-none ${
-                            errors.guestAccessMethod ? 'border-red-500' : 'border-gray-300 focus:border-[#3CAF54]'
-                          }`}
-                        >
-                          <option value="">Select one</option>
-                          <option value="key_pad">Key pad</option>
-                          <option value="smart_lock">Smart lock</option>
-                          <option value="lockbox">Lockbox</option>
-                          <option value="key_in_mailbox">Key in mailbox</option>
-                          <option value="other">Other</option>
-                        </select>
-                        {errors.guestAccessMethod && (
-                          <p className="mt-1 text-sm text-red-600">{errors.guestAccessMethod}</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Mobile App */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Is a mobile app recommended or required?
-                    </label>
-                    <select
-                      name="mobileAppRequired"
-                      value={formData.mobileAppRequired}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                    >
-                      <option value="">-select-</option>
-                      <option value="recommended">Recommended</option>
-                      <option value="required">Required</option>
-                      <option value="not_applicable">Not applicable</option>
-                    </select>
-                  </div>
-
                   {/* Check-in Time */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -658,258 +458,6 @@ export default function PropertyAmenitiesStep() {
                         </label>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Late Check-in */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Is late check-in available?
-                    </label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="lateCheckInAvailable"
-                          value="yes"
-                          checked={formData.lateCheckInAvailable === 'yes'}
-                          onChange={handleChange}
-                          className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                        />
-                        <span className="text-sm text-gray-700">Yes</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="lateCheckInAvailable"
-                          value="no"
-                          checked={formData.lateCheckInAvailable === 'no'}
-                          onChange={handleChange}
-                          className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                        />
-                        <span className="text-sm text-gray-700">No</span>
-                      </label>
-                    </div>
-
-                    {formData.lateCheckInAvailable === 'yes' && (
-                      <div className="ml-7 mt-4 space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Late check-in cost
-                          </label>
-                          <div className="flex gap-4 mb-3">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="lateCheckInCost"
-                                value="free"
-                                checked={formData.lateCheckInCost === 'free'}
-                                onChange={handleChange}
-                                className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                              />
-                              <span className="text-sm text-gray-700">Free</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="lateCheckInCost"
-                                value="surcharge"
-                                checked={formData.lateCheckInCost === 'surcharge'}
-                                onChange={handleChange}
-                                className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                              />
-                              <span className="text-sm text-gray-700">Surcharge</span>
-                            </label>
-                          </div>
-
-                          {formData.lateCheckInCost === 'surcharge' && (
-                            <div className="space-y-4">
-                              <div className="flex gap-4">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="radio"
-                                    name="lateCheckInChargeType"
-                                    value="amount"
-                                    checked={formData.lateCheckInChargeType === 'amount'}
-                                    onChange={handleChange}
-                                    className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                  />
-                                  <span className="text-sm text-gray-700">Amount</span>
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="radio"
-                                    name="lateCheckInChargeType"
-                                    value="percent"
-                                    checked={formData.lateCheckInChargeType === 'percent'}
-                                    onChange={handleChange}
-                                    className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                  />
-                                  <span className="text-sm text-gray-700">Percent</span>
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="radio"
-                                    name="lateCheckInChargeType"
-                                    value="varies"
-                                    checked={formData.lateCheckInChargeType === 'varies'}
-                                    onChange={handleChange}
-                                    className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                  />
-                                  <span className="text-sm text-gray-700">Fee varies</span>
-                                </label>
-                              </div>
-
-                              {formData.lateCheckInChargeType === 'amount' && (
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Amount (including taxes)
-                                  </label>
-                                  <input
-                                    type="number"
-                                    name="lateCheckInAmount"
-                                    value={formData.lateCheckInAmount}
-                                    onChange={handleChange}
-                                    placeholder="e.g., 5000"
-                                    className={`w-full px-4 py-2 border-2 rounded-lg focus:outline-none ${
-                                      errors.lateCheckInAmount ? 'border-red-500' : 'border-gray-300 focus:border-[#3CAF54]'
-                                    }`}
-                                  />
-                                  {errors.lateCheckInAmount && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.lateCheckInAmount}</p>
-                                  )}
-                                </div>
-                              )}
-
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  When does the late check-in surcharge apply?
-                                </label>
-                                <div className="grid md:grid-cols-2 gap-4">
-                                  <select
-                                    name="lateCheckInSurchargeFrom"
-                                    value={formData.lateCheckInSurchargeFrom}
-                                    onChange={handleChange}
-                                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                                  >
-                                    <option value="">-select-</option>
-                                    {Array.from({ length: 24 }, (_, i) => {
-                                      const hour = String(i).padStart(2, '0');
-                                      return (
-                                        <option key={hour} value={`${hour}:00`}>{hour}:00</option>
-                                      );
-                                    })}
-                                  </select>
-                                  <select
-                                    name="lateCheckInSurchargeTo"
-                                    value={formData.lateCheckInSurchargeTo}
-                                    onChange={handleChange}
-                                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                                  >
-                                    <option value="">-select-</option>
-                                    {Array.from({ length: 24 }, (_, i) => {
-                                      const hour = String(i).padStart(2, '0');
-                                      return (
-                                        <option key={hour} value={`${hour}:00`}>{hour}:00</option>
-                                      );
-                                    })}
-                                  </select>
-                                </div>
-                              </div>
-
-                              <div className="space-y-3">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    name="advanceNoticeRequired"
-                                    checked={formData.advanceNoticeRequired}
-                                    onChange={handleChange}
-                                    className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                  />
-                                  <span className="text-sm text-gray-700">Advance notice required for late check-in</span>
-                                </label>
-                                {formData.advanceNoticeRequired && (
-                                  <div className="ml-6">
-                                    <select
-                                      name="advanceNoticeHours"
-                                      value={formData.advanceNoticeHours}
-                                      onChange={handleChange}
-                                      className={`w-full px-4 py-2 border-2 rounded-lg focus:outline-none ${
-                                        errors.advanceNoticeHours ? 'border-red-500' : 'border-gray-300 focus:border-[#3CAF54]'
-                                      }`}
-                                    >
-                                      <option value="">-select-</option>
-                                      <option value="1">1 hour</option>
-                                      <option value="2">2 hours</option>
-                                      <option value="4">4 hours</option>
-                                      <option value="6">6 hours</option>
-                                      <option value="12">12 hours</option>
-                                      <option value="24">24 hours</option>
-                                    </select>
-                                    {errors.advanceNoticeHours && (
-                                      <p className="mt-1 text-sm text-red-600">{errors.advanceNoticeHours}</p>
-                                    )}
-                                  </div>
-                                )}
-
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    name="lateCheckInDifferentLocation"
-                                    checked={formData.lateCheckInDifferentLocation}
-                                    onChange={handleChange}
-                                    className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                  />
-                                  <span className="text-sm text-gray-700">Late check-in is at a different location</span>
-                                </label>
-                                {formData.lateCheckInDifferentLocation && (
-                                  <div className="ml-6">
-                                    <input
-                                      type="text"
-                                      name="lateCheckInAddress"
-                                      value={formData.lateCheckInAddress}
-                                      onChange={handleChange}
-                                      placeholder="Late check in address"
-                                      className={`w-full px-4 py-2 border-2 rounded-lg focus:outline-none ${
-                                        errors.lateCheckInAddress ? 'border-red-500' : 'border-gray-300 focus:border-[#3CAF54]'
-                                      }`}
-                                    />
-                                    {errors.lateCheckInAddress && (
-                                      <p className="mt-1 text-sm text-red-600">{errors.lateCheckInAddress}</p>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Check-out Time */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      When do guests need to check out?
-                    </label>
-                    <select
-                      name="checkOutTime"
-                      value={formData.checkOutTime}
-                      onChange={handleChange}
-                      className={`w-full px-4 py-2 border-2 rounded-lg focus:outline-none ${
-                        errors.checkOutTime ? 'border-red-500' : 'border-gray-300 focus:border-[#3CAF54]'
-                      }`}
-                    >
-                      <option value="">-select-</option>
-                      {Array.from({ length: 24 }, (_, i) => {
-                        const hour = String(i).padStart(2, '0');
-                        return (
-                          <option key={hour} value={`${hour}:00`}>{hour}:00</option>
-                        );
-                      })}
-                    </select>
-                    {errors.checkOutTime && (
-                      <p className="mt-1 text-sm text-red-600">{errors.checkOutTime}</p>
-                    )}
                   </div>
 
                   {/* Age Restrictions */}
@@ -1132,11 +680,11 @@ export default function PropertyAmenitiesStep() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Do you offer parking?
                     </label>
-                    <div className="flex gap-4">
+                    <div className="flex gap-3 md:gap-4">
                       <button
                         type="button"
                         onClick={() => setFormData(prev => ({ ...prev, offerParking: 'yes' }))}
-                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        className={`flex-1 md:flex-none px-4 py-2 rounded-lg font-medium transition-colors ${
                           formData.offerParking === 'yes'
                             ? 'bg-[#3CAF54] text-white'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -1147,7 +695,7 @@ export default function PropertyAmenitiesStep() {
                       <button
                         type="button"
                         onClick={() => setFormData(prev => ({ ...prev, offerParking: 'no' }))}
-                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        className={`flex-1 md:flex-none px-4 py-2 rounded-lg font-medium transition-colors ${
                           formData.offerParking === 'no'
                             ? 'bg-[#3CAF54] text-white'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -1157,385 +705,6 @@ export default function PropertyAmenitiesStep() {
                       </button>
                     </div>
                   </div>
-
-                  {formData.offerParking === 'yes' && (
-                    <div className="ml-7 space-y-4">
-                      {/* Self Parking */}
-                      <div>
-                        <label className="flex items-center gap-2 cursor-pointer mb-3">
-                          <input
-                            type="checkbox"
-                            name="selfParking"
-                            checked={formData.selfParking}
-                            onChange={handleChange}
-                            className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                          />
-                          <span className="text-sm font-medium text-gray-700">Self parking</span>
-                        </label>
-                        {formData.selfParking && (
-                          <div className="ml-6 space-y-3">
-                            <div className="flex gap-4">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name="selfParkingFree"
-                                  checked={formData.selfParkingFree}
-                                  onChange={() => setFormData(prev => ({ ...prev, selfParkingFree: true, selfParkingSurcharge: '' }))}
-                                  className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Free</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name="selfParkingFree"
-                                  checked={!formData.selfParkingFree}
-                                  onChange={() => setFormData(prev => ({ ...prev, selfParkingFree: false }))}
-                                  className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Surcharge</span>
-                              </label>
-                            </div>
-                            {!formData.selfParkingFree && (
-                              <input
-                                type="number"
-                                name="selfParkingSurcharge"
-                                value={formData.selfParkingSurcharge}
-                                onChange={handleChange}
-                                placeholder="Surcharge amount"
-                                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                              />
-                            )}
-                            <div className="flex gap-4">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  name="selfParkingCovered"
-                                  checked={formData.selfParkingCovered}
-                                  onChange={handleChange}
-                                  className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Covered parking</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  name="selfParkingUncovered"
-                                  checked={formData.selfParkingUncovered}
-                                  onChange={handleChange}
-                                  className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Uncovered parking</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  name="selfParkingSecured"
-                                  checked={formData.selfParkingSecured}
-                                  onChange={handleChange}
-                                  className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Secured parking</span>
-                              </label>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Valet Parking */}
-                      <div>
-                        <label className="flex items-center gap-2 cursor-pointer mb-3">
-                          <input
-                            type="checkbox"
-                            name="valetParking"
-                            checked={formData.valetParking}
-                            onChange={handleChange}
-                            className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                          />
-                          <span className="text-sm font-medium text-gray-700">Valet parking</span>
-                        </label>
-                        {formData.valetParking && (
-                          <div className="ml-6 space-y-3">
-                            <div className="flex gap-4">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name="valetParkingFree"
-                                  checked={formData.valetParkingFree}
-                                  onChange={() => setFormData(prev => ({ ...prev, valetParkingFree: true, valetParkingSurcharge: '' }))}
-                                  className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Free</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name="valetParkingFree"
-                                  checked={!formData.valetParkingFree}
-                                  onChange={() => setFormData(prev => ({ ...prev, valetParkingFree: false }))}
-                                  className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Surcharge</span>
-                              </label>
-                            </div>
-                            {!formData.valetParkingFree && (
-                              <input
-                                type="number"
-                                name="valetParkingSurcharge"
-                                value={formData.valetParkingSurcharge}
-                                onChange={handleChange}
-                                placeholder="Surcharge amount"
-                                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                              />
-                            )}
-                            <div className="flex gap-4">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  name="valetParkingCovered"
-                                  checked={formData.valetParkingCovered}
-                                  onChange={handleChange}
-                                  className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Covered parking</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  name="valetParkingUncovered"
-                                  checked={formData.valetParkingUncovered}
-                                  onChange={handleChange}
-                                  className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Uncovered parking</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  name="valetParkingSecured"
-                                  checked={formData.valetParkingSecured}
-                                  onChange={handleChange}
-                                  className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Secured parking</span>
-                              </label>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Extended Parking */}
-                      <div>
-                        <label className="flex items-center gap-2 cursor-pointer mb-3">
-                          <input
-                            type="checkbox"
-                            name="extendedParking"
-                            checked={formData.extendedParking}
-                            onChange={handleChange}
-                            className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                          />
-                          <span className="text-sm font-medium text-gray-700">Extended</span>
-                        </label>
-                        {formData.extendedParking && (
-                          <div className="ml-6 space-y-3">
-                            <select
-                              name="extendedParkingCost"
-                              value={formData.extendedParkingCost}
-                              onChange={handleChange}
-                              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                            >
-                              <option value="">-select-</option>
-                              <option value="free">Free</option>
-                              <option value="per_day">Per day</option>
-                              <option value="per_week">Per week</option>
-                              <option value="per_month">Per month</option>
-                            </select>
-                            <div className="flex gap-4">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  name="extendedParkingCovered"
-                                  checked={formData.extendedParkingCovered}
-                                  onChange={handleChange}
-                                  className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Covered parking</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  name="extendedParkingUncovered"
-                                  checked={formData.extendedParkingUncovered}
-                                  onChange={handleChange}
-                                  className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Uncovered parking</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  name="extendedParkingSecured"
-                                  checked={formData.extendedParkingSecured}
-                                  onChange={handleChange}
-                                  className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Secured parking</span>
-                              </label>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Offsite Parking */}
-                      <div>
-                        <label className="flex items-center gap-2 cursor-pointer mb-3">
-                          <input
-                            type="checkbox"
-                            name="offsiteParking"
-                            checked={formData.offsiteParking}
-                            onChange={handleChange}
-                            className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                          />
-                          <span className="text-sm font-medium text-gray-700">Offsite</span>
-                        </label>
-                        {formData.offsiteParking && (
-                          <div className="ml-6 space-y-3">
-                            <div className="flex gap-4">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name="offsiteParkingFree"
-                                  checked={formData.offsiteParkingFree}
-                                  onChange={() => setFormData(prev => ({ ...prev, offsiteParkingFree: true, offsiteParkingSurcharge: '' }))}
-                                  className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Free</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name="offsiteParkingFree"
-                                  checked={!formData.offsiteParkingFree}
-                                  onChange={() => setFormData(prev => ({ ...prev, offsiteParkingFree: false }))}
-                                  className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Surcharge</span>
-                              </label>
-                            </div>
-                            {!formData.offsiteParkingFree && (
-                              <input
-                                type="number"
-                                name="offsiteParkingSurcharge"
-                                value={formData.offsiteParkingSurcharge}
-                                onChange={handleChange}
-                                placeholder="Surcharge amount"
-                                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                              />
-                            )}
-                            <div className="grid md:grid-cols-2 gap-4">
-                              <input
-                                type="number"
-                                name="offsiteParkingDistance"
-                                value={formData.offsiteParkingDistance}
-                                onChange={handleChange}
-                                placeholder="Offsite parking distance from property"
-                                className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                              />
-                              <select
-                                name="offsiteParkingDistanceUnit"
-                                value={formData.offsiteParkingDistanceUnit}
-                                onChange={handleChange}
-                                className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                              >
-                                <option value="">-select-</option>
-                                <option value="meters">Meters</option>
-                                <option value="kilometers">Kilometers</option>
-                                <option value="feet">Feet</option>
-                                <option value="miles">Miles</option>
-                              </select>
-                            </div>
-                            <div className="space-y-2">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  name="offsiteParkingLotHours"
-                                  checked={formData.offsiteParkingLotHours}
-                                  onChange={handleChange}
-                                  className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Offsite parking lot hours</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  name="offsiteParkingReservationsRequired"
-                                  checked={formData.offsiteParkingReservationsRequired}
-                                  onChange={handleChange}
-                                  className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Offsite parking reservations required</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  name="streetParking"
-                                  checked={formData.streetParking}
-                                  onChange={handleChange}
-                                  className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Street parking</span>
-                              </label>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Off-street Parking */}
-                      <div>
-                        <label className="flex items-center gap-2 cursor-pointer mb-3">
-                          <input
-                            type="checkbox"
-                            name="offStreetParking"
-                            checked={formData.offStreetParking}
-                            onChange={handleChange}
-                            className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                          />
-                          <span className="text-sm font-medium text-gray-700">Off-street parking</span>
-                        </label>
-                        {formData.offStreetParking && (
-                          <div className="ml-6 flex gap-4">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                name="offStreetParkingGarage"
-                                checked={formData.offStreetParkingGarage}
-                                onChange={handleChange}
-                                className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                              />
-                              <span className="text-sm text-gray-700">Garage</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                name="offStreetParkingCarport"
-                                checked={formData.offStreetParkingCarport}
-                                onChange={handleChange}
-                                className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                              />
-                              <span className="text-sm text-gray-700">Carport</span>
-                            </label>
-                          </div>
-                        )}
-                      </div>
-
-                      <button
-                        type="button"
-                        className="text-sm text-[#3CAF54] hover:underline font-medium"
-                      >
-                        More options
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -1639,11 +808,11 @@ export default function PropertyAmenitiesStep() {
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         {item.label}
                       </label>
-                      <div className="flex gap-4">
+                      <div className="flex gap-3 md:gap-4">
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, [item.key]: 'yes' }))}
-                          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                          className={`flex-1 md:flex-none px-4 py-2 rounded-lg font-medium transition-colors ${
                             formData[item.key] === 'yes'
                               ? 'bg-[#3CAF54] text-white'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -1654,7 +823,7 @@ export default function PropertyAmenitiesStep() {
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, [item.key]: 'no' }))}
-                          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                          className={`flex-1 md:flex-none px-4 py-2 rounded-lg font-medium transition-colors ${
                             formData[item.key] === 'no'
                               ? 'bg-[#3CAF54] text-white'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -1675,7 +844,7 @@ export default function PropertyAmenitiesStep() {
                   Additional Amenities (optional)
                 </h2>
                 <div className="space-y-4">
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       type="text"
                       value={formData.newAmenity}
@@ -1692,7 +861,7 @@ export default function PropertyAmenitiesStep() {
                     <button
                       type="button"
                       onClick={handleAddAmenity}
-                      className="px-6 py-2 text-white font-semibold rounded-lg transition-colors"
+                      className="w-full sm:w-auto px-6 py-2 text-white font-semibold rounded-lg transition-colors whitespace-nowrap"
                       style={{ backgroundColor: '#3CAF54' }}
                       onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
                       onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}

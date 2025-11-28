@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import AdminService from '../../services/AdminService';
 import toast from 'react-hot-toast';
+import AccountActionModal from '../../components/admin/AccountActionModal';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -64,6 +65,12 @@ const AdminDashboard = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [actionModal, setActionModal] = useState({
+    open: false,
+    type: 'approve',
+    account: null,
+    loading: false,
+  });
 
   // Check authentication on mount
   useEffect(() => {
@@ -117,49 +124,62 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleApprove = async (serviceType, accountId) => {
-    try {
-      const notes = prompt('Enter approval notes (optional):') || '';
-      await AdminService.approveAccount(serviceType, accountId, notes);
-      
-      // Refresh accounts and stats
-      fetchAccounts();
-      fetchStats();
-      
-      toast.success('Account approved successfully!');
-    } catch (err) {
-      toast.error(`Error: ${err.message}`);
-    }
-  };
-
-  const handleReject = async (serviceType, accountId) => {
-    try {
-      const rejectionReason = prompt('Enter rejection reason (required):') || '';
-      if (!rejectionReason) {
-        toast.error('Rejection reason is required');
-        return;
-      }
-      const notes = prompt('Enter additional notes (optional):') || '';
-      
-      await AdminService.rejectAccount(serviceType, accountId, rejectionReason, notes);
-      
-      // Refresh accounts and stats
-      fetchAccounts();
-      fetchStats();
-      
-      toast.success('Account rejected successfully!');
-    } catch (err) {
-      toast.error(`Error: ${err.message}`);
-    }
-  };
-
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
     localStorage.removeItem('admin_user');
     navigate('/admin/login', { replace: true });
   };
 
+  const openActionModal = (type, account) => {
+    setActionModal({
+      open: true,
+      type,
+      account,
+      loading: false,
+    });
+  };
+
+  const closeActionModal = () => {
+    setActionModal({
+      open: false,
+      type: 'approve',
+      account: null,
+      loading: false,
+    });
+  };
+
+  const submitAction = async (payload) => {
+    const { account, type } = actionModal;
+    if (!account) return;
+
+    try {
+      setActionModal((prev) => ({ ...prev, loading: true }));
+      if (type === 'approve') {
+        await AdminService.approveAccount(account.service_type, account.account_id, payload.approvalNote);
+        toast.success('Account approved successfully!');
+      } else {
+        await AdminService.rejectAccount(
+          account.service_type,
+          account.account_id,
+          payload.rejectionReason,
+          payload.returnToStep
+        );
+        toast.success('Changes requested from vendor.');
+      }
+      closeActionModal();
+      fetchAccounts();
+      fetchStats();
+    } catch (err) {
+      setActionModal((prev) => ({ ...prev, loading: false }));
+      toast.error(`Error: ${err.message}`);
+    }
+  };
+
   const openDetails = (account) => {
+    if (account?.service_type === 'tours') {
+      navigate(`/admin/accounts/${account.service_type}/${account.account_id}`);
+      return;
+    }
     setSelectedAccount(account);
     setDetailsOpen(true);
   };
@@ -308,9 +328,10 @@ const AdminDashboard = () => {
           )}
         </div>
         <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-1">
-          {navLinks.map(({ key, label, icon: Icon, active }) => (
+          {navLinks.map(({ key, label, icon: Icon, active, onClick }) => (
             <button
               key={key}
+              onClick={onClick}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                 active
                   ? 'bg-indigo-600/20 text-indigo-300'
@@ -322,6 +343,7 @@ const AdminDashboard = () => {
             </button>
           ))}
         </nav>
+        {isMobile && (
         <div className="px-6 py-4 border-t border-gray-800">
           <button
             onClick={handleLogout}
@@ -331,6 +353,7 @@ const AdminDashboard = () => {
             Logout
           </button>
         </div>
+        )}
       </aside>
 
       {/* Overlay for mobile */}
@@ -342,7 +365,7 @@ const AdminDashboard = () => {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen bg-gray-950">
+      <div className="flex-1 flex flex-col h-screen bg-gray-950 overflow-hidden">
         <header className="bg-gray-900 border-b border-gray-800">
           <div className="px-4 sm:px-6 lg:px-10 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -384,11 +407,18 @@ const AdminDashboard = () => {
                 </div>
                 <ChevronDown className="h-4 w-4 text-gray-400" />
               </div>
+              <button
+                onClick={handleLogout}
+                className="hidden md:inline-flex items-center gap-2 px-3 py-2 border border-gray-700 rounded-md text-sm font-semibold bg-gray-800 text-gray-100 hover:bg-gray-700"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </button>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 px-4 sm:px-6 lg:px-10 py-8">
+        <main className="flex-1 px-4 sm:px-6 lg:px-10 py-8 overflow-y-auto">
           <div className="space-y-6">
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -558,7 +588,10 @@ const AdminDashboard = () => {
                         {accounts.map((account) => {
                           const ServiceIcon = getServiceIcon(account.service_type);
                           return (
-                            <tr key={`${account.service_type}-${account.account_id}`} className="hover:bg-gray-50">
+                            <tr
+                              key={`${account.service_type}-${account.account_id}`}
+                              className="hover:bg-gray-900/60 transition-colors"
+                            >
                               <td className="px-6 py-4 whitespace-nowrap text-gray-100">
                                 <div className="flex items-center">
                                   <div className="flex-shrink-0 h-10 w-10">
@@ -593,7 +626,7 @@ const AdminDashboard = () => {
                                 <div className="flex items-center space-x-2">
                                   <button
                                     onClick={() => openDetails(account)}
-                                    className="text-indigo-600 hover:text-indigo-900"
+                                    className="text-indigo-400 hover:text-indigo-200"
                                     title="View details"
                                   >
                                     <Eye className="h-4 w-4" />
@@ -601,15 +634,15 @@ const AdminDashboard = () => {
                                   {(account.status === 'pending_review' || account.submission_status === 'pending_review' || account.status === 'pending') && (
                                     <>
                                       <button
-                                        onClick={() => handleApprove(account.service_type, account.account_id)}
-                                        className="text-green-600 hover:text-green-900"
+                                        onClick={() => openActionModal('approve', account)}
+                                        className="text-green-400 hover:text-green-200"
                                         title="Approve"
                                       >
                                         <CheckCircle className="h-4 w-4" />
                                       </button>
                                       <button
-                                        onClick={() => handleReject(account.service_type, account.account_id)}
-                                        className="text-red-600 hover:text-red-900"
+                                        onClick={() => openActionModal('reject', account)}
+                                        className="text-red-400 hover:text-red-200"
                                         title="Reject"
                                       >
                                         <XCircle className="h-4 w-4" />
@@ -692,14 +725,14 @@ const AdminDashboard = () => {
           </div>
           <div className="px-6 py-4 border-t border-gray-800 flex items-center justify-between">
             <button
-              onClick={() => handleReject(selectedAccount.service_type, selectedAccount.account_id)}
+              onClick={() => openActionModal('reject', selectedAccount)}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold border border-red-500/50 text-red-300 hover:bg-red-500/10"
             >
               <XCircle className="h-4 w-4" />
               Reject
             </button>
             <button
-              onClick={() => handleApprove(selectedAccount.service_type, selectedAccount.account_id)}
+              onClick={() => openActionModal('approve', selectedAccount)}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-500"
             >
               <CheckCircle className="h-4 w-4" />
@@ -709,6 +742,15 @@ const AdminDashboard = () => {
         </div>
       </div>
     )}
+
+    <AccountActionModal
+      open={actionModal.open}
+      type={actionModal.type}
+      account={actionModal.account}
+      loading={actionModal.loading}
+      onClose={closeActionModal}
+      onConfirm={submitAction}
+    />
   </div>
   );
 };

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Plus, Minus } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Plus } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
+import ProgressIndicator from '../../components/stays/ProgressIndicator';
 
 export default function RoomAmenitiesStep() {
   const navigate = useNavigate();
@@ -27,25 +28,6 @@ export default function RoomAmenitiesStep() {
   const previousRoomData = location.state?.roomData || {};
 
   const [formData, setFormData] = useState({
-    // Bathroom
-    bathroomType: '',
-    numberOfBathrooms: 1,
-    addBathroomToAll: false,
-    bathOrShower: '',
-    addBathOrShowerToAll: true,
-    essentials: {
-      freeToiletries: false,
-      soap: false,
-      shampoo: false,
-      toiletPaper: false
-    },
-    addEssentialsToAll: true,
-    towels: 'yes',
-    addTowelsToAll: false,
-    hairDryer: false,
-    hairDryerAvailable: 'available',
-    addHairDryerToAll: true,
-    
     // Kitchen
     hasKitchen: 'no',
     addKitchenToAll: true,
@@ -63,8 +45,6 @@ export default function RoomAmenitiesStep() {
     airConditioning: false,
     airConditioningType: 'in-room',
     addAirConditioningToAll: true,
-    heating: false,
-    addHeatingToAll: false,
     
     // Room view
     hasView: 'yes',
@@ -93,16 +73,7 @@ export default function RoomAmenitiesStep() {
     const { name, value, type, checked } = e.target;
     
     if (type === 'checkbox') {
-      if (name.startsWith('essentials.')) {
-        const essentialKey = name.split('.')[1];
-        setFormData(prev => ({
-          ...prev,
-          essentials: {
-            ...prev.essentials,
-            [essentialKey]: checked
-          }
-        }));
-      } else if (name.startsWith('kitchenAmenities.')) {
+      if (name.startsWith('kitchenAmenities.')) {
         const amenityKey = name.split('.')[1];
         setFormData(prev => ({
           ...prev,
@@ -124,27 +95,6 @@ export default function RoomAmenitiesStep() {
       }));
     }
   };
-
-  const handleNumberChange = (field, delta) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: Math.max(1, (prev[field] || 1) + delta)
-    }));
-  };
-
-  const bathroomTypes = [
-    'Private bathroom',
-    'Shared bathroom',
-    'No bathroom'
-  ];
-
-  const bathOrShowerOptions = [
-    'Bathtub only',
-    'Shower only',
-    'Bathtub and shower',
-    'Bathtub with shower over',
-    'Shower over bath'
-  ];
 
   const roomViews = [
     'Garden view',
@@ -206,38 +156,7 @@ export default function RoomAmenitiesStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-4xl mx-auto">
           {/* Progress Indicator */}
-          <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="flex items-center space-x-2">
-                {/* Steps 1-4 - Completed */}
-                {[1, 2, 3, 4].map((step) => (
-                  <React.Fragment key={step}>
-                    <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                      <span>✓</span>
-                    </div>
-                    <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                  </React.Fragment>
-                ))}
-                
-                {/* Step 5 - Current */}
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  5
-                </div>
-                <div className="w-16 h-1 bg-gray-300"></div>
-                
-                {/* Steps 6-10 - Not completed */}
-                {[6, 7, 8, 9, 10].map((step) => (
-                  <React.Fragment key={step}>
-                    <div className="w-8 h-8 text-gray-400 rounded-full flex items-center justify-center text-sm font-semibold bg-white border-2 border-gray-300">
-                      {step}
-                    </div>
-                    {step < 10 && <div className="w-16 h-1 bg-gray-300"></div>}
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Step 5 of 10</p>
-          </div>
+          <ProgressIndicator currentStep={5} totalSteps={10} />
 
           {/* Navigation Link */}
           <button
@@ -261,223 +180,6 @@ export default function RoomAmenitiesStep() {
             </div>
 
             <form onSubmit={(e) => { e.preventDefault(); handleNext(); }} className="space-y-8">
-              {/* Bathroom Section */}
-              <div className="space-y-6">
-                <h2 className="text-xl font-semibold text-gray-900">Bathroom</h2>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Bathroom type
-                  </label>
-                  <select
-                    name="bathroomType"
-                    value={formData.bathroomType}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                  >
-                    <option value="">Select bathroom type</option>
-                    {bathroomTypes.map((type) => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Number of bathrooms
-                  </label>
-                  <div className="flex items-center gap-4">
-                    <button
-                      type="button"
-                      onClick={() => handleNumberChange('numberOfBathrooms', -1)}
-                      disabled={formData.numberOfBathrooms <= 1}
-                      className="w-10 h-10 rounded-full border-2 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      style={{ borderColor: '#3CAF54', color: '#3CAF54' }}
-                      onMouseEnter={(e) => !e.target.disabled && (e.target.style.backgroundColor = '#f0fdf4')}
-                      onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                    >
-                      <Minus className="h-4 w-4" />
-                    </button>
-                    <span className="text-lg font-semibold text-gray-900 min-w-[3rem] text-center">
-                      {formData.numberOfBathrooms}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleNumberChange('numberOfBathrooms', 1)}
-                      className="w-10 h-10 rounded-full border-2 flex items-center justify-center transition-colors"
-                      style={{ borderColor: '#3CAF54', color: '#3CAF54' }}
-                      onMouseEnter={(e) => e.target.style.backgroundColor = '#f0fdf4'}
-                      onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <label className="flex items-center gap-2 mt-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="addBathroomToAll"
-                      checked={formData.addBathroomToAll}
-                      onChange={handleChange}
-                      className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                    />
-                    <span className="text-sm text-gray-700">Add to all rooms</span>
-                  </label>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Does this room have a bath or shower?
-                  </label>
-                  <select
-                    name="bathOrShower"
-                    value={formData.bathOrShower}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                  >
-                    <option value="">Select option</option>
-                    {bathOrShowerOptions.map((option) => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
-                  <label className="flex items-center gap-2 mt-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="addBathOrShowerToAll"
-                      checked={formData.addBathOrShowerToAll}
-                      onChange={handleChange}
-                      className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                    />
-                    <span className="text-sm text-gray-700">Add to all rooms</span>
-                  </label>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2 mb-3">
-                    Does this room have these essentials?
-                  </label>
-                  <div className="space-y-2">
-                    {[
-                      { key: 'freeToiletries', label: 'Free toiletries' },
-                      { key: 'soap', label: 'Soap' },
-                      { key: 'shampoo', label: 'Shampoo' },
-                      { key: 'toiletPaper', label: 'Toilet paper' }
-                    ].map((item) => (
-                      <label key={item.key} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          name={`essentials.${item.key}`}
-                          checked={formData.essentials[item.key]}
-                          onChange={handleChange}
-                          className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                        />
-                        <span className="text-sm text-gray-700">{item.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <label className="flex items-center gap-2 mt-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="addEssentialsToAll"
-                      checked={formData.addEssentialsToAll}
-                      onChange={handleChange}
-                      className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                    />
-                    <span className="text-sm text-gray-700">Add to all rooms</span>
-                  </label>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Does this room provide towels?
-                  </label>
-                  <div className="flex gap-4 mb-3">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="towels"
-                        value="yes"
-                        checked={formData.towels === 'yes'}
-                        onChange={handleChange}
-                        className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                      />
-                      <span className="text-sm text-gray-700">Yes</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="towels"
-                        value="no"
-                        checked={formData.towels === 'no'}
-                        onChange={handleChange}
-                        className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                      />
-                      <span className="text-sm text-gray-700">No</span>
-                    </label>
-                  </div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="addTowelsToAll"
-                      checked={formData.addTowelsToAll}
-                      onChange={handleChange}
-                      className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                    />
-                    <span className="text-sm text-gray-700">Add to all rooms</span>
-                  </label>
-                </div>
-
-                <div>
-                  <label className="flex items-center gap-2 cursor-pointer mb-3">
-                    <input
-                      type="checkbox"
-                      name="hairDryer"
-                      checked={formData.hairDryer}
-                      onChange={handleChange}
-                      className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                    />
-                    <span className="text-sm font-medium text-gray-700">Hair dryer</span>
-                  </label>
-                  {formData.hairDryer && (
-                    <div className="ml-6 space-y-3">
-                      <div className="flex gap-4">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="hairDryerAvailable"
-                            value="available"
-                            checked={formData.hairDryerAvailable === 'available'}
-                            onChange={handleChange}
-                            className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                          />
-                          <span className="text-sm text-gray-700">Available</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="hairDryerAvailable"
-                            value="on_request"
-                            checked={formData.hairDryerAvailable === 'on_request'}
-                            onChange={handleChange}
-                            className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                          />
-                          <span className="text-sm text-gray-700">On request</span>
-                        </label>
-                      </div>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          name="addHairDryerToAll"
-                          checked={formData.addHairDryerToAll}
-                          onChange={handleChange}
-                          className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                        />
-                        <span className="text-sm text-gray-700">Add to all rooms</span>
-                      </label>
-                    </div>
-                  )}
-                </div>
-              </div>
-
               {/* Kitchen Section */}
               <div className="space-y-6 pt-6 border-t" style={{ borderColor: '#dcfce7' }}>
                 <h2 className="text-xl font-semibold text-gray-900">Kitchen</h2>
@@ -617,19 +319,6 @@ export default function RoomAmenitiesStep() {
                     </div>
                   )}
                 </div>
-
-                <div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="heating"
-                      checked={formData.heating}
-                      onChange={handleChange}
-                      className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                    />
-                    <span className="text-sm font-medium text-gray-700">Heating</span>
-                  </label>
-                </div>
               </div>
 
               {/* Room View Section */}
@@ -693,7 +382,7 @@ export default function RoomAmenitiesStep() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     What is the room size?
                   </label>
-                  <div className="flex gap-4">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                     <input
                       type="number"
                       name="roomSize"
@@ -706,7 +395,7 @@ export default function RoomAmenitiesStep() {
                       name="roomSizeUnit"
                       value={formData.roomSizeUnit}
                       onChange={handleChange}
-                      className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
+                      className="w-full sm:w-auto sm:min-w-[140px] px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
                     >
                       {roomSizeUnits.map((unit) => (
                         <option key={unit.value} value={unit.value}>{unit.label}</option>

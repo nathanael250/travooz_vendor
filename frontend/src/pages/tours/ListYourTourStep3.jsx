@@ -9,6 +9,8 @@ import { tourPackageSetupService } from '../../services/tourPackageService';
 export default function ListYourTourStep3() {
   const navigate = useNavigate();
   const location = useLocation();
+  const step2Data = location.state?.step2Data || {};
+  const locationData = location.state?.locationData || null;
 
   // Enable scrolling for this page
   useEffect(() => {
@@ -103,6 +105,43 @@ export default function ListYourTourStep3() {
     }
   };
 
+  const buildTourTypePayload = () => {
+    const selections = Array.isArray(step2Data.selectedTourTypes) && step2Data.selectedTourTypes.length > 0
+      ? step2Data.selectedTourTypes.map(value => value.toString())
+      : step2Data.tourType
+        ? [step2Data.tourType.toString()]
+        : [];
+
+    const selectionNames = Array.isArray(step2Data.selectedTourTypeNames) && step2Data.selectedTourTypeNames.length > 0
+      ? step2Data.selectedTourTypeNames
+      : step2Data.tourTypeName
+        ? [step2Data.tourTypeName]
+        : [];
+
+    const numericSubcategories = selections
+      .map(value => parseInt(value, 10))
+      .filter(num => !isNaN(num));
+
+    const primarySubcategoryId = step2Data.primarySubcategoryId ?? numericSubcategories[0] ?? (
+      step2Data.subcategoryId ? parseInt(step2Data.subcategoryId, 10) : null
+    );
+
+    const primaryTourType = step2Data.primaryTourType || selections[0] || '';
+    const primaryTourTypeName = step2Data.primaryTourTypeName || selectionNames[0] || '';
+
+    return {
+      selectedTourTypes: selections,
+      selectedTourTypeNames: selectionNames,
+      subcategoryIds: numericSubcategories,
+      primaryTourType,
+      primaryTourTypeName,
+      primarySubcategoryId,
+      tourType: primaryTourType || '',
+      tourTypeName: primaryTourTypeName || '',
+      subcategoryId: primarySubcategoryId
+    };
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -112,8 +151,7 @@ export default function ListYourTourStep3() {
       setSubmitError('');
 
       try {
-        const step2Data = location.state?.step2Data || {};
-        const locationData = location.state?.locationData || null;
+        const tourTypePayload = buildTourTypePayload();
 
         // Create tour business listing (user already exists)
         const result = await tourPackageSetupService.createTourListing({
@@ -121,14 +159,12 @@ export default function ListYourTourStep3() {
           user_id: user.user_id || user.id,
           // Tour business data only (user is already logged in)
           tourBusinessName: step2Data.tourBusinessName,
-          tourType: step2Data.tourType,
-          tourTypeName: step2Data.tourTypeName,
-          subcategoryId: parseInt(step2Data.subcategoryId),
           description: step2Data.description,
           phone: step2Data.phone,
           currency: step2Data.currency,
           location: location.state?.location || '',
-          locationData: locationData
+          locationData: locationData,
+          ...tourTypePayload
         });
 
         const tourBusinessId = result.tourBusinessId || result.data?.tourBusinessId;
@@ -193,8 +229,7 @@ export default function ListYourTourStep3() {
 
     try {
       // Get tour business data from Step 2
-      const step2Data = location.state?.step2Data || {};
-      const locationData = location.state?.locationData || null;
+        const tourTypePayload = buildTourTypePayload();
 
       // Create tour business listing and user account in one API call
       const result = await tourPackageSetupService.createTourListing({
@@ -207,15 +242,13 @@ export default function ListYourTourStep3() {
         password: formData.password,
         // Tour business data
         tourBusinessName: step2Data.tourBusinessName,
-        tourType: step2Data.tourType,
-        tourTypeName: step2Data.tourTypeName,
-        subcategoryId: parseInt(step2Data.subcategoryId),
         description: step2Data.description,
         phone: step2Data.phone,
         countryCode: step2Data.countryCode,
         currency: step2Data.currency,
         location: location.state?.location || '',
-        locationData: locationData
+        locationData: locationData,
+        ...tourTypePayload
       });
 
       // Extract data from response

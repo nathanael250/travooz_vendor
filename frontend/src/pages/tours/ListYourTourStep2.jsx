@@ -20,9 +20,7 @@ export default function ListYourTourStep2() {
 
   const [formData, setFormData] = useState({
     tourBusinessName: '',
-    tourType: '',
-    tourTypeName: '',
-    subcategoryId: '',
+    selectedTourTypes: [],
     description: '',
     countryCode: '+250', // Default to Rwanda
     phone: '',
@@ -67,22 +65,10 @@ export default function ListYourTourStep2() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
-    // If tour type changes, also update subcategoryId and name
-    if (name === 'tourType') {
-      const selectedType = tourTypes.find(type => type.subcategory_id.toString() === value);
-      setFormData(prev => ({
-        ...prev,
-        [name]: value,
-        subcategoryId: selectedType ? selectedType.subcategory_id : '',
-        tourTypeName: selectedType ? selectedType.name : ''
-      }));
-    } else {
       setFormData(prev => ({
         ...prev,
         [name]: value
       }));
-    }
     
     // Clear error for this field
     if (errors[name]) {
@@ -93,6 +79,25 @@ export default function ListYourTourStep2() {
     }
   };
 
+  const toggleTourType = (value) => {
+    setFormData(prev => {
+      const exists = prev.selectedTourTypes.includes(value);
+      const nextSelected = exists
+        ? prev.selectedTourTypes.filter(type => type !== value)
+        : [...prev.selectedTourTypes, value];
+
+      // Clear tour type validation error if we now have at least one selected
+      if (errors.tourType && nextSelected.length > 0) {
+        setErrors(prevErrors => ({ ...prevErrors, tourType: '' }));
+      }
+
+      return {
+        ...prev,
+        selectedTourTypes: nextSelected
+      };
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -101,7 +106,7 @@ export default function ListYourTourStep2() {
     if (!formData.tourBusinessName.trim()) {
       newErrors.tourBusinessName = 'Business name is required';
     }
-    if (!formData.subcategoryId) {
+    if (!formData.selectedTourTypes.length) {
       newErrors.tourType = 'Tour type is required';
     }
     if (!formData.description.trim()) {
@@ -121,6 +126,12 @@ export default function ListYourTourStep2() {
       ? `${formData.countryCode} ${formData.phone.trim()}`
       : '';
 
+    const selectedTypeDetails = formData.selectedTourTypes
+      .map(value => tourTypes.find(type => type.subcategory_id.toString() === value))
+      .filter(Boolean);
+
+    const primaryType = selectedTypeDetails[0];
+
     // Just collect data and navigate to next step (no API call yet)
     // The tour business will be created in Step 3 along with the user account
     navigate('/tours/list-your-tour/step-3', {
@@ -128,6 +139,14 @@ export default function ListYourTourStep2() {
         ...location.state,
         step2Data: {
           ...formData,
+          selectedTourTypes: formData.selectedTourTypes,
+          selectedTourTypeNames: selectedTypeDetails.map(type => type.name),
+          primaryTourType: primaryType ? primaryType.subcategory_id.toString() : '',
+          primaryTourTypeName: primaryType ? primaryType.name : '',
+          primarySubcategoryId: primaryType ? primaryType.subcategory_id : '',
+          tourType: primaryType ? primaryType.subcategory_id.toString() : '',
+          tourTypeName: primaryType ? primaryType.name : '',
+          subcategoryId: primaryType ? primaryType.subcategory_id : '',
           phone: formData.phone.trim(),
           countryCode: formData.countryCode
         }
@@ -203,25 +222,42 @@ export default function ListYourTourStep2() {
               </div>
 
               <div>
-                <label htmlFor="tourType" className="block text-sm font-medium text-gray-700 mb-2">
-                  Tour Type *
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="tourType" className="block text-sm font-medium text-gray-700">
+                    Tour Types *
                 </label>
-                <select
-                  id="tourType"
-                  name="tourType"
-                  value={formData.tourType}
-                  onChange={handleChange}
-                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
-                    errors.tourType ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
-                  }`}
+                  <span className="text-xs text-gray-500">Select all that apply</span>
+                </div>
+                <div
+                  className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 border-2 rounded-lg ${
+                    errors.tourType ? 'border-red-500' : 'border-gray-200'
+                  } bg-gray-50`}
                 >
-                  <option value="">-- Select Type --</option>
-                  {tourTypes.map(type => (
-                    <option key={type.subcategory_id} value={type.subcategory_id.toString()}>
-                      {type.name}
-                    </option>
-                  ))}
-                </select>
+                  {tourTypes.map(type => {
+                    const value = type.subcategory_id.toString();
+                    const isSelected = formData.selectedTourTypes.includes(value);
+                    return (
+                      <label
+                        key={type.subcategory_id}
+                        className={`flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2 border ${
+                          isSelected ? 'border-green-500 bg-white shadow-sm' : 'border-transparent'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          value={value}
+                          checked={isSelected}
+                          onChange={() => toggleTourType(value)}
+                          className="h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                        />
+                        <span className="text-sm text-gray-800">{type.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  We recommend choosing every tour type you can operate. Your first selection becomes the primary category in our reports.
+                </p>
                 {errors.tourType && (
                   <p className="mt-1 text-sm text-red-600">{errors.tourType}</p>
                 )}

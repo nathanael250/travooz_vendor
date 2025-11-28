@@ -92,6 +92,82 @@ class AdminService {
       throw new Error(errorMessage);
     }
   }
+
+  /**
+   * Get full account details for review
+   */
+  async getAccountDetails(serviceType, accountId) {
+    try {
+      const response = await apiClient.get(`/admin/accounts/${serviceType}/${accountId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching account details:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to fetch account details';
+      throw new Error(errorMessage);
+    }
+  }
+
+  // Package management methods
+  async getPackages(filters = {}) {
+    try {
+      const params = new URLSearchParams();
+      Object.keys(filters).forEach(key => {
+        if (filters[key] !== undefined && filters[key] !== null && filters[key] !== '') {
+          params.append(key, filters[key]);
+        }
+      });
+      const response = await apiClient.get(`/admin/packages?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching packages:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to fetch packages';
+      throw new Error(errorMessage);
+    }
+  }
+
+  async getPackageStats() {
+    try {
+      const response = await apiClient.get('/admin/packages/stats');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching package stats:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to fetch package statistics';
+      throw new Error(errorMessage);
+    }
+  }
+
+  async getPackageDetails(packageId) {
+    try {
+      const response = await apiClient.get(`/admin/packages/${packageId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching package details:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to fetch package details';
+      throw new Error(errorMessage);
+    }
+  }
+
+  async approvePackage(packageId, notes = null) {
+    try {
+      const response = await apiClient.post(`/admin/packages/${packageId}/approve`, { notes });
+      return response.data;
+    } catch (error) {
+      console.error('Error approving package:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to approve package';
+      throw new Error(errorMessage);
+    }
+  }
+
+  async rejectPackage(packageId, rejectionReason = null, notes = null) {
+    try {
+      const response = await apiClient.post(`/admin/packages/${packageId}/reject`, { rejectionReason, notes });
+      return response.data;
+    } catch (error) {
+      console.error('Error rejecting package:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to reject package';
+      throw new Error(errorMessage);
+    }
+  }
 }
 
 export default new AdminService();
