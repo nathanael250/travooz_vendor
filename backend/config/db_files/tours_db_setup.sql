@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS tours_businesses (
     tour_business_name VARCHAR(255) NOT NULL,
     tour_type VARCHAR(100) DEFAULT NULL,
     tour_type_name VARCHAR(255) DEFAULT NULL,
+    tour_type_ids JSON DEFAULT NULL,
+    tour_type_names JSON DEFAULT NULL,
     subcategory_id INT DEFAULT NULL,
     description TEXT DEFAULT NULL,
     phone VARCHAR(20) DEFAULT NULL,

@@ -145,7 +145,6 @@ class ToursAdminService {
      * @param {string} rejectionReason 
      */
     async updateSubmissionStatus(submissionId, status, adminId, notes = null, rejectionReason = null) {
-        let approvalEmailData = null;
         try {
             const validStatuses = ['pending_review', 'approved', 'rejected', 'in_progress'];
             if (!validStatuses.includes(status)) {
@@ -213,13 +212,7 @@ class ToursAdminService {
                     [existing[0].tour_business_id]
                 );
 
-                if (ownerInfo?.email) {
-                    approvalEmailData = {
-                        email: ownerInfo.email,
-                        name: ownerInfo.name,
-                        businessName: ownerInfo.tour_business_name
-                    };
-                }
+                // (Email notifications handled in adminAccounts service now)
             } else if (status === 'rejected') {
                 await executeQuery(
                     `UPDATE tours_businesses 
@@ -238,23 +231,7 @@ class ToursAdminService {
             console.error('Error updating submission status:', error);
             throw error;
         } finally {
-            // Send approval email after DB operations complete
-            if (approvalEmailData) {
-                const dashboardUrl = process.env.TOURS_VENDOR_DASHBOARD_URL 
-                    || process.env.VENDOR_DASHBOARD_URL 
-                    || 'https://vendor.travoozapp.com/tours/dashboard';
-
-                try {
-                    await ToursApprovalNotificationService.sendApprovalEmail({
-                        email: approvalEmailData.email,
-                        name: approvalEmailData.name,
-                        businessName: approvalEmailData.businessName,
-                        dashboardUrl
-                    });
-                } catch (emailError) {
-                    console.error('Error sending vendor approval email:', emailError);
-                }
-            }
+            // Approval/rejection emails are triggered from the admin accounts service.
         }
     }
 

@@ -79,7 +79,7 @@ class AdminAccountsController {
     async rejectAccount(req, res) {
         try {
             const { serviceType, accountId } = req.params;
-            const { rejectionReason, notes } = req.body;
+            const { rejectionReason, notes, returnToStep } = req.body;
             const adminId = req.user.id || req.user.userId;
 
             if (!adminId) {
@@ -95,13 +95,40 @@ class AdminAccountsController {
                 parsedAccountId,
                 adminId,
                 rejectionReason,
-                notes
+                notes,
+                returnToStep
             );
 
             return sendSuccess(res, result, 'Account rejected successfully', 200);
         } catch (error) {
             console.error('Reject account error:', error);
             return sendError(res, error.message || 'Failed to reject account', 500);
+        }
+    }
+
+    /**
+     * Get detailed information about a specific account
+     * GET /api/v1/admin/accounts/:serviceType/:accountId
+     */
+    async getAccountDetails(req, res) {
+        try {
+            const { serviceType, accountId } = req.params;
+
+            // For restaurants accountId is string (uuid). For others, parse to int
+            const parsedAccountId = serviceType === 'restaurant'
+                ? accountId
+                : parseInt(accountId);
+
+            if (!parsedAccountId && parsedAccountId !== 0) {
+                return sendError(res, 'Invalid account ID', 400);
+            }
+
+            const details = await adminAccountsService.getAccountDetails(serviceType, parsedAccountId);
+
+            return sendSuccess(res, details, 'Account details retrieved successfully');
+        } catch (error) {
+            console.error('Get account details error:', error);
+            return sendError(res, error.message || 'Failed to get account details', error?.statusCode || 500);
         }
     }
 }

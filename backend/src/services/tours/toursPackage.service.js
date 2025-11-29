@@ -118,7 +118,8 @@ class ToursPackageService {
                     : (packageData.price_per_person !== undefined && packageData.price_per_person !== null && packageData.price_per_person !== '') 
                         ? packageData.price_per_person 
                         : undefined, // Use undefined to indicate "not provided" - will preserve existing value in update
-                status: packageData.status || 'draft'
+                // New packages created by vendors default to 'pending_review' - require admin approval before going live
+                status: packageData.status || (packageId ? undefined : 'pending_review')
             };
 
             let packageRecord;
@@ -140,6 +141,10 @@ class ToursPackageService {
                     // Preserve price_per_person if not provided in update
                     if (transformedData.price_per_person === undefined) {
                         transformedData.price_per_person = packageRecord.price_per_person;
+                    }
+                    // Preserve status if not provided in update (don't change status unless explicitly set)
+                    if (transformedData.status === undefined) {
+                        transformedData.status = packageRecord.status;
                     }
                     Object.assign(packageRecord, transformedData);
                     await packageRecord.update();

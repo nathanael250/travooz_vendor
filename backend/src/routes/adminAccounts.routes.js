@@ -40,6 +40,7 @@ router.get('/auth/profile', adminAuthController.getProfile.bind(adminAuthControl
 // Account management routes
 router.get('/accounts', adminAccountsController.getAllPendingAccounts.bind(adminAccountsController));
 router.get('/accounts/stats', adminAccountsController.getAccountStats.bind(adminAccountsController));
+router.get('/accounts/:serviceType/:accountId', adminAccountsController.getAccountDetails.bind(adminAccountsController));
 router.post('/accounts/:serviceType/:accountId/approve', adminAccountsController.approveAccount.bind(adminAccountsController));
 router.post('/accounts/:serviceType/:accountId/reject', adminAccountsController.rejectAccount.bind(adminAccountsController));
 

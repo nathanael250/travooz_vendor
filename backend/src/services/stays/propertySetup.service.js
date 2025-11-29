@@ -20,6 +20,9 @@ class PropertySetupService {
     // Step 3: Save Policies and Settings
     async savePolicies(userId, propertyId, policiesData) {
         try {
+            // Helper function to convert undefined to null
+            const nullIfUndefined = (value) => value === undefined ? null : value;
+            
             // Ensure propertyId is an integer
             const propertyIdInt = parseInt(propertyId);
             console.log(`[savePolicies] Saving policies for propertyId: ${propertyId} (converted to: ${propertyIdInt}), userId: ${userId}`);
@@ -34,74 +37,152 @@ class PropertySetupService {
             const languagesJson = policiesData.languages ? JSON.stringify(policiesData.languages) : null;
             const cardTypesJson = policiesData.cardTypes ? JSON.stringify(policiesData.cardTypes) : null;
             const depositTypesJson = policiesData.depositTypes ? JSON.stringify(policiesData.depositTypes) : null;
+            const otherPaymentTypesJson = policiesData.otherPaymentTypes ? JSON.stringify(policiesData.otherPaymentTypes) : null;
 
-            if (existing.length > 0) {
-                // Update existing
-                await executeQuery(
-                    `UPDATE stays_property_policies SET
-                        languages = ?, accept_cash = ?, accept_credit_debit_cards = ?,
-                        card_types = ?, installments_at_front_desk = ?,
-                        require_deposits = ?, deposit_types = ?, incidentals_payment_form = ?,
-                        property_time_zone = ?, cancellation_window = ?, cancellation_fee = ?,
-                        cut_off_time = ?, vat_percentage = ?, tourism_tax_percentage = ?,
-                        taxes_included_in_rate = ?, request_tax_team_assistance = ?,
-                        billing_currency = ?, updated_at = NOW()
-                    WHERE property_id = ?`,
-                    [
-                        languagesJson,
-                        policiesData.acceptCash ? 1 : 0,
-                        policiesData.acceptCreditDebitCards ? 1 : 0,
-                        cardTypesJson,
-                        policiesData.installmentsAtFrontDesk ? 1 : 0,
-                        policiesData.requireDeposits || 'no',
-                        depositTypesJson,
-                        policiesData.incidentalsPaymentForm || 'cash_only',
-                        policiesData.propertyTimeZone,
-                        policiesData.cancellationWindow || '24_hour',
-                        policiesData.cancellationFee || 'first_night_plus_tax',
-                        policiesData.cutOffTime || '18:00:00',
-                        policiesData.vatPercentage || null,
-                        policiesData.tourismTaxPercentage || null,
-                        policiesData.taxesIncludedInRate ? 1 : 0,
-                        policiesData.requestTaxTeamAssistance ? 1 : 0,
-                        policiesData.billingCurrency,
-                        propertyIdInt
-                    ]
-                );
-                console.log(`[savePolicies] Updated existing policy for propertyId ${propertyIdInt}`);
-            } else {
-                // Insert new
-                await executeQuery(
-                    `INSERT INTO stays_property_policies (
-                        property_id, languages, accept_cash, accept_credit_debit_cards,
-                        card_types, installments_at_front_desk, require_deposits,
-                        deposit_types, incidentals_payment_form, property_time_zone,
-                        cancellation_window, cancellation_fee, cut_off_time,
-                        vat_percentage, tourism_tax_percentage, taxes_included_in_rate,
-                        request_tax_team_assistance, billing_currency
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                        propertyIdInt,
-                        languagesJson,
-                        policiesData.acceptCash ? 1 : 0,
-                        policiesData.acceptCreditDebitCards ? 1 : 0,
-                        cardTypesJson,
-                        policiesData.installmentsAtFrontDesk ? 1 : 0,
-                        policiesData.requireDeposits || 'no',
-                        depositTypesJson,
-                        policiesData.incidentalsPaymentForm || 'cash_only',
-                        policiesData.propertyTimeZone,
-                        policiesData.cancellationWindow || '24_hour',
-                        policiesData.cancellationFee || 'first_night_plus_tax',
-                        policiesData.cutOffTime || '18:00:00',
-                        policiesData.vatPercentage || null,
-                        policiesData.tourismTaxPercentage || null,
-                        policiesData.taxesIncludedInRate ? 1 : 0,
-                        policiesData.requestTaxTeamAssistance ? 1 : 0,
-                        policiesData.billingCurrency
-                    ]
-                );
-                console.log(`[savePolicies] Inserted new policy for propertyId ${propertyIdInt}`);
+            // Check if other_payment_types column exists, if not we'll use accept_cash only
+            // Try to update/insert with other_payment_types, fallback to accept_cash if column doesn't exist
+            try {
+                if (existing.length > 0) {
+                    // Update existing - try with other_payment_types first
+                    await executeQuery(
+                        `UPDATE stays_property_policies SET
+                            languages = ?, accept_cash = ?, accept_credit_debit_cards = ?,
+                            card_types = ?, other_payment_types = ?, installments_at_front_desk = ?,
+                            require_deposits = ?, deposit_types = ?, incidentals_payment_form = ?,
+                            property_time_zone = ?, cancellation_window = ?, cancellation_fee = ?,
+                            cut_off_time = ?, vat_percentage = ?, tourism_tax_percentage = ?,
+                            taxes_included_in_rate = ?, request_tax_team_assistance = ?,
+                            billing_currency = ?, updated_at = NOW()
+                        WHERE property_id = ?`,
+                        [
+                            languagesJson,
+                            nullIfUndefined(policiesData.acceptOtherPayment) ? 1 : 0,
+                            nullIfUndefined(policiesData.acceptCreditDebitCards) ? 1 : 0,
+                            cardTypesJson,
+                            otherPaymentTypesJson,
+                            nullIfUndefined(policiesData.installmentsAtFrontDesk) ? 1 : 0,
+                            nullIfUndefined(policiesData.requireDeposits) || 'no',
+                            depositTypesJson,
+                            nullIfUndefined(policiesData.incidentalsPaymentForm) || 'cash_only',
+                            null, // property_time_zone - removed from frontend, set to null
+                            nullIfUndefined(policiesData.cancellationWindow) || '24_hour',
+                            nullIfUndefined(policiesData.cancellationFee) || 'first_night_plus_tax',
+                            nullIfUndefined(policiesData.cutOffTime) || '18:00:00',
+                            nullIfUndefined(policiesData.vatPercentage),
+                            nullIfUndefined(policiesData.tourismTaxPercentage),
+                            nullIfUndefined(policiesData.taxesIncludedInRate) ? 1 : 0,
+                            nullIfUndefined(policiesData.requestTaxTeamAssistance) ? 1 : 0,
+                            null, // billing_currency - removed from frontend, set to null
+                            propertyIdInt
+                        ]
+                    );
+                    console.log(`[savePolicies] Updated existing policy for propertyId ${propertyIdInt}`);
+                } else {
+                    // Insert new - try with other_payment_types first
+                    await executeQuery(
+                        `INSERT INTO stays_property_policies (
+                            property_id, languages, accept_cash, accept_credit_debit_cards,
+                            card_types, other_payment_types, installments_at_front_desk, require_deposits,
+                            deposit_types, incidentals_payment_form, property_time_zone,
+                            cancellation_window, cancellation_fee, cut_off_time,
+                            vat_percentage, tourism_tax_percentage, taxes_included_in_rate,
+                            request_tax_team_assistance, billing_currency
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [
+                            propertyIdInt,
+                            languagesJson,
+                            nullIfUndefined(policiesData.acceptOtherPayment) ? 1 : 0,
+                            nullIfUndefined(policiesData.acceptCreditDebitCards) ? 1 : 0,
+                            cardTypesJson,
+                            otherPaymentTypesJson,
+                            nullIfUndefined(policiesData.installmentsAtFrontDesk) ? 1 : 0,
+                            nullIfUndefined(policiesData.requireDeposits) || 'no',
+                            depositTypesJson,
+                            nullIfUndefined(policiesData.incidentalsPaymentForm) || 'cash_only',
+                            null, // property_time_zone - removed from frontend, set to null
+                            nullIfUndefined(policiesData.cancellationWindow) || '24_hour',
+                            nullIfUndefined(policiesData.cancellationFee) || 'first_night_plus_tax',
+                            nullIfUndefined(policiesData.cutOffTime) || '18:00:00',
+                            nullIfUndefined(policiesData.vatPercentage),
+                            nullIfUndefined(policiesData.tourismTaxPercentage),
+                            nullIfUndefined(policiesData.taxesIncludedInRate) ? 1 : 0,
+                            nullIfUndefined(policiesData.requestTaxTeamAssistance) ? 1 : 0,
+                            null // billing_currency - removed from frontend, set to null
+                        ]
+                    );
+                    console.log(`[savePolicies] Inserted new policy for propertyId ${propertyIdInt}`);
+                }
+            } catch (error) {
+                // If column doesn't exist, fallback to using accept_cash only
+                if (error.message && error.message.includes('Unknown column')) {
+                    console.log(`[savePolicies] other_payment_types column not found, using accept_cash only`);
+                    if (existing.length > 0) {
+                        await executeQuery(
+                            `UPDATE stays_property_policies SET
+                                languages = ?, accept_cash = ?, accept_credit_debit_cards = ?,
+                                card_types = ?, installments_at_front_desk = ?,
+                                require_deposits = ?, deposit_types = ?, incidentals_payment_form = ?,
+                                property_time_zone = ?, cancellation_window = ?, cancellation_fee = ?,
+                                cut_off_time = ?, vat_percentage = ?, tourism_tax_percentage = ?,
+                                taxes_included_in_rate = ?, request_tax_team_assistance = ?,
+                                billing_currency = ?, updated_at = NOW()
+                            WHERE property_id = ?`,
+                            [
+                                languagesJson,
+                                nullIfUndefined(policiesData.acceptOtherPayment) ? 1 : 0,
+                                nullIfUndefined(policiesData.acceptCreditDebitCards) ? 1 : 0,
+                                cardTypesJson,
+                                nullIfUndefined(policiesData.installmentsAtFrontDesk) ? 1 : 0,
+                                nullIfUndefined(policiesData.requireDeposits) || 'no',
+                                depositTypesJson,
+                                nullIfUndefined(policiesData.incidentalsPaymentForm) || 'cash_only',
+                                null,
+                                nullIfUndefined(policiesData.cancellationWindow) || '24_hour',
+                                nullIfUndefined(policiesData.cancellationFee) || 'first_night_plus_tax',
+                                nullIfUndefined(policiesData.cutOffTime) || '18:00:00',
+                                nullIfUndefined(policiesData.vatPercentage),
+                                nullIfUndefined(policiesData.tourismTaxPercentage),
+                                nullIfUndefined(policiesData.taxesIncludedInRate) ? 1 : 0,
+                                nullIfUndefined(policiesData.requestTaxTeamAssistance) ? 1 : 0,
+                                null,
+                                propertyIdInt
+                            ]
+                        );
+                    } else {
+                        await executeQuery(
+                            `INSERT INTO stays_property_policies (
+                                property_id, languages, accept_cash, accept_credit_debit_cards,
+                                card_types, installments_at_front_desk, require_deposits,
+                                deposit_types, incidentals_payment_form, property_time_zone,
+                                cancellation_window, cancellation_fee, cut_off_time,
+                                vat_percentage, tourism_tax_percentage, taxes_included_in_rate,
+                                request_tax_team_assistance, billing_currency
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [
+                                propertyIdInt,
+                                languagesJson,
+                                nullIfUndefined(policiesData.acceptOtherPayment) ? 1 : 0,
+                                nullIfUndefined(policiesData.acceptCreditDebitCards) ? 1 : 0,
+                                cardTypesJson,
+                                nullIfUndefined(policiesData.installmentsAtFrontDesk) ? 1 : 0,
+                                nullIfUndefined(policiesData.requireDeposits) || 'no',
+                                depositTypesJson,
+                                nullIfUndefined(policiesData.incidentalsPaymentForm) || 'cash_only',
+                                null,
+                                nullIfUndefined(policiesData.cancellationWindow) || '24_hour',
+                                nullIfUndefined(policiesData.cancellationFee) || 'first_night_plus_tax',
+                                nullIfUndefined(policiesData.cutOffTime) || '18:00:00',
+                                nullIfUndefined(policiesData.vatPercentage),
+                                nullIfUndefined(policiesData.tourismTaxPercentage),
+                                nullIfUndefined(policiesData.taxesIncludedInRate) ? 1 : 0,
+                                nullIfUndefined(policiesData.requestTaxTeamAssistance) ? 1 : 0,
+                                null
+                            ]
+                        );
+                    }
+                } else {
+                    throw error;
+                }
             }
             console.log(`[savePolicies] Policies saved successfully for propertyId ${propertyIdInt}`);
             return { success: true };

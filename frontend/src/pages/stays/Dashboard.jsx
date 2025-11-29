@@ -615,7 +615,7 @@ export default function StaysDashboard() {
     <div className="flex h-screen bg-gray-100 overflow-hidden">
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 bg-gray-800 text-white transition-all duration-300 z-50 flex flex-col ${
+        className={`fixed inset-y-0 left-0 bg-red-800 text-white transition-all duration-300 z-50 flex flex-col ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:relative lg:translate-x-0 ${
           sidebarExpanded ? 'w-64' : 'w-20'

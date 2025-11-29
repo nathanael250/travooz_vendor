@@ -235,6 +235,84 @@ If you have any questions, just reply to this email and our team will help.
             text
         });
     }
+
+    /**
+     * Notify vendor that admin requested changes / rejected submission
+     */
+    static async sendVendorRejectionEmail({
+        email,
+        name = 'there',
+        businessName = 'your business',
+        reason = 'Additional information required',
+        notes = '',
+        targetStep = null,
+        serviceName = 'your business',
+        stepUrl = null
+    }) {
+        const reasonText = reason || 'Your submission requires updates.';
+        const stepText = targetStep ? `Please return to Step ${targetStep} in the onboarding wizard to fix the highlighted fields.` : '';
+        const notesText = notes ? `<p style="color:#4b5563;font-size:15px;">${notes}</p>` : '';
+        const actionButton = stepUrl
+            ? `<div style="margin: 30px 0; text-align: center;">
+                    <a href="${stepUrl}" style="display:inline-block;background-color:#dc2626;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:16px;font-weight:bold;">
+                        Update Submission
+                    </a>
+               </div>`
+            : '';
+        const actionText = stepUrl
+            ? `<p style="color:#4b5563;font-size:14px;">Use this link to update your submission:<br/><a href="${stepUrl}" style="color:#dc2626;">${stepUrl}</a></p>`
+            : '';
+
+        const html = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background-color: #dc2626; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+                    <h1 style="color: white; margin: 0;">Travooz</h1>
+                </div>
+                <div style="background-color: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+                    <h2 style="color: #1f2937; margin-top: 0;">We need a few more details</h2>
+                    <p style="color: #4b5563; font-size: 16px;">Hi ${name || 'there'},</p>
+                    <p style="color: #4b5563; font-size: 16px;">
+                        Our team reviewed your ${serviceName.toLowerCase()} submission <strong>${businessName}</strong>, but we need the following before we can approve it:
+                    </p>
+                    <div style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;color:#991b1b;margin:20px 0;">
+                        ${reasonText}
+                    </div>
+                    ${notesText}
+                    ${stepText ? `<p style="color:#4b5563;font-size:15px;"><strong>Next step:</strong> ${stepText}</p>` : ''}
+                    ${actionButton}
+                    ${actionText}
+                    <p style="color: #4b5563; font-size: 14px; margin-top: 30px;">
+                        Once you update the information, resubmit your application and our team will re-review it quickly. Let us know if you need help.
+                    </p>
+                </div>
+                <div style="background-color: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; text-align: center; border: 1px solid #e5e7eb; border-top: none;">
+                    <p style="color: #6b7280; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} Travooz. All rights reserved.</p>
+                </div>
+            </div>
+        `;
+
+        const text = `
+Hi ${name || 'there'},
+
+We reviewed your ${serviceName} submission "${businessName}", but we need more information before we can approve it.
+
+Reason: ${reasonText}
+${notes ? `\nNotes: ${notes}` : ''}
+${stepText ? `\nNext step: ${stepText}` : ''}
+${stepUrl ? `\nUpdate your submission here: ${stepUrl}` : ''}
+
+Once you update the requested information, please resubmit your application.
+
+© ${new Date().getFullYear()} Travooz. All rights reserved.
+        `;
+
+        return await this.sendEmail({
+            to: email,
+            subject: `${serviceName} submission needs updates`,
+            html,
+            text
+        });
+    }
 }
 
 module.exports = EmailService;

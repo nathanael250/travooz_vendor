@@ -130,7 +130,7 @@ class ToursPackage {
                     toNull(this.availability_type),
                     toNull(this.pricing_type),
                     toNull(this.price_per_person),
-                    (this.status && this.status !== '') ? this.status : 'draft'
+                    (this.status && this.status !== '') ? this.status : 'pending_review'
                 ]
             );
 

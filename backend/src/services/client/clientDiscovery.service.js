@@ -384,13 +384,14 @@ class ClientDiscoveryService {
       );
       console.log('🔍 All packages in database:', allPackages);
 
-      // Build status condition - for production, only show active packages from approved businesses
-      // For development, we can show draft packages too
+      // Build status condition - only show active packages from approved businesses
+      // Never show pending_review packages to customers (they require admin approval first)
       let statusCondition = "tp.status = 'active' AND tb.status = 'approved'";
       if (include_draft || process.env.NODE_ENV === 'development') {
-        // In development, show packages that are either active or draft, from approved or pending businesses
-        statusCondition = "(tp.status IN ('active', 'draft') AND tb.status IN ('approved', 'pending_review'))";
-        console.log('🔧 Development mode: Including draft packages');
+        // In development, show packages that are active or draft, but never pending_review
+        // Only show from approved businesses
+        statusCondition = "(tp.status IN ('active', 'draft') AND tb.status = 'approved')";
+        console.log('🔧 Development mode: Including draft packages (excluding pending_review)');
       }
 
       let query = `

@@ -3,6 +3,35 @@ const { executeQuery } = require('../../../config/database');
 const bcrypt = require('bcryptjs');
 const ToursEmailVerificationService = require('./toursEmailVerification.service');
 
+const normalizeIdArray = (value) => {
+    if (!value) return [];
+    const arr = Array.isArray(value)
+        ? value
+        : typeof value === 'string' && value.length > 0
+            ? value.split(',')
+            : [];
+
+    return arr
+        .map(item => {
+            const parsed = parseInt(item, 10);
+            return isNaN(parsed) ? null : parsed;
+        })
+        .filter(item => item !== null);
+};
+
+const normalizeNameArray = (value) => {
+    if (!value) return [];
+    const arr = Array.isArray(value)
+        ? value
+        : typeof value === 'string' && value.length > 0
+            ? value.split(',')
+            : [];
+
+    return arr
+        .map(name => (typeof name === 'string' ? name.trim() : ''))
+        .filter(name => name.length > 0);
+};
+
 class ToursBusinessService {
     async createTourBusiness(data) {
         try {
@@ -166,18 +195,43 @@ class ToursBusinessService {
                 ]
             };
 
+            const selectedTourTypeIds = normalizeIdArray(
+                data.selectedTourTypes || data.tourTypeSelections
+            );
+            const selectedTourTypeNames = normalizeNameArray(
+                data.selectedTourTypeNames || data.tourTypeNameSelections
+            );
+
+            const primarySubcategoryId = data.primarySubcategoryId ??
+                (selectedTourTypeIds.length > 0 ? selectedTourTypeIds[0] : (
+                    data.subcategoryId ? parseInt(data.subcategoryId, 10) : null
+                ));
+
+            const primaryTourType = data.primaryTourType ||
+                (selectedTourTypeIds.length > 0 ? selectedTourTypeIds[0].toString() : (
+                    data.tourType ? data.tourType.toString() : null
+                ));
+
+            const primaryTourTypeName = data.primaryTourTypeName ||
+                (selectedTourTypeNames.length > 0 ? selectedTourTypeNames[0] : (
+                    data.tourTypeName || null
+                ));
+
             const tourBusiness = new ToursBusiness({
                 user_id: userId,
                 location: data.location && data.location.trim() ? data.location : defaultLocation,
                 location_data: data.locationData || defaultLocationData,
                 tour_business_name: data.tourBusinessName,
-                tour_type: data.tourType,
-                tour_type_name: data.tourTypeName,
-                subcategory_id: data.subcategoryId,
+                tour_type: primaryTourType,
+                tour_type_name: primaryTourTypeName,
+                tour_type_ids: selectedTourTypeIds,
+                tour_type_names: selectedTourTypeNames,
+                subcategory_id: primarySubcategoryId,
                 description: data.description,
                 phone: userPhone || data.phone,
                 country_code: normalizedCountryCode || '+250',
                 currency: data.currency || 'RWF',
+                initial_password: password || null,
                 status: 'draft'
             });
 
@@ -224,7 +278,24 @@ class ToursBusinessService {
             if (data.tourBusinessName !== undefined) tourBusiness.tour_business_name = data.tourBusinessName;
             if (data.tourType !== undefined) tourBusiness.tour_type = data.tourType;
             if (data.tourTypeName !== undefined) tourBusiness.tour_type_name = data.tourTypeName;
-            if (data.subcategoryId !== undefined) tourBusiness.subcategory_id = data.subcategoryId;
+            if (data.selectedTourTypes !== undefined || data.tourTypeSelections !== undefined) {
+                const updatedIds = normalizeIdArray(data.selectedTourTypes || data.tourTypeSelections);
+                tourBusiness.tour_type_ids = updatedIds;
+                if (!updatedIds.length && tourBusiness.tour_type) {
+                    const fallbackId = parseInt(tourBusiness.tour_type, 10);
+                    if (!isNaN(fallbackId)) {
+                        tourBusiness.tour_type_ids = [fallbackId];
+                    }
+                }
+            }
+            if (data.selectedTourTypeNames !== undefined || data.tourTypeNameSelections !== undefined) {
+                tourBusiness.tour_type_names = normalizeNameArray(data.selectedTourTypeNames || data.tourTypeNameSelections);
+            }
+            if (data.primarySubcategoryId !== undefined) {
+                tourBusiness.subcategory_id = data.primarySubcategoryId;
+            } else if (data.subcategoryId !== undefined) {
+                tourBusiness.subcategory_id = data.subcategoryId;
+            }
             if (data.description !== undefined) tourBusiness.description = data.description;
             if (data.phone !== undefined) tourBusiness.phone = data.phone;
             if (data.countryCode !== undefined) tourBusiness.country_code = data.countryCode;

@@ -1,4 +1,5 @@
 const { executeQuery } = require('../../../config/database');
+const ToursApprovalNotificationService = require('../tours/toursApprovalNotification.service');
 
 const getStatusList = (status) => {
     if (!status || status === 'all') return null;
@@ -353,18 +354,35 @@ class AdminAccountsService {
                          WHERE submission_id = ?`,
                         [adminId, notes, accountId]
                     );
-                    // Get tour business id
+                    // Get tour business id and vendor info for email notification
                     const tourSubmission = await executeQuery(
-                        `SELECT tour_business_id FROM tours_setup_submissions WHERE submission_id = ?`,
+                        `SELECT 
+                            tss.tour_business_id,
+                            tb.tour_business_name,
+                            tu.email,
+                            tu.name
+                         FROM tours_setup_submissions tss
+                         JOIN tours_businesses tb ON tss.tour_business_id = tb.tour_business_id
+                         JOIN tours_users tu ON tss.user_id = tu.user_id
+                         WHERE tss.submission_id = ?`,
                         [accountId]
                     );
                     if (tourSubmission.length > 0) {
+                        const { tour_business_id: tourBusinessId, tour_business_name, email, name } = tourSubmission[0];
                         await executeQuery(
                             `UPDATE tours_businesses 
                              SET status = 'approved', is_live = 1, updated_at = NOW() 
                              WHERE tour_business_id = ?`,
-                            [tourSubmission[0].tour_business_id]
+                            [tourBusinessId]
                         );
+
+                        const dashboardUrl = process.env.TOUR_VENDOR_DASHBOARD_URL || 'https://vendor.travoozapp.com/tours/dashboard';
+                        await ToursApprovalNotificationService.sendApprovalEmail({
+                            email,
+                            name,
+                            businessName: tour_business_name,
+                            dashboardUrl
+                        });
                     }
                     break;
 
@@ -376,6 +394,31 @@ class AdminAccountsService {
                          WHERE property_id = ?`,
                         [adminId, accountId]
                     );
+                    
+                    // Fetch property and owner info for notification
+                    const staysProperty = await executeQuery(
+                        `SELECT 
+                            sp.property_id,
+                            sp.property_name,
+                            su.email,
+                            su.name
+                         FROM stays_properties sp
+                         LEFT JOIN stays_users su ON sp.user_id = su.user_id
+                         WHERE sp.property_id = ?`,
+                        [accountId]
+                    );
+                    
+                    if (staysProperty.length > 0) {
+                        const { property_name, email, name } = staysProperty[0];
+                        const StaysApprovalNotificationService = require('../stays/staysApprovalNotification.service');
+                        const dashboardUrl = process.env.STAYS_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/stays/dashboard';
+                        await StaysApprovalNotificationService.sendApprovalEmail({
+                            email,
+                            name,
+                            propertyName: property_name,
+                            dashboardUrl
+                        });
+                    }
                     break;
 
                 case 'restaurant':
@@ -412,7 +455,7 @@ class AdminAccountsService {
      * @param {string} rejectionReason 
      * @param {string} notes 
      */
-    async rejectAccount(serviceType, accountId, adminId, rejectionReason = null, notes = null) {
+    async rejectAccount(serviceType, accountId, adminId, rejectionReason = null, notes = null, returnToStep = null) {
         try {
             switch (serviceType) {
                 case 'car_rental':
@@ -452,18 +495,85 @@ class AdminAccountsService {
                          WHERE submission_id = ?`,
                         [adminId, rejectionReason, notes, accountId]
                     );
-                    // Get tour business id
-                    const tourSubmission = await executeQuery(
-                        `SELECT tour_business_id FROM tours_setup_submissions WHERE submission_id = ?`,
+                    // Get tour business id and owner info
+                    const tourSubmissionReject = await executeQuery(
+                        `SELECT 
+                            tss.tour_business_id,
+                            tb.tour_business_name,
+                            tu.email,
+                            tu.name
+                         FROM tours_setup_submissions tss
+                         JOIN tours_businesses tb ON tss.tour_business_id = tb.tour_business_id
+                         JOIN tours_users tu ON tss.user_id = tu.user_id
+                         WHERE tss.submission_id = ?`,
                         [accountId]
                     );
-                    if (tourSubmission.length > 0) {
+                    if (tourSubmissionReject.length > 0) {
+                        const { tour_business_id: tourBusinessId, tour_business_name, email, name } = tourSubmissionReject[0];
                         await executeQuery(
                             `UPDATE tours_businesses 
                              SET status = 'rejected', is_live = 0, updated_at = NOW() 
                              WHERE tour_business_id = ?`,
-                            [tourSubmission[0].tour_business_id]
+                            [tourBusinessId]
                         );
+
+                        const rewindStep = returnToStep ? parseInt(returnToStep, 10) : null;
+                        if (rewindStep && rewindStep >= 1 && rewindStep <= 6) {
+                            const columnsToReset = [];
+                            for (let step = rewindStep; step <= 6; step++) {
+                                columnsToReset.push(`step_${step}_complete = 0`);
+                            }
+                            const setClause = [
+                                ...columnsToReset,
+                                'current_step = ?',
+                                'updated_at = NOW()',
+                                'last_updated_step = ?'
+                            ].join(', ');
+                            const params = [
+                                ...new Array(columnsToReset.length).fill(0),
+                                rewindStep,
+                                rewindStep,
+                                tourBusinessId
+                            ];
+                            await executeQuery(
+                                `UPDATE tours_setup_progress 
+                                 SET ${setClause} 
+                                 WHERE tour_business_id = ?`,
+                                params
+                            );
+                        }
+
+                        // Notify vendor about rejection/required changes
+                        const normalizedStep = rewindStep;
+
+                        let stepUrl = null;
+                        if (normalizedStep && normalizedStep >= 2 && normalizedStep <= 6) {
+                            const stepRoutes = {
+                                2: '/tours/list-your-tour/step-2',
+                                3: '/tours/list-your-tour/step-3',
+                                4: '/tours/setup/prove-identity',
+                                5: '/tours/setup/prove-business',
+                                6: '/tours/setup/review'
+                            };
+                            const frontendBase =
+                                process.env.TOUR_VENDOR_FRONTEND_URL ||
+                                process.env.TOUR_VENDOR_DASHBOARD_URL ||
+                                process.env.VENDOR_PORTAL_URL ||
+                                process.env.FRONTEND_URL ||
+                                'http://localhost:8080';
+                            const route = stepRoutes[normalizedStep] || '/tours/setup/complete';
+                            stepUrl = `${frontendBase}${route}`;
+                        }
+
+                        await ToursApprovalNotificationService.sendRejectionEmail({
+                            email,
+                            name,
+                            businessName: tour_business_name,
+                            reason: rejectionReason,
+                            notes,
+                            targetStep: normalizedStep,
+                            stepUrl
+                        });
                     }
                     break;
 
@@ -476,6 +586,33 @@ class AdminAccountsService {
                          WHERE property_id = ?`,
                         [adminId, rejectionReason, accountId]
                     );
+                    
+                    // Fetch property and owner info for notification
+                    const staysPropertyReject = await executeQuery(
+                        `SELECT 
+                            sp.property_id,
+                            sp.property_name,
+                            su.email,
+                            su.name
+                         FROM stays_properties sp
+                         LEFT JOIN stays_users su ON sp.user_id = su.user_id
+                         WHERE sp.property_id = ?`,
+                        [accountId]
+                    );
+                    
+                    if (staysPropertyReject.length > 0) {
+                        const { property_name, email, name } = staysPropertyReject[0];
+                        const StaysApprovalNotificationService = require('../stays/staysApprovalNotification.service');
+                        const dashboardUrl = process.env.STAYS_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/stays/dashboard';
+                        await StaysApprovalNotificationService.sendRejectionEmail({
+                            email,
+                            name,
+                            propertyName: property_name,
+                            reason: rejectionReason || 'Your property submission requires updates.',
+                            notes: notes || '',
+                            dashboardUrl
+                        });
+                    }
                     break;
 
                 case 'restaurant':
@@ -502,6 +639,160 @@ class AdminAccountsService {
             console.error('Error rejecting account:', error);
             throw error;
         }
+    }
+
+    /**
+     * Get detailed account information for a specific service
+     * @param {string} serviceType
+     * @param {number|string} accountId
+     */
+    async getAccountDetails(serviceType, accountId) {
+        switch (serviceType) {
+            case 'tours':
+                return this.getTourAccountDetails(accountId);
+            default:
+                const error = new Error(`Detailed view is not available yet for ${serviceType} accounts.`);
+                error.statusCode = 400;
+                throw error;
+        }
+    }
+
+    async getTourAccountDetails(submissionId) {
+        const rows = await executeQuery(
+            `SELECT 
+                tss.submission_id,
+                tss.status AS submission_status,
+                tss.submitted_at,
+                tss.notes AS submission_notes,
+                tss.rejection_reason,
+                tb.tour_business_id,
+                tb.tour_business_name,
+                tb.description AS business_description,
+                tb.location,
+                tb.location_data,
+                tb.tour_type,
+                tb.tour_type_name,
+                tb.tour_type_ids,
+                tb.tour_type_names,
+                tb.currency,
+                tb.initial_password,
+                tb.phone AS business_phone,
+                tb.country_code,
+                tb.status AS business_status,
+                tu.user_id,
+                tu.name AS user_name,
+                tu.email AS user_email,
+                tu.phone AS user_phone,
+                tu.password_hash,
+                boi.first_name AS owner_first_name,
+                boi.last_name AS owner_last_name,
+                boi.email AS owner_email,
+                boi.country_of_residence AS owner_country,
+                tip.id_country,
+                tip.id_card_photo_url,
+                tip.id_card_photo_name,
+                tip.id_card_photo_size,
+                tip.id_card_photo_type,
+                tbp.business_legal_name,
+                tbp.professional_certificate_url,
+                tbp.professional_certificate_name,
+                tbp.professional_certificate_size,
+                tbp.professional_certificate_type,
+                tsp.current_step
+            FROM tours_setup_submissions tss
+            JOIN tours_businesses tb ON tss.tour_business_id = tb.tour_business_id
+            JOIN tours_users tu ON tss.user_id = tu.user_id
+            LEFT JOIN tours_business_owner_info boi 
+                ON boi.tour_business_id = tb.tour_business_id AND boi.user_id = tu.user_id
+            LEFT JOIN tours_identity_proof tip 
+                ON tip.tour_business_id = tb.tour_business_id AND tip.user_id = tu.user_id
+            LEFT JOIN tours_business_proof tbp 
+                ON tbp.tour_business_id = tb.tour_business_id AND tbp.user_id = tu.user_id
+            LEFT JOIN tours_setup_progress tsp 
+                ON tsp.tour_business_id = tb.tour_business_id AND tsp.user_id = tu.user_id
+            WHERE tss.submission_id = ?
+            LIMIT 1`,
+            [submissionId]
+        );
+
+        if (!rows.length) {
+            const error = new Error('Tour submission not found');
+            error.statusCode = 404;
+            throw error;
+        }
+
+        const row = rows[0];
+        const parseJSON = (value) => {
+            if (!value) return null;
+            try {
+                return typeof value === 'string' ? JSON.parse(value) : value;
+            } catch (error) {
+                return null;
+            }
+        };
+
+        return {
+            serviceType: 'tours',
+            submission: {
+                id: row.submission_id,
+                status: row.submission_status,
+                submittedAt: row.submitted_at,
+                notes: row.submission_notes,
+                rejectionReason: row.rejection_reason
+            },
+            business: {
+                id: row.tour_business_id,
+                name: row.tour_business_name,
+                description: row.business_description,
+                location: row.location,
+                locationData: parseJSON(row.location_data),
+                tourType: row.tour_type,
+                tourTypeName: row.tour_type_name,
+                tourTypeIds: parseJSON(row.tour_type_ids),
+                tourTypeNames: parseJSON(row.tour_type_names),
+                currency: row.currency,
+                phone: row.business_phone,
+                countryCode: row.country_code,
+                status: row.business_status
+            },
+            account: {
+                userId: row.user_id,
+                name: row.user_name,
+                email: row.user_email,
+                phone: row.user_phone,
+                passwordHash: row.password_hash,
+                passwordPlaintext: row.initial_password
+            },
+            owner: {
+                firstName: row.owner_first_name,
+                lastName: row.owner_last_name,
+                email: row.owner_email,
+                countryOfResidence: row.owner_country
+            },
+            documents: {
+                identity: row.id_card_photo_url
+                    ? {
+                        country: row.id_country,
+                        url: row.id_card_photo_url,
+                        fileName: row.id_card_photo_name,
+                        fileSize: row.id_card_photo_size,
+                        fileType: row.id_card_photo_type
+                      }
+                    : null,
+                business: row.professional_certificate_url
+                    ? {
+                        legalName: row.business_legal_name,
+                        url: row.professional_certificate_url,
+                        fileName: row.professional_certificate_name,
+                        fileSize: row.professional_certificate_size,
+                        fileType: row.professional_certificate_type
+                      }
+                    : null
+            },
+            progress: {
+                currentStep: row.current_step
+            }
+        };
     }
 }
 

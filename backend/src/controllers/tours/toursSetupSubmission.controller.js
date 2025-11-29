@@ -62,6 +62,17 @@ const getSubmissionStatus = async (req, res) => {
             return sendSuccess(res, { status: null, message: 'No submission found' }, 'No submission found', 200);
         }
 
+        // If rejected, also get the current_step from progress to know which step to return to
+        if (result.status === 'rejected' && result.tour_business_id) {
+            const progress = await toursSetupProgressService.getProgress(
+                result.tour_business_id,
+                userId
+            );
+            if (progress) {
+                result.current_step = progress.current_step;
+            }
+        }
+
         return sendSuccess(res, result, 'Submission status retrieved successfully', 200);
     } catch (error) {
         console.error('Error in getSubmissionStatus controller:', error);

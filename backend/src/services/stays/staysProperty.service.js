@@ -536,8 +536,20 @@ class StaysPropertyService {
     }
 
     async deleteRoomImage(imageId, userId) {
+        // First check if image exists at all
+        const imageCheck = await executeQuery(
+            `SELECT image_id, room_id, image_url FROM stays_room_images WHERE image_id = ?`,
+            [imageId]
+        );
+
+        if (!imageCheck || imageCheck.length === 0) {
+            console.error(`[deleteRoomImage] Image ID ${imageId} not found in stays_room_images table`);
+            throw createErrorWithStatus('Image not found', 404);
+        }
+
+        // Then verify ownership through room and property
         const imageRecords = await executeQuery(
-            `SELECT sri.*, sp.user_id 
+            `SELECT sri.*, sp.user_id, sp.property_id, sr.room_id
              FROM stays_room_images sri
              INNER JOIN stays_rooms sr ON sri.room_id = sr.room_id
              INNER JOIN stays_properties sp ON sr.property_id = sp.property_id
@@ -546,7 +558,12 @@ class StaysPropertyService {
         );
 
         if (!imageRecords || imageRecords.length === 0) {
-            throw createErrorWithStatus('Image not found', 404);
+            console.error(`[deleteRoomImage] Image ID ${imageId} exists but cannot be linked to a property (room or property may be deleted)`);
+            // Image exists but room/property relationship is broken - still allow deletion
+            const image = imageCheck[0];
+            await executeQuery(`DELETE FROM stays_room_images WHERE image_id = ?`, [imageId]);
+            removeImageFromDisk(image.image_url);
+            return image;
         }
 
         const image = imageRecords[0];
