@@ -62,14 +62,14 @@ export default function BaseRateStep() {
     setSaveError('');
 
     try {
-      // Update room data with base rate information
-      const updatedRoomData = {
-        ...roomData,
-        baseRate: parseFloat(baseRate),
-        peopleIncluded: parseInt(peopleIncluded),
+    // Update room data with base rate information
+    const updatedRoomData = {
+      ...roomData,
+      baseRate: parseFloat(baseRate),
+      peopleIncluded: parseInt(peopleIncluded),
         step: 4,
         roomSetupComplete: true
-      };
+    };
 
       // Helper function to convert undefined to null
       const nullIfUndefined = (value) => value === undefined ? null : value;
@@ -127,12 +127,12 @@ export default function BaseRateStep() {
 
       // Navigate back to rooms overview with success flag
       navigate('/stays/setup/rooms', {
-        state: {
-          ...location.state,
+      state: {
+        ...location.state,
           propertyId: propertyId > 0 ? propertyId : location.state?.propertyId,
           roomAdded: true
-        }
-      });
+      }
+    });
     } catch (error) {
       console.error('Error saving room:', error);
       setSaveError(error.message || 'Failed to save room. Please try again.');
@@ -289,7 +289,7 @@ export default function BaseRateStep() {
                 ) : (
                   <>
                     <span>Save Room</span>
-                    <ArrowRight className="h-5 w-5" />
+                <ArrowRight className="h-5 w-5" />
                   </>
                 )}
               </button>

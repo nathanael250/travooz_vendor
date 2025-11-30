@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Plus, AlertCircle, Wifi, Car, Coffee, Users, Home, Sparkles, X } from 'lucide-react';
+import { ArrowRight, ArrowLeft, AlertCircle, Wifi, Car, Coffee, Users, Home } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import ProgressIndicator from '../../components/stays/ProgressIndicator';
@@ -41,15 +41,6 @@ export default function PropertyAmenitiesStep() {
     
     // Internet
     offerInternet: 'no',
-    wifiInGuestrooms: true,
-    wifiGuestroomsFree: true,
-    wifiGuestroomsSurcharge: '',
-    wifiGuestroomsMinSpeed: '',
-    wifiGuestroomsRestrictions: false,
-    wifiInPublicAreas: true,
-    wifiPublicAreasFree: true,
-    wifiPublicAreasSurcharge: '',
-    wifiPublicAreasRestrictions: false,
     
     // Parking
     offerParking: 'no',
@@ -68,10 +59,6 @@ export default function PropertyAmenitiesStep() {
     // Room conveniences
     inRoomConveniences: 'no',
     housekeeping: 'no',
-    
-    // Additional Amenities
-    additionalAmenities: [],
-    newAmenity: '',
     
     // Themes (auto-generated but can be displayed)
     themes: []
@@ -97,22 +84,6 @@ export default function PropertyAmenitiesStep() {
     }
   };
 
-  const handleAddAmenity = () => {
-    if (formData.newAmenity.trim() && !formData.additionalAmenities.includes(formData.newAmenity.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        additionalAmenities: [...prev.additionalAmenities, prev.newAmenity.trim()],
-        newAmenity: ''
-      }));
-    }
-  };
-
-  const handleRemoveAmenity = (amenity) => {
-    setFormData(prev => ({
-      ...prev,
-      additionalAmenities: prev.additionalAmenities.filter(a => a !== amenity)
-    }));
-  };
 
   const validateForm = () => {
     const newErrors = {};
@@ -127,9 +98,6 @@ export default function PropertyAmenitiesStep() {
       }
     }
 
-    if (formData.offerInternet === 'yes' && formData.wifiInGuestrooms && !formData.wifiGuestroomsMinSpeed) {
-      newErrors.wifiGuestroomsMinSpeed = 'Minimum Wi-Fi speed is required';
-    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -151,23 +119,6 @@ export default function PropertyAmenitiesStep() {
     setSubmitError('');
 
     try {
-      // Convert WiFi speed string values to numeric Mbps values
-      const convertWifiSpeedToMbps = (speedValue) => {
-        if (!speedValue) return null;
-        const speedMap = {
-          'basic': 1,           // < 1 Mbps -> use 1 Mbps
-          'standard': 3,        // 1-5 Mbps -> use 3 Mbps (middle)
-          'high': 7,            // 5-10 Mbps -> use 7 Mbps (middle)
-          'very_high': 15       // > 10 Mbps -> use 15 Mbps
-        };
-        // If it's already a number, return it
-        if (typeof speedValue === 'number' || !isNaN(parseInt(speedValue))) {
-          return parseInt(speedValue);
-        }
-        // Otherwise, map the string value
-        return speedMap[speedValue] || null;
-      };
-
       // Transform formData to match backend API expectations (camelCase)
       const amenitiesData = {
         minCheckInAge: formData.minCheckInAge ? parseInt(formData.minCheckInAge) : null,
@@ -181,11 +132,6 @@ export default function PropertyAmenitiesStep() {
         offerBreakfast: formData.offerBreakfast || 'no',
         breakfastType: formData.breakfastType || null,
         offerInternet: formData.offerInternet || 'no',
-        wifiInGuestrooms: formData.wifiInGuestrooms || false,
-        wifiGuestroomsMinSpeed: convertWifiSpeedToMbps(formData.wifiGuestroomsMinSpeed),
-        wifiInPublicAreas: formData.wifiInPublicAreas || false,
-        wiredInternet: formData.wiredInternet || false,
-        wiredInternetInGuestrooms: formData.wiredInternetInGuestrooms || false,
         offerParking: formData.offerParking || 'no',
         hasPool: formData.hasPool || false,
         poolType: formData.poolType || null,
@@ -205,7 +151,6 @@ export default function PropertyAmenitiesStep() {
         petSurchargeMaxFeePerStay: formData.petSurchargeMaxFeePerStay || false,
         petSurchargeMaxFeeAmount: formData.petSurchargeMaxFeeAmount ? parseFloat(formData.petSurchargeMaxFeeAmount) : null,
         petFeeVariesByStayLength: formData.petFeeVariesByStayLength || false,
-        additionalAmenities: formData.additionalAmenities || [],
         themes: formData.themes || []
       };
 
@@ -485,187 +430,34 @@ export default function PropertyAmenitiesStep() {
                   <Wifi className="h-5 w-5" style={{ color: '#3CAF54' }} />
                   Internet
                 </h2>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Do you offer internet?
-                    </label>
-                    <div className="flex gap-4">
-                      <button
-                        type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, offerInternet: 'yes' }))}
-                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                          formData.offerInternet === 'yes'
-                            ? 'bg-[#3CAF54] text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, offerInternet: 'no' }))}
-                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                          formData.offerInternet === 'no'
-                            ? 'bg-[#3CAF54] text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        No
-                      </button>
-                    </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Do you offer internet?
+                  </label>
+                  <div className="flex gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, offerInternet: 'yes' }))}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        formData.offerInternet === 'yes'
+                          ? 'bg-[#3CAF54] text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, offerInternet: 'no' }))}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        formData.offerInternet === 'no'
+                          ? 'bg-[#3CAF54] text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      No
+                    </button>
                   </div>
-
-                  {formData.offerInternet === 'yes' && (
-                    <div className="ml-7 space-y-4">
-                      <div>
-                        <label className="flex items-center gap-2 cursor-pointer mb-3">
-                          <input
-                            type="checkbox"
-                            name="wifiInGuestrooms"
-                            checked={formData.wifiInGuestrooms}
-                            onChange={handleChange}
-                            className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                          />
-                          <span className="text-sm font-medium text-gray-700">Wi-Fi in guestrooms</span>
-                        </label>
-                        {formData.wifiInGuestrooms && (
-                          <div className="ml-6 space-y-3">
-                            <div className="flex gap-4">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name="wifiGuestroomsFree"
-                                  checked={formData.wifiGuestroomsFree}
-                                  onChange={() => setFormData(prev => ({ ...prev, wifiGuestroomsFree: true, wifiGuestroomsSurcharge: '' }))}
-                                  className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Free</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name="wifiGuestroomsFree"
-                                  checked={!formData.wifiGuestroomsFree}
-                                  onChange={() => setFormData(prev => ({ ...prev, wifiGuestroomsFree: false }))}
-                                  className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Surcharge</span>
-                              </label>
-                            </div>
-                            {!formData.wifiGuestroomsFree && (
-                              <input
-                                type="number"
-                                name="wifiGuestroomsSurcharge"
-                                value={formData.wifiGuestroomsSurcharge}
-                                onChange={handleChange}
-                                placeholder="Surcharge amount"
-                                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                              />
-                            )}
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Minimum Wi-Fi speed
-                              </label>
-                              <select
-                                name="wifiGuestroomsMinSpeed"
-                                value={formData.wifiGuestroomsMinSpeed}
-                                onChange={handleChange}
-                                className={`w-full px-4 py-2 border-2 rounded-lg focus:outline-none ${
-                                  errors.wifiGuestroomsMinSpeed ? 'border-red-500' : 'border-gray-300 focus:border-[#3CAF54]'
-                                }`}
-                              >
-                                <option value="">-select-</option>
-                                <option value="basic">Basic (&lt; 1 Mbps)</option>
-                                <option value="standard">Standard (1-5 Mbps)</option>
-                                <option value="high">High (5-10 Mbps)</option>
-                                <option value="very_high">Very High (&gt; 10 Mbps)</option>
-                              </select>
-                              {errors.wifiGuestroomsMinSpeed && (
-                                <p className="mt-1 text-sm text-red-600">{errors.wifiGuestroomsMinSpeed}</p>
-                              )}
-                            </div>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                name="wifiGuestroomsRestrictions"
-                                checked={formData.wifiGuestroomsRestrictions}
-                                onChange={handleChange}
-                                className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                              />
-                              <span className="text-sm text-gray-700">Restrictions apply</span>
-                            </label>
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="flex items-center gap-2 cursor-pointer mb-3">
-                          <input
-                            type="checkbox"
-                            name="wifiInPublicAreas"
-                            checked={formData.wifiInPublicAreas}
-                            onChange={handleChange}
-                            className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                          />
-                          <span className="text-sm font-medium text-gray-700">Wi-Fi in public areas</span>
-                        </label>
-                        {formData.wifiInPublicAreas && (
-                          <div className="ml-6 space-y-3">
-                            <div className="flex gap-4">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name="wifiPublicAreasFree"
-                                  checked={formData.wifiPublicAreasFree}
-                                  onChange={() => setFormData(prev => ({ ...prev, wifiPublicAreasFree: true, wifiPublicAreasSurcharge: '' }))}
-                                  className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Free</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name="wifiPublicAreasFree"
-                                  checked={!formData.wifiPublicAreasFree}
-                                  onChange={() => setFormData(prev => ({ ...prev, wifiPublicAreasFree: false }))}
-                                  className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                />
-                                <span className="text-sm text-gray-700">Surcharge</span>
-                              </label>
-                            </div>
-                            {!formData.wifiPublicAreasFree && (
-                              <input
-                                type="number"
-                                name="wifiPublicAreasSurcharge"
-                                value={formData.wifiPublicAreasSurcharge}
-                                onChange={handleChange}
-                                placeholder="Surcharge amount"
-                                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                              />
-                            )}
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                name="wifiPublicAreasRestrictions"
-                                checked={formData.wifiPublicAreasRestrictions}
-                                onChange={handleChange}
-                                className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                              />
-                              <span className="text-sm text-gray-700">Restrictions apply</span>
-                            </label>
-                          </div>
-                        )}
-                      </div>
-
-                      <button
-                        type="button"
-                        className="text-sm text-[#3CAF54] hover:underline font-medium"
-                      >
-                        More options
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -834,61 +626,6 @@ export default function PropertyAmenitiesStep() {
                       </div>
                     </div>
                   ))}
-                </div>
-              </div>
-
-              {/* Additional Amenities */}
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <Sparkles className="h-5 w-5" style={{ color: '#3CAF54' }} />
-                  Additional Amenities (optional)
-                </h2>
-                <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="text"
-                      value={formData.newAmenity}
-                      onChange={(e) => setFormData(prev => ({ ...prev, newAmenity: e.target.value }))}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddAmenity();
-                        }
-                      }}
-                      placeholder="What amenities make your property unique?"
-                      className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddAmenity}
-                      className="w-full sm:w-auto px-6 py-2 text-white font-semibold rounded-lg transition-colors whitespace-nowrap"
-                      style={{ backgroundColor: '#3CAF54' }}
-                      onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
-                      onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
-                    >
-                      Add amenities
-                    </button>
-                  </div>
-                  
-                  {formData.additionalAmenities.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {formData.additionalAmenities.map((amenity, index) => (
-                        <span
-                          key={index}
-                          className="inline-flex items-center gap-2 px-3 py-1 bg-[#f0fdf4] border border-[#3CAF54] rounded-lg text-sm"
-                        >
-                          {amenity}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveAmenity(amenity)}
-                            className="text-[#3CAF54] hover:text-[#2d8f42]"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
 

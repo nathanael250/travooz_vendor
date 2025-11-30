@@ -86,10 +86,26 @@ class StaysPropertyService {
                 ]
             };
 
+            // Ensure location_data is always populated
+            let finalLocationData = defaultLocationData;
+            if (data.locationData && typeof data.locationData === 'object' && Object.keys(data.locationData).length > 0) {
+                finalLocationData = data.locationData;
+            } else if (data.location && data.location.trim()) {
+                // If location string exists but no locationData, create a basic location_data from the string
+                finalLocationData = {
+                    name: data.location.trim(),
+                    formatted_address: data.location.trim(),
+                    place_id: `manual_${data.location.trim().toLowerCase().replace(/\s+/g, '_')}`,
+                    lat: -1.9441, // Default to Kigali coordinates
+                    lng: 30.0619,
+                    address_components: []
+                };
+            }
+
             const property = new StaysProperty({
                 user_id: userId,
                 location: data.location && data.location.trim() ? data.location : defaultLocation,
-                location_data: data.locationData || defaultLocationData,
+                location_data: finalLocationData,
                 property_name: data.propertyName,
                 property_type: data.propertyType,
                 number_of_rooms: data.numberOfRooms,

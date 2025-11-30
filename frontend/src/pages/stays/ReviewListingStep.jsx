@@ -34,14 +34,14 @@ export default function ReviewListingStep() {
       try {
         setLoading(true);
         
-        // Get propertyId from state or localStorage
-        const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
+    // Get propertyId from state or localStorage
+    const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
         
         let property = {};
         let propertyImages = [];
         
         // Try to fetch from API if propertyId exists
-        if (propertyId && propertyId > 0) {
+    if (propertyId && propertyId > 0) {
           try {
             // Fetch property data from API
             const propertyData = await getPropertyListing(propertyId);
@@ -79,7 +79,7 @@ export default function ReviewListingStep() {
             // Update localStorage with fetched data
             if (propertyImages.length > 0) {
               localStorage.setItem('stays_property_images', JSON.stringify(propertyImages));
-            }
+    }
           } catch (apiError) {
             console.log('Could not fetch from API, using localStorage:', apiError);
             // Fallback to localStorage if API fails
@@ -112,35 +112,35 @@ export default function ReviewListingStep() {
         const stateProperty = location.state?.property || {};
         property = { ...property, ...stateProperty };
         
-        if (location.state?.propertyName) {
-          property.propertyName = location.state.propertyName;
-        }
-        if (location.state?.location) {
-          property.location = location.state.location;
-        }
-        if (location.state?.address) {
-          property.address = location.state.address;
-        }
-        if (location.state?.phone) {
-          property.phone = location.state.phone;
-        }
+    if (location.state?.propertyName) {
+      property.propertyName = location.state.propertyName;
+    }
+    if (location.state?.location) {
+      property.location = location.state.location;
+    }
+    if (location.state?.address) {
+      property.address = location.state.address;
+    }
+    if (location.state?.phone) {
+      property.phone = location.state.phone;
+    }
 
         // Load other data from localStorage
-        const policies = JSON.parse(localStorage.getItem('stays_policies') || '{}');
-        const amenities = JSON.parse(localStorage.getItem('stays_amenities') || '{}');
-        const rooms = JSON.parse(localStorage.getItem('stays_rooms') || '[]');
-        const taxData = JSON.parse(localStorage.getItem('stays_tax_data') || '{}');
-        const connectivityData = JSON.parse(localStorage.getItem('stays_connectivity_data') || '{}');
+    const policies = JSON.parse(localStorage.getItem('stays_policies') || '{}');
+    const amenities = JSON.parse(localStorage.getItem('stays_amenities') || '{}');
+    const rooms = JSON.parse(localStorage.getItem('stays_rooms') || '[]');
+    const taxData = JSON.parse(localStorage.getItem('stays_tax_data') || '{}');
+    const connectivityData = JSON.parse(localStorage.getItem('stays_connectivity_data') || '{}');
 
-        setPropertyData({
-          property,
-          policies,
-          amenities,
-          rooms: rooms.filter(r => r.roomSetupComplete),
-          propertyImages,
-          taxData,
-          connectivityData
-        });
+    setPropertyData({
+      property,
+      policies,
+      amenities,
+      rooms: rooms.filter(r => r.roomSetupComplete),
+      propertyImages,
+      taxData,
+      connectivityData
+    });
       } catch (error) {
         console.error('Error loading review data:', error);
         // Fallback to localStorage only on error
@@ -162,7 +162,7 @@ export default function ReviewListingStep() {
           connectivityData
         });
       } finally {
-        setLoading(false);
+    setLoading(false);
       }
     };
     

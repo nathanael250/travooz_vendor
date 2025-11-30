@@ -140,30 +140,6 @@ app.use('/uploads', (req, res, next) => {
   });
 });
 
-// Serve version.json with no-cache headers (for frontend version checking)
-app.get('/version.json', (req, res) => {
-  const versionPath = path.join(__dirname, '../../frontend/dist/version.json');
-  
-  // Set no-cache headers
-  res.set({
-    'Cache-Control': 'no-cache, no-store, must-revalidate',
-    'Pragma': 'no-cache',
-    'Expires': '0',
-    'Content-Type': 'application/json',
-  });
-  
-  // Try to serve version.json if it exists
-  if (fs.existsSync(versionPath)) {
-    return res.sendFile(path.resolve(versionPath));
-  }
-  
-  // If version.json doesn't exist, return a default version
-  res.json({
-    version: Date.now().toString(),
-    timestamp: new Date().toISOString()
-  });
-});
-
 // Health check
 app.get('/health', (req, res) => {
   res.json({ 

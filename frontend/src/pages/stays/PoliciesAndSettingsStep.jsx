@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Search, X, AlertCircle } from 'lucide-react';
+import { ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import ProgressIndicator from '../../components/stays/ProgressIndicator';
@@ -27,35 +27,20 @@ export default function PoliciesAndSettingsStep() {
 
   const [formData, setFormData] = useState({
     // Languages spoken
-    languages: [],
-    languageSearch: '',
+    languages: {
+      english: false,
+      french: false,
+      kinyarwanda: false
+    },
     
     // Payment methods
-    acceptCreditDebitCards: true,
-    cardTypes: {
-      visa: false,
-      mastercard: false,
-      unionPay: false,
-      travoozCard: false
-    },
-    installmentsAtFrontDesk: false,
-    acceptOtherPayment: false,
-    otherPaymentTypes: {
-      cash: false,
-      momo: false,
-      airtelMoney: false
-    },
+    acceptCreditDebitCards: false,
+    acceptTravoozCard: false,
+    acceptMobileMoney: false,
+    acceptAirtelMoney: false,
     
     // Deposits
-    requireDeposits: 'yes',
-    depositTypes: {
-      generalDeposit: false,
-      breakageCleaningDeposit: false,
-      springBreakDeposit: false,
-      damageDepositBeforeArrival: false,
-      alternateDepositPayment: false
-    },
-    incidentalsPaymentForm: 'cash_only',
+    requireDeposits: 'no',
     
     // Cancellation policy
     cancellationWindow: '24_hour',
@@ -72,46 +57,16 @@ export default function PoliciesAndSettingsStep() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
-  // Common languages list
-  const commonLanguages = [
-    'English', 'French', 'Kinyarwanda', 'Swahili', 'German', 'Spanish', 
-    'Italian', 'Portuguese', 'Chinese', 'Japanese', 'Arabic', 'Hindi',
-    'Dutch', 'Russian', 'Korean', 'Turkish', 'Polish', 'Greek'
-  ];
-
-  const filteredLanguages = commonLanguages.filter(lang =>
-    lang.toLowerCase().includes(formData.languageSearch.toLowerCase()) &&
-    !formData.languages.includes(lang)
-  );
-
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     
-    if (name.startsWith('cardTypes.')) {
-      const cardType = name.split('.')[1];
+    if (name.startsWith('languages.')) {
+      const language = name.split('.')[1];
       setFormData(prev => ({
         ...prev,
-        cardTypes: {
-          ...prev.cardTypes,
-          [cardType]: checked
-        }
-      }));
-    } else if (name.startsWith('otherPaymentTypes.')) {
-      const paymentType = name.split('.')[1];
-      setFormData(prev => ({
-        ...prev,
-        otherPaymentTypes: {
-          ...prev.otherPaymentTypes,
-          [paymentType]: checked
-        }
-      }));
-    } else if (name.startsWith('depositTypes.')) {
-      const depositType = name.split('.')[1];
-      setFormData(prev => ({
-        ...prev,
-        depositTypes: {
-          ...prev.depositTypes,
-          [depositType]: checked
+        languages: {
+          ...prev.languages,
+          [language]: checked
         }
       }));
     } else {
@@ -130,47 +85,9 @@ export default function PoliciesAndSettingsStep() {
     }
   };
 
-  const handleRemoveLanguage = (language) => {
-    setFormData(prev => ({
-      ...prev,
-      languages: prev.languages.filter(lang => lang !== language)
-    }));
-  };
-
-  const handleSelectLanguageFromList = (language) => {
-    if (!formData.languages.includes(language)) {
-      setFormData(prev => ({
-        ...prev,
-        languages: [...prev.languages, language],
-        languageSearch: ''
-      }));
-    }
-  };
 
   const validateForm = () => {
     const newErrors = {};
-
-    if (formData.acceptCreditDebitCards) {
-      const hasCardType = Object.values(formData.cardTypes).some(val => val === true);
-      if (!hasCardType) {
-        newErrors.cardTypes = 'Please select at least one card type';
-      }
-    }
-
-    if (formData.acceptOtherPayment) {
-      const hasOtherPaymentType = Object.values(formData.otherPaymentTypes).some(val => val === true);
-      if (!hasOtherPaymentType) {
-        newErrors.otherPaymentTypes = 'Please select at least one other payment method';
-      }
-    }
-
-    if (formData.requireDeposits === 'yes') {
-      const hasDepositType = Object.values(formData.depositTypes).some(val => val === true);
-      if (!hasDepositType) {
-        newErrors.depositTypes = 'Please select at least one deposit type';
-      }
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -196,16 +113,24 @@ export default function PoliciesAndSettingsStep() {
 
     try {
       // Transform formData to match backend API expectations
+      const selectedLanguages = Object.keys(formData.languages)
+        .filter(key => formData.languages[key])
+        .map(key => {
+          const langMap = {
+            english: 'English',
+            french: 'French',
+            kinyarwanda: 'Kinyarwanda'
+          };
+          return langMap[key];
+        });
+
       const policiesData = {
-        languages: formData.languages,
+        languages: selectedLanguages,
         acceptCreditDebitCards: formData.acceptCreditDebitCards,
-        cardTypes: Object.keys(formData.cardTypes).filter(key => formData.cardTypes[key]),
-        installmentsAtFrontDesk: formData.installmentsAtFrontDesk,
-        acceptOtherPayment: formData.acceptOtherPayment,
-        otherPaymentTypes: Object.keys(formData.otherPaymentTypes).filter(key => formData.otherPaymentTypes[key]),
+        acceptTravoozCard: formData.acceptTravoozCard,
+        acceptMobileMoney: formData.acceptMobileMoney,
+        acceptAirtelMoney: formData.acceptAirtelMoney,
         requireDeposits: formData.requireDeposits,
-        depositTypes: Object.keys(formData.depositTypes).filter(key => formData.depositTypes[key]),
-        incidentalsPaymentForm: formData.incidentalsPaymentForm,
         cancellationWindow: formData.cancellationWindow,
         cancellationFee: formData.cancellationFee,
         vatPercentage: formData.vatPercentage,
@@ -265,53 +190,23 @@ export default function PoliciesAndSettingsStep() {
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">
                   Which languages are spoken at your property?
                 </h2>
-                <div className="space-y-4">
-                  {/* Selected Languages */}
-                  {formData.languages.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {formData.languages.map((lang) => (
-                        <span
-                          key={lang}
-                          className="inline-flex items-center gap-2 px-3 py-1 bg-[#f0fdf4] border border-[#3CAF54] rounded-lg text-sm"
-                        >
-                          {lang}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveLanguage(lang)}
-                            className="text-[#3CAF54] hover:text-[#2d8f42]"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Language Search */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <input
-                      type="text"
-                      value={formData.languageSearch}
-                      onChange={(e) => setFormData(prev => ({ ...prev, languageSearch: e.target.value }))}
-                      placeholder="Search"
-                      className="w-full pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                    />
-                    {formData.languageSearch && filteredLanguages.length > 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border-2 border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {filteredLanguages.map((lang) => (
-                          <button
-                            key={lang}
-                            type="button"
-                            onClick={() => handleSelectLanguageFromList(lang)}
-                            className="w-full text-left px-4 py-2 hover:bg-gray-50 transition-colors"
-                          >
-                            {lang}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                <div className="space-y-3">
+                  {[
+                    { key: 'english', label: 'English' },
+                    { key: 'french', label: 'French' },
+                    { key: 'kinyarwanda', label: 'Kinyarwanda' }
+                  ].map((lang) => (
+                    <label key={lang.key} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name={`languages.${lang.key}`}
+                        checked={formData.languages[lang.key]}
+                        onChange={handleChange}
+                        className="w-5 h-5 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
+                      />
+                      <span className="text-sm font-medium text-gray-700">{lang.label}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
 
@@ -320,7 +215,7 @@ export default function PoliciesAndSettingsStep() {
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">
                   Which payment methods do you accept at your property?
                 </h2>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -329,101 +224,41 @@ export default function PoliciesAndSettingsStep() {
                       onChange={handleChange}
                       className="w-5 h-5 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
                     />
-                    <span className="text-sm font-medium text-gray-700">Credit / debit cards</span>
+                    <span className="text-sm font-medium text-gray-700">Credit / Debit Cards</span>
                   </label>
 
-                  {formData.acceptCreditDebitCards && (
-                    <div className="ml-7 space-y-3">
-                      <p className="text-sm font-medium text-gray-700">Types of card you accept</p>
-                      <div className="grid md:grid-cols-2 gap-3">
-                        {[
-                          { key: 'visa', label: 'Visa (Credit & Debit)' },
-                          { key: 'mastercard', label: 'Mastercard (Credit & Debit)' },
-                          { key: 'unionPay', label: 'UnionPay (optional)' },
-                          { key: 'travoozCard', label: 'Travooz Card' }
-                        ].map((card) => (
-                          <label key={card.key} className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              name={`cardTypes.${card.key}`}
-                              checked={formData.cardTypes[card.key]}
-                              onChange={handleChange}
-                              className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                            />
-                            <span className="text-sm text-gray-700">{card.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                      {errors.cardTypes && (
-                        <p className="text-sm text-red-600 flex items-center gap-1">
-                          <AlertCircle className="h-4 w-4" />
-                          {errors.cardTypes}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {formData.acceptCreditDebitCards && (
-                    <div className="ml-7">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Other settings</p>
-                      <div className="space-y-2">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            name="installmentsAtFrontDesk"
-                            checked={formData.installmentsAtFrontDesk}
-                            onChange={handleChange}
-                            className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                          />
-                          <span className="text-sm text-gray-700">
-                            Installments payments offered at front desk (for locals only)
-                          </span>
-                        </label>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Other Payment Methods */}
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      name="acceptOtherPayment"
-                      checked={formData.acceptOtherPayment}
+                      name="acceptTravoozCard"
+                      checked={formData.acceptTravoozCard}
                       onChange={handleChange}
                       className="w-5 h-5 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
                     />
-                    <span className="text-sm font-medium text-gray-700">Other payment methods</span>
+                    <span className="text-sm font-medium text-gray-700">Travooz Convenience Card</span>
                   </label>
 
-                  {formData.acceptOtherPayment && (
-                    <div className="ml-7 space-y-3">
-                      <p className="text-sm font-medium text-gray-700">Types of other payment you accept</p>
-                      <div className="grid md:grid-cols-3 gap-3">
-                        {[
-                          { key: 'cash', label: 'Cash' },
-                          { key: 'momo', label: 'MoMo' },
-                          { key: 'airtelMoney', label: 'Airtel Money' }
-                        ].map((payment) => (
-                          <label key={payment.key} className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              name={`otherPaymentTypes.${payment.key}`}
-                              checked={formData.otherPaymentTypes[payment.key]}
-                              onChange={handleChange}
-                              className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                            />
-                            <span className="text-sm text-gray-700">{payment.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                      {errors.otherPaymentTypes && (
-                        <p className="text-sm text-red-600 flex items-center gap-1">
-                          <AlertCircle className="h-4 w-4" />
-                          {errors.otherPaymentTypes}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="acceptMobileMoney"
+                      checked={formData.acceptMobileMoney}
+                      onChange={handleChange}
+                      className="w-5 h-5 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Mobile Money</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="acceptAirtelMoney"
+                      checked={formData.acceptAirtelMoney}
+                      onChange={handleChange}
+                      className="w-5 h-5 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Airtel Money</span>
+                  </label>
                 </div>
               </div>
 
@@ -432,78 +267,29 @@ export default function PoliciesAndSettingsStep() {
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">
                   Do you require any deposits?
                 </h2>
-                <div className="space-y-4">
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="requireDeposits"
-                        value="yes"
-                        checked={formData.requireDeposits === 'yes'}
-                        onChange={handleChange}
-                        className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                      />
-                      <span className="text-sm font-medium text-gray-700">Yes</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="requireDeposits"
-                        value="no"
-                        checked={formData.requireDeposits === 'no'}
-                        onChange={handleChange}
-                        className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                      />
-                      <span className="text-sm font-medium text-gray-700">No</span>
-                    </label>
-                  </div>
-
-                  {formData.requireDeposits === 'yes' && (
-                    <div className="ml-7 space-y-3">
-                      <div className="grid md:grid-cols-2 gap-3">
-                        {[
-                          { key: 'generalDeposit', label: 'General deposit' },
-                          { key: 'breakageCleaningDeposit', label: 'Breakage/cleaning deposit' },
-                          { key: 'springBreakDeposit', label: 'Spring break deposit' },
-                          { key: 'damageDepositBeforeArrival', label: 'Damage deposit collected before arrival' },
-                          { key: 'alternateDepositPayment', label: 'Alternate deposit payment' }
-                        ].map((deposit) => (
-                          <label key={deposit.key} className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              name={`depositTypes.${deposit.key}`}
-                              checked={formData.depositTypes[deposit.key]}
-                              onChange={handleChange}
-                              className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                            />
-                            <span className="text-sm text-gray-700">{deposit.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                      {errors.depositTypes && (
-                        <p className="text-sm text-red-600 flex items-center gap-1">
-                          <AlertCircle className="h-4 w-4" />
-                          {errors.depositTypes}
-                        </p>
-                      )}
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Forms of payment accepted for incidentals
-                        </label>
-                        <select
-                          name="incidentalsPaymentForm"
-                          value={formData.incidentalsPaymentForm}
-                          onChange={handleChange}
-                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
-                        >
-                          <option value="cash_only">Cash only</option>
-                          <option value="credit_card_only">Credit card only</option>
-                          <option value="both">Both cash and credit card</option>
-                        </select>
-                      </div>
-                    </div>
-                  )}
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="requireDeposits"
+                      value="yes"
+                      checked={formData.requireDeposits === 'yes'}
+                      onChange={handleChange}
+                      className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Yes</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="requireDeposits"
+                      value="no"
+                      checked={formData.requireDeposits === 'no'}
+                      onChange={handleChange}
+                      className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
+                    />
+                    <span className="text-sm font-medium text-gray-700">No</span>
+                  </label>
                 </div>
               </div>
 

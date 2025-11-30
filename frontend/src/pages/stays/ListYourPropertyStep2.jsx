@@ -23,8 +23,6 @@ export default function ListYourPropertyStep2() {
     propertyType: '',
     numberOfRooms: '',
     legalName: '',
-    currency: 'RWF',
-    channelManager: 'no',
     partOfChain: 'no',
     bookingComUrl: ''
   });
@@ -43,10 +41,6 @@ export default function ListYourPropertyStep2() {
     'Other'
   ];
 
-  const currencies = [
-    { value: 'RWF', label: 'RWF - Rwandan Franc' },
-    { value: 'USD', label: 'USD - US Dollar' }
-  ];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -176,58 +170,6 @@ export default function ListYourPropertyStep2() {
                   placeholder="Enter legal name"
                   className="w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 placeholder-gray-400 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20"
                 />
-              </div>
-
-              {/* Currency */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Currency <span className="text-gray-400">(optional)</span>
-                </label>
-                <select
-                  name="currency"
-                  value={formData.currency}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20"
-                >
-                  {currencies.map(currency => (
-                    <option key={currency.value} value={currency.value}>
-                      {currency.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Channel manager */}
-              <div className="bg-gray-50 rounded-lg p-4 border" style={{ borderColor: '#e5e7eb' }}>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Does this property work with a channel management system?
-                </label>
-                <div className="flex gap-6">
-                  <label className="flex items-center cursor-pointer group">
-                    <input
-                      type="radio"
-                      name="channelManager"
-                      value="yes"
-                      checked={formData.channelManager === 'yes'}
-                      onChange={handleChange}
-                      className="w-4 h-4 mr-2 cursor-pointer"
-                      style={{ accentColor: '#3CAF54' }}
-                    />
-                    <span className="text-gray-700 group-hover:text-[#3CAF54] transition-colors">Yes</span>
-                  </label>
-                  <label className="flex items-center cursor-pointer group">
-                    <input
-                      type="radio"
-                      name="channelManager"
-                      value="no"
-                      checked={formData.channelManager === 'no'}
-                      onChange={handleChange}
-                      className="w-4 h-4 mr-2 cursor-pointer"
-                      style={{ accentColor: '#3CAF54' }}
-                    />
-                    <span className="text-gray-700 group-hover:text-[#3CAF54] transition-colors">No</span>
-                  </label>
-                </div>
               </div>
 
               {/* Part of chain */}

@@ -23,7 +23,8 @@ export default function ListYourPropertyStep3() {
     countryCode: '+250', // Default to Rwanda
     phone: '',
     email: '',
-    password: ''
+    password: '',
+    confirmPassword: ''
   });
 
   const [focusedFields, setFocusedFields] = useState({
@@ -31,10 +32,12 @@ export default function ListYourPropertyStep3() {
     lastName: false,
     phone: false,
     email: false,
-    password: false
+    password: false,
+    confirmPassword: false
   });
 
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -125,6 +128,13 @@ export default function ListYourPropertyStep3() {
       }
     }
 
+    // Validate confirm password
+    if (!formData.confirmPassword.trim()) {
+      newErrors.confirmPassword = 'Please confirm your password';
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
@@ -144,8 +154,8 @@ export default function ListYourPropertyStep3() {
       propertyType: step2Data.propertyType || '',
       numberOfRooms: step2Data.numberOfRooms ? parseInt(step2Data.numberOfRooms) : null,
       legalName: step2Data.legalName || '',
-      currency: step2Data.currency || '',
-      channelManager: step2Data.channelManager || 'no',
+      currency: 'RWF', // Default currency
+      channelManager: 'no', // Default channel manager
       partOfChain: step2Data.partOfChain || 'no',
       bookingComUrl: step2Data.bookingComUrl || '',
       
@@ -508,6 +518,67 @@ export default function ListYourPropertyStep3() {
                   <p className="mt-2 ml-1 text-sm text-red-600 flex items-center gap-1">
                     <AlertCircle className="h-4 w-4" />
                     {errors.password}
+                  </p>
+                )}
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    onFocus={() => setFocusedFields(prev => ({ ...prev, confirmPassword: true }))}
+                    onBlur={() => setFocusedFields(prev => ({ ...prev, confirmPassword: false }))}
+                    className={`w-full px-4 pt-6 pb-2 pr-12 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 ${
+                      errors.confirmPassword ? 'border-red-500' : ''
+                    }`}
+                  />
+                  <label
+                    className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                      focusedFields.confirmPassword || formData.confirmPassword
+                        ? 'top-2 text-xs text-gray-500'
+                        : 'top-1/2 -translate-y-1/2 text-base text-gray-400'
+                    }`}
+                  >
+                    Confirm password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
+                  </button>
+                </div>
+
+                {/* Password Match Indicator */}
+                {formData.confirmPassword && formData.password && (
+                  <div className="mt-2">
+                    {formData.password === formData.confirmPassword ? (
+                      <p className="text-sm text-green-600 flex items-center gap-1">
+                        <Check className="h-4 w-4" />
+                        Passwords match
+                      </p>
+                    ) : (
+                      <p className="text-sm text-red-600 flex items-center gap-1">
+                        <AlertCircle className="h-4 w-4" />
+                        Passwords do not match
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {errors.confirmPassword && (
+                  <p className="mt-2 ml-1 text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    {errors.confirmPassword}
                   </p>
                 )}
               </div>

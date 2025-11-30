@@ -95,8 +95,27 @@ class ClientDiscoveryService {
           try {
             property.location_data = JSON.parse(property.location_data);
           } catch (err) {
-            property.location_data = null;
+            // If parsing fails, create a default location_data from the location string
+            const defaultLocationData = {
+              name: property.location || 'Unknown Location',
+              formatted_address: property.location || 'Unknown Location',
+              place_id: `fallback_${property.property_id}`,
+              lat: -1.9441,
+              lng: 30.0619,
+              address_components: []
+            };
+            property.location_data = defaultLocationData;
           }
+        } else if (property.location) {
+          // If location_data is null but location string exists, create location_data from it
+          property.location_data = {
+            name: property.location,
+            formatted_address: property.location,
+            place_id: `fallback_${property.property_id}`,
+            lat: -1.9441,
+            lng: 30.0619,
+            address_components: []
+          };
         }
 
         const images = await executeQuery(
@@ -133,8 +152,27 @@ class ClientDiscoveryService {
         try {
           property.location_data = JSON.parse(property.location_data);
         } catch (err) {
-          property.location_data = null;
+          // If parsing fails, create a default location_data from the location string
+          const defaultLocationData = {
+            name: property.location || 'Unknown Location',
+            formatted_address: property.location || 'Unknown Location',
+            place_id: `fallback_${property.property_id}`,
+            lat: -1.9441,
+            lng: 30.0619,
+            address_components: []
+          };
+          property.location_data = defaultLocationData;
         }
+      } else if (property.location) {
+        // If location_data is null but location string exists, create location_data from it
+        property.location_data = {
+          name: property.location,
+          formatted_address: property.location,
+          place_id: `fallback_${property.property_id}`,
+          lat: -1.9441,
+          lng: 30.0619,
+          address_components: []
+        };
       }
 
       const images = await executeQuery(
@@ -303,8 +341,27 @@ class ClientDiscoveryService {
           try {
             property.location_data = JSON.parse(property.location_data);
           } catch (err) {
-            property.location_data = null;
+            // If parsing fails, create a default location_data from the location string
+            const defaultLocationData = {
+              name: property.location || 'Unknown Location',
+              formatted_address: property.location || 'Unknown Location',
+              place_id: `fallback_${property.property_id}`,
+              lat: -1.9441,
+              lng: 30.0619,
+              address_components: []
+            };
+            property.location_data = defaultLocationData;
           }
+        } else if (property.location) {
+          // If location_data is null but location string exists, create location_data from it
+          property.location_data = {
+            name: property.location,
+            formatted_address: property.location,
+            place_id: `fallback_${property.property_id}`,
+            lat: -1.9441,
+            lng: 30.0619,
+            address_components: []
+          };
         }
 
         // Get images
