@@ -34,6 +34,8 @@ import ListYourPropertyStep2 from './pages/stays/ListYourPropertyStep2';
 import ListYourPropertyStep3 from './pages/stays/ListYourPropertyStep3';
 import EmailVerification from './pages/stays/EmailVerification';
 import StaysLogin from './pages/stays/Login';
+import ForgotPassword from './pages/stays/ForgotPassword';
+import ResetPassword from './pages/stays/ResetPassword';
 import ContractStep from './pages/stays/ContractStep';
 import PoliciesAndSettingsStep from './pages/stays/PoliciesAndSettingsStep';
 import PropertyAmenitiesStep from './pages/stays/PropertyAmenitiesStep';
@@ -192,6 +194,8 @@ function App() {
           
           {/* Stays Login */}
           <Route path="/stays/login" element={<StaysLogin />} />
+          <Route path="/stays/forgot-password" element={<ForgotPassword />} />
+          <Route path="/stays/reset-password" element={<ResetPassword />} />
           
           {/* Stays Setup Flow */}
           <Route path="/stays/setup/contract" element={<ContractStep />} />

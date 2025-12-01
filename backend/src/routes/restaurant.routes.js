@@ -66,13 +66,10 @@ router.post('/check-user', async (req, res) => {
 
 
 // Configure multer for file uploads
+const { RESTAURANTS } = require('../config/uploads.config');
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../../uploads/restaurants');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
+    cb(null, RESTAURANTS);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);

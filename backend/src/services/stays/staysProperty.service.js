@@ -87,11 +87,34 @@ class StaysPropertyService {
             };
 
             // Ensure location_data is always populated
-            let finalLocationData = defaultLocationData;
-            if (data.locationData && typeof data.locationData === 'object' && Object.keys(data.locationData).length > 0) {
-                finalLocationData = data.locationData;
-            } else if (data.location && data.location.trim()) {
-                // If location string exists but no locationData, create a basic location_data from the string
+            let finalLocationData = null;
+            
+            // First, try to use provided locationData
+            if (data.locationData) {
+                try {
+                    // If it's a string, try to parse it
+                    if (typeof data.locationData === 'string') {
+                        finalLocationData = JSON.parse(data.locationData);
+                    } else if (typeof data.locationData === 'object') {
+                        finalLocationData = data.locationData;
+                    }
+                    
+                    // Validate that we have meaningful data (at least a name or formatted_address)
+                    if (finalLocationData && (finalLocationData.name || finalLocationData.formatted_address)) {
+                        console.log('✅ Using provided locationData:', finalLocationData.name || finalLocationData.formatted_address);
+                    } else {
+                        console.log('⚠️ locationData provided but invalid, will use location string or default');
+                        finalLocationData = null;
+                    }
+                } catch (parseError) {
+                    console.error('Error parsing locationData:', parseError);
+                    finalLocationData = null;
+                }
+            }
+            
+            // If no valid locationData, try to create from location string
+            if (!finalLocationData && data.location && data.location.trim()) {
+                console.log('📍 Creating locationData from location string:', data.location);
                 finalLocationData = {
                     name: data.location.trim(),
                     formatted_address: data.location.trim(),
@@ -100,6 +123,12 @@ class StaysPropertyService {
                     lng: 30.0619,
                     address_components: []
                 };
+            }
+            
+            // Only use default if we have nothing else
+            if (!finalLocationData) {
+                console.log('⚠️ Using default location data');
+                finalLocationData = defaultLocationData;
             }
 
             const property = new StaysProperty({

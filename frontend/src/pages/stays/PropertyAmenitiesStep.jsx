@@ -430,34 +430,34 @@ export default function PropertyAmenitiesStep() {
                   <Wifi className="h-5 w-5" style={{ color: '#3CAF54' }} />
                   Internet
                 </h2>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Do you offer internet?
-                  </label>
-                  <div className="flex gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, offerInternet: 'yes' }))}
-                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                        formData.offerInternet === 'yes'
-                          ? 'bg-[#3CAF54] text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      Yes
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, offerInternet: 'no' }))}
-                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                        formData.offerInternet === 'no'
-                          ? 'bg-[#3CAF54] text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      No
-                    </button>
-                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Do you offer internet?
+                    </label>
+                    <div className="flex gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, offerInternet: 'yes' }))}
+                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                          formData.offerInternet === 'yes'
+                            ? 'bg-[#3CAF54] text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, offerInternet: 'no' }))}
+                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                          formData.offerInternet === 'no'
+                            ? 'bg-[#3CAF54] text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        No
+                      </button>
+                    </div>
                 </div>
               </div>
 

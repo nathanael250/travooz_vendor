@@ -207,3 +207,53 @@ CREATE TABLE IF NOT EXISTS tours_setup_progress (
 -- ============================================
 SELECT 'Tour package database setup completed successfully!' AS message;
 
+
+
+
+
+
+
+
+
+
+
+
+
+-- Fix: Add tour_type_ids and tour_type_names columns if they don't exist
+-- This is safe to run multiple times
+
+-- Check and add tour_type_ids column
+SET @dbname = DATABASE();
+SET @tablename = 'tours_businesses';
+SET @columnname = 'tour_type_ids';
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE
+      (TABLE_SCHEMA = @dbname)
+      AND (TABLE_NAME = @tablename)
+      AND (COLUMN_NAME = @columnname)
+  ) > 0,
+  'SELECT 1', -- Column exists, do nothing
+  CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' JSON DEFAULT NULL AFTER tour_type_name')
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+-- Check and add tour_type_names column
+SET @columnname = 'tour_type_names';
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE
+      (TABLE_SCHEMA = @dbname)
+      AND (TABLE_NAME = @tablename)
+      AND (COLUMN_NAME = @columnname)
+  ) > 0,
+  'SELECT 1', -- Column exists, do nothing
+  CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' JSON DEFAULT NULL AFTER tour_type_ids')
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;

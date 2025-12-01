@@ -11,7 +11,8 @@ const router = express.Router();
 const BASE64_IMAGE_REGEX = /^data:(image\/[a-zA-Z0-9.+-]+);base64,/;
 
 // Restaurant images upload directory
-const RESTAURANT_UPLOAD_DIR = path.join(__dirname, '../../uploads/restaurants');
+const { RESTAURANTS, MENU_ITEMS } = require('../config/uploads.config');
+const RESTAURANT_UPLOAD_DIR = RESTAURANTS;
 
 // Ensure directory exists
 const ensureDirectoryExists = (dirPath) => {
@@ -226,7 +227,7 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     const imageIds = [];
-    const uploadDir = entityType === 'restaurant' ? RESTAURANT_UPLOAD_DIR : path.join(__dirname, '../../uploads/menu-items');
+    const uploadDir = entityType === 'restaurant' ? RESTAURANT_UPLOAD_DIR : MENU_ITEMS;
     
     // Process only new images (base64 or URLs that don't exist yet)
     for (let i = 0; i < newImages.length; i++) {

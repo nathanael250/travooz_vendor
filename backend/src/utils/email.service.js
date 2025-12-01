@@ -313,6 +313,76 @@ Once you update the requested information, please resubmit your application.
             text
         });
     }
+
+    /**
+     * Send password reset email
+     * @param {Object} params
+     * @param {string} params.email - Recipient email
+     * @param {string} params.name - User name
+     * @param {string} params.resetToken - Password reset token
+     * @param {string} params.resetUrl - Full URL to reset password page
+     */
+    static async sendPasswordResetEmail({
+        email,
+        name = 'there',
+        resetToken,
+        resetUrl
+    }) {
+        const safeResetUrl = resetUrl || `https://vendor.travooz.rw/stays/reset-password?token=${resetToken}`;
+        
+        const html = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background-color: #3CAF54; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+                    <h1 style="color: white; margin: 0;">Travooz</h1>
+                </div>
+                <div style="background-color: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+                    <h2 style="color: #1f2937; margin-top: 0;">Reset Your Password</h2>
+                    <p style="color: #4b5563; font-size: 16px;">Hi ${name || 'there'},</p>
+                    <p style="color: #4b5563; font-size: 16px;">
+                        We received a request to reset your password for your Travooz vendor account. Click the button below to reset your password:
+                    </p>
+                    <div style="margin: 30px 0; text-align: center;">
+                        <a href="${safeResetUrl}" style="display:inline-block;background-color:#3CAF54;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:16px;font-weight:bold;">
+                            Reset Password
+                        </a>
+                    </div>
+                    <p style="color: #4b5563; font-size: 14px;">
+                        Or copy and paste this link into your browser:
+                    </p>
+                    <p style="color: #3CAF54; font-size: 14px; word-break: break-all;">
+                        ${safeResetUrl}
+                    </p>
+                    <p style="color: #9ca3af; font-size: 14px; margin-top: 30px;">
+                        This link will expire in 1 hour. If you didn't request a password reset, please ignore this email and your password will remain unchanged.
+                    </p>
+                </div>
+                <div style="background-color: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; text-align: center; border: 1px solid #e5e7eb; border-top: none;">
+                    <p style="color: #6b7280; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} Travooz. All rights reserved.</p>
+                </div>
+            </div>
+        `;
+
+        const text = `
+Reset Your Password
+
+Hi ${name || 'there'},
+
+We received a request to reset your password for your Travooz vendor account. Use the link below to reset your password:
+
+${safeResetUrl}
+
+This link will expire in 1 hour. If you didn't request a password reset, please ignore this email and your password will remain unchanged.
+
+© ${new Date().getFullYear()} Travooz. All rights reserved.
+        `;
+
+        return await this.sendEmail({
+            to: email,
+            subject: 'Reset Your Travooz Password',
+            html,
+            text
+        });
+    }
 }
 
 module.exports = EmailService;

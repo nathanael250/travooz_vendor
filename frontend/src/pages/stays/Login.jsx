@@ -213,6 +213,17 @@ export default function StaysLogin() {
                 )}
               </button>
 
+              {/* Forgot Password Link */}
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => navigate('/stays/forgot-password')}
+                  className="text-sm text-[#3CAF54] hover:text-[#2d8f42] font-medium hover:underline transition-colors"
+                >
+                  Forgot your password?
+                </button>
+              </div>
+
               {/* Sign Up Link */}
               <div className="text-center">
                 <p className="text-sm text-gray-600">

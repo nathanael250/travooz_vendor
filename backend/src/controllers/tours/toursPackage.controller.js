@@ -2,7 +2,8 @@ const toursPackageService = require('../../services/tours/toursPackage.service')
 const fs = require('fs');
 const path = require('path');
 
-const TOUR_UPLOAD_DIR = path.join(__dirname, '../../uploads/tours/packages');
+const { TOURS_PACKAGES } = require('../../config/uploads.config');
+const TOUR_UPLOAD_DIR = TOURS_PACKAGES;
 
 const ensureUploadDir = () => {
     if (!fs.existsSync(TOUR_UPLOAD_DIR)) {

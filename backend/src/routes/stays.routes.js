@@ -8,19 +8,11 @@ const staysBookingController = require('../controllers/stays/staysBooking.contro
 const { authenticate } = require('../middlewares/auth.middleware');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
-
-const ensureUploadDir = (relativePath) => {
-    const uploadDir = path.join(__dirname, '../../uploads', relativePath);
-    if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    return uploadDir;
-};
+const { getUploadPath } = require('../config/uploads.config');
 
 const storageFactory = (subFolder) => multer.diskStorage({
     destination: (req, file, cb) => {
-        const dir = ensureUploadDir(subFolder);
+        const dir = getUploadPath(subFolder);
         cb(null, dir);
     },
     filename: (req, file, cb) => {
@@ -42,6 +34,8 @@ const roomImageUpload = multer({
 // Auth routes (no authentication required)
 router.post('/auth/login', staysAuthController.login);
 router.get('/auth/profile', authenticate, staysAuthController.getProfile);
+router.post('/auth/forgot-password', staysAuthController.requestPasswordReset);
+router.post('/auth/reset-password', staysAuthController.resetPassword);
 
 // Property routes
 router.post('/properties', staysPropertyController.createProperty);

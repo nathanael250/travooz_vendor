@@ -11,13 +11,10 @@ const bookingsController = require('../controllers/carRental/bookings.controller
 const { authenticate } = require('../middlewares/auth.middleware');
 
 // Configure multer for car image uploads
+const { CARS } = require('../config/uploads.config');
 const carImageStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../../uploads/cars');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
+    destination: (req, file, cb) => {
+    cb(null, CARS);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);

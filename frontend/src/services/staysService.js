@@ -96,6 +96,45 @@ export const staysAuthService = {
   },
 
   /**
+   * Request password reset
+   */
+  async requestPasswordReset(email) {
+    try {
+      const response = await staysApiClient.post('/stays/auth/forgot-password', {
+        email,
+      });
+
+      if (response.data.success) {
+        return response.data;
+      } else {
+        throw new Error(response.data.message || 'Failed to request password reset');
+      }
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Reset password with token
+   */
+  async resetPassword(token, password) {
+    try {
+      const response = await staysApiClient.post('/stays/auth/reset-password', {
+        token,
+        password,
+      });
+
+      if (response.data.success) {
+        return response.data;
+      } else {
+        throw new Error(response.data.message || 'Failed to reset password');
+      }
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
    * Logout user
    */
   logout() {

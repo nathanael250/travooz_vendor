@@ -79,6 +79,100 @@ class AuthService {
             throw error;
         }
     }
+
+    /**
+     * Request password reset
+     * @param {string} email - User email
+     * @returns {Promise<Object>} - Reset token and user data
+     */
+    static async requestPasswordReset(email) {
+        try {
+            // Find user by email
+            const users = await executeQuery(
+                `SELECT * FROM stays_users WHERE email = ? AND is_active = 1`,
+                [email]
+            );
+
+            // Don't reveal if email exists or not (security best practice)
+            if (users.length === 0) {
+                return { message: 'If the email exists, a reset link has been sent' };
+            }
+
+            const user = users[0];
+
+            // Generate reset token
+            const resetToken = AuthUtils.generateResetToken();
+            const resetExpires = new Date();
+            resetExpires.setHours(resetExpires.getHours() + 1); // 1 hour expiry
+
+            // Update user with reset token
+            await executeQuery(
+                `UPDATE stays_users 
+                 SET password_reset_token = ?, password_reset_expires = ? 
+                 WHERE user_id = ?`,
+                [resetToken, resetExpires, user.user_id]
+            );
+
+            return {
+                resetToken,
+                user: {
+                    user_id: user.user_id,
+                    email: user.email,
+                    name: user.name
+                }
+            };
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    /**
+     * Reset password using token
+     * @param {string} token - Reset token
+     * @param {string} newPassword - New password
+     * @returns {Promise<Object>} - Success message
+     */
+    static async resetPassword(token, newPassword) {
+        try {
+            // Find user by reset token
+            const users = await executeQuery(
+                `SELECT * FROM stays_users 
+                 WHERE password_reset_token = ? 
+                 AND password_reset_expires > NOW() 
+                 AND is_active = 1`,
+                [token]
+            );
+
+            if (users.length === 0) {
+                throw new Error('Invalid or expired reset token');
+            }
+
+            const user = users[0];
+
+            // Hash new password
+            const hashedPassword = await AuthUtils.hashPassword(newPassword);
+
+            // Update password and clear reset token
+            await executeQuery(
+                `UPDATE stays_users 
+                 SET password_hash = ?, 
+                     password_reset_token = NULL, 
+                     password_reset_expires = NULL 
+                 WHERE user_id = ?`,
+                [hashedPassword, user.user_id]
+            );
+
+            return {
+                message: 'Password reset successfully',
+                user: {
+                    user_id: user.user_id,
+                    email: user.email
+                }
+            };
+        } catch (error) {
+            throw error;
+        }
+    }
 }
 
 module.exports = AuthService;

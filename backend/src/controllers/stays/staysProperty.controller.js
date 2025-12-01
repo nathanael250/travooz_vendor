@@ -30,8 +30,9 @@ const cleanupUploadedFiles = (files = []) => {
     });
 };
 
-const PROPERTY_UPLOAD_DIR = path.join(__dirname, '../../uploads/stays/property-images');
-const ROOM_UPLOAD_DIR = path.join(__dirname, '../../uploads/stays/room-images');
+const { STAYS_PROPERTY_IMAGES, STAYS_ROOM_IMAGES } = require('../../config/uploads.config');
+const PROPERTY_UPLOAD_DIR = STAYS_PROPERTY_IMAGES;
+const ROOM_UPLOAD_DIR = STAYS_ROOM_IMAGES;
 const BASE64_IMAGE_REGEX = /^data:(image\/[a-zA-Z0-9.+-]+);base64,/;
 
 const ensureDirectoryExists = (dirPath) => {

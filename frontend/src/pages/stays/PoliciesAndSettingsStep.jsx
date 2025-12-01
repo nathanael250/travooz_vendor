@@ -197,16 +197,16 @@ export default function PoliciesAndSettingsStep() {
                     { key: 'kinyarwanda', label: 'Kinyarwanda' }
                   ].map((lang) => (
                     <label key={lang.key} className="flex items-center gap-2 cursor-pointer">
-                      <input
+                    <input
                         type="checkbox"
                         name={`languages.${lang.key}`}
                         checked={formData.languages[lang.key]}
                         onChange={handleChange}
                         className="w-5 h-5 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                      />
+                    />
                       <span className="text-sm font-medium text-gray-700">{lang.label}</span>
                     </label>
-                  ))}
+                        ))}
                 </div>
               </div>
 
@@ -228,37 +228,37 @@ export default function PoliciesAndSettingsStep() {
                   </label>
 
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
+                            <input
+                              type="checkbox"
                       name="acceptTravoozCard"
                       checked={formData.acceptTravoozCard}
-                      onChange={handleChange}
+                              onChange={handleChange}
                       className="w-5 h-5 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                    />
+                            />
                     <span className="text-sm font-medium text-gray-700">Travooz Convenience Card</span>
-                  </label>
+                          </label>
 
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
                       name="acceptMobileMoney"
                       checked={formData.acceptMobileMoney}
-                      onChange={handleChange}
+                          onChange={handleChange}
                       className="w-5 h-5 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                    />
+                        />
                     <span className="text-sm font-medium text-gray-700">Mobile Money</span>
-                  </label>
+                      </label>
 
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
                       name="acceptAirtelMoney"
                       checked={formData.acceptAirtelMoney}
-                      onChange={handleChange}
+                          onChange={handleChange}
                       className="w-5 h-5 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                    />
+                        />
                     <span className="text-sm font-medium text-gray-700">Airtel Money</span>
-                  </label>
+                      </label>
                 </div>
               </div>
 
@@ -267,29 +267,29 @@ export default function PoliciesAndSettingsStep() {
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">
                   Do you require any deposits?
                 </h2>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="requireDeposits"
-                      value="yes"
-                      checked={formData.requireDeposits === 'yes'}
-                      onChange={handleChange}
-                      className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                    />
-                    <span className="text-sm font-medium text-gray-700">Yes</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="requireDeposits"
-                      value="no"
-                      checked={formData.requireDeposits === 'no'}
-                      onChange={handleChange}
-                      className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                    />
-                    <span className="text-sm font-medium text-gray-700">No</span>
-                  </label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="requireDeposits"
+                        value="yes"
+                        checked={formData.requireDeposits === 'yes'}
+                        onChange={handleChange}
+                        className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
+                      />
+                      <span className="text-sm font-medium text-gray-700">Yes</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="requireDeposits"
+                        value="no"
+                        checked={formData.requireDeposits === 'no'}
+                        onChange={handleChange}
+                        className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
+                      />
+                      <span className="text-sm font-medium text-gray-700">No</span>
+                    </label>
                 </div>
               </div>
 

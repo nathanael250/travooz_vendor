@@ -23,6 +23,12 @@ class AuthUtils {
     static verifyToken(token) {
         return jwt.verify(token, process.env.JWT_SECRET || 'stays-secret-key-change-in-production');
     }
+
+    // Generate random token for password reset
+    static generateResetToken() {
+        const crypto = require('crypto');
+        return crypto.randomBytes(32).toString('hex');
+    }
 }
 
 module.exports = AuthUtils;

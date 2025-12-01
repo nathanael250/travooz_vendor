@@ -116,25 +116,25 @@ class PropertySetupService {
                 // If column doesn't exist, fallback to using accept_cash only
                 if (error.message && error.message.includes('Unknown column')) {
                     console.log(`[savePolicies] other_payment_types column not found, using accept_cash only`);
-                    if (existing.length > 0) {
-                        await executeQuery(
-                            `UPDATE stays_property_policies SET
-                                languages = ?, accept_cash = ?, accept_credit_debit_cards = ?,
-                                card_types = ?, installments_at_front_desk = ?,
-                                require_deposits = ?, deposit_types = ?, incidentals_payment_form = ?,
-                                property_time_zone = ?, cancellation_window = ?, cancellation_fee = ?,
-                                cut_off_time = ?, vat_percentage = ?, tourism_tax_percentage = ?,
-                                taxes_included_in_rate = ?, request_tax_team_assistance = ?,
-                                billing_currency = ?, updated_at = NOW()
-                            WHERE property_id = ?`,
-                            [
-                                languagesJson,
+            if (existing.length > 0) {
+                await executeQuery(
+                    `UPDATE stays_property_policies SET
+                        languages = ?, accept_cash = ?, accept_credit_debit_cards = ?,
+                        card_types = ?, installments_at_front_desk = ?,
+                        require_deposits = ?, deposit_types = ?, incidentals_payment_form = ?,
+                        property_time_zone = ?, cancellation_window = ?, cancellation_fee = ?,
+                        cut_off_time = ?, vat_percentage = ?, tourism_tax_percentage = ?,
+                        taxes_included_in_rate = ?, request_tax_team_assistance = ?,
+                        billing_currency = ?, updated_at = NOW()
+                    WHERE property_id = ?`,
+                    [
+                        languagesJson,
                                 nullIfUndefined(policiesData.acceptOtherPayment) ? 1 : 0,
                                 nullIfUndefined(policiesData.acceptCreditDebitCards) ? 1 : 0,
-                                cardTypesJson,
+                        cardTypesJson,
                                 nullIfUndefined(policiesData.installmentsAtFrontDesk) ? 1 : 0,
                                 nullIfUndefined(policiesData.requireDeposits) || 'no',
-                                depositTypesJson,
+                        depositTypesJson,
                                 nullIfUndefined(policiesData.incidentalsPaymentForm) || 'cash_only',
                                 null,
                                 nullIfUndefined(policiesData.cancellationWindow) || '24_hour',
@@ -145,28 +145,28 @@ class PropertySetupService {
                                 nullIfUndefined(policiesData.taxesIncludedInRate) ? 1 : 0,
                                 nullIfUndefined(policiesData.requestTaxTeamAssistance) ? 1 : 0,
                                 null,
-                                propertyIdInt
-                            ]
-                        );
-                    } else {
-                        await executeQuery(
-                            `INSERT INTO stays_property_policies (
-                                property_id, languages, accept_cash, accept_credit_debit_cards,
-                                card_types, installments_at_front_desk, require_deposits,
-                                deposit_types, incidentals_payment_form, property_time_zone,
-                                cancellation_window, cancellation_fee, cut_off_time,
-                                vat_percentage, tourism_tax_percentage, taxes_included_in_rate,
-                                request_tax_team_assistance, billing_currency
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                            [
-                                propertyIdInt,
-                                languagesJson,
+                        propertyIdInt
+                    ]
+                );
+            } else {
+                await executeQuery(
+                    `INSERT INTO stays_property_policies (
+                        property_id, languages, accept_cash, accept_credit_debit_cards,
+                        card_types, installments_at_front_desk, require_deposits,
+                        deposit_types, incidentals_payment_form, property_time_zone,
+                        cancellation_window, cancellation_fee, cut_off_time,
+                        vat_percentage, tourism_tax_percentage, taxes_included_in_rate,
+                        request_tax_team_assistance, billing_currency
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        propertyIdInt,
+                        languagesJson,
                                 nullIfUndefined(policiesData.acceptOtherPayment) ? 1 : 0,
                                 nullIfUndefined(policiesData.acceptCreditDebitCards) ? 1 : 0,
-                                cardTypesJson,
+                        cardTypesJson,
                                 nullIfUndefined(policiesData.installmentsAtFrontDesk) ? 1 : 0,
                                 nullIfUndefined(policiesData.requireDeposits) || 'no',
-                                depositTypesJson,
+                        depositTypesJson,
                                 nullIfUndefined(policiesData.incidentalsPaymentForm) || 'cash_only',
                                 null,
                                 nullIfUndefined(policiesData.cancellationWindow) || '24_hour',
@@ -177,8 +177,8 @@ class PropertySetupService {
                                 nullIfUndefined(policiesData.taxesIncludedInRate) ? 1 : 0,
                                 nullIfUndefined(policiesData.requestTaxTeamAssistance) ? 1 : 0,
                                 null
-                            ]
-                        );
+                    ]
+                );
                     }
                 } else {
                     throw error;

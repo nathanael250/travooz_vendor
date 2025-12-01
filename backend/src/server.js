@@ -74,8 +74,9 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Serve static files from uploads directory with CORS headers
-const uploadsPath = path.join(__dirname, '../uploads');
-const absoluteUploadsPath = path.resolve(uploadsPath);
+// Use external uploads directory (outside project folder)
+const { UPLOADS_BASE_PATH } = require('./config/uploads.config');
+const absoluteUploadsPath = UPLOADS_BASE_PATH;
 
 // Log uploads path for debugging
 console.log('📁 Uploads directory path:', absoluteUploadsPath);
@@ -84,7 +85,12 @@ console.log('📁 Uploads directory exists:', fs.existsSync(absoluteUploadsPath)
 // Ensure uploads directory exists
 if (!fs.existsSync(absoluteUploadsPath)) {
   console.warn('⚠️  Uploads directory does not exist, creating it...');
-  fs.mkdirSync(absoluteUploadsPath, { recursive: true });
+  try {
+    fs.mkdirSync(absoluteUploadsPath, { recursive: true });
+    console.log('✅ Created uploads directory:', absoluteUploadsPath);
+  } catch (error) {
+    console.error('❌ Failed to create uploads directory:', error);
+  }
 }
 
 app.use('/uploads', (req, res, next) => {

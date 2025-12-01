@@ -207,112 +207,112 @@ export default function RoomsAndRatesStep() {
               <div className="space-y-4">
                 {finishedRooms.map((room, index) => (
                   <div key={room.id || index} className="border rounded-lg p-4 md:p-6 relative" style={{ borderColor: '#dcfce7' }}>
-                    {/* Room Count Badge */}
-                    {room.numberOfRooms && (
+                        {/* Room Count Badge */}
+                        {room.numberOfRooms && (
                       <div className="absolute top-2 right-2 md:top-4 md:right-4 px-2 md:px-3 py-1 bg-gray-800 text-white text-xs font-semibold rounded">
-                        {room.numberOfRooms} {room.numberOfRooms === 1 ? 'room' : 'rooms'}
-                      </div>
-                    )}
-                    
+                            {room.numberOfRooms} {room.numberOfRooms === 1 ? 'room' : 'rooms'}
+                          </div>
+                        )}
+                        
                     <div className="pr-16 md:pr-24">
                       <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-2 md:mb-3">
-                        {room.roomName || 'Room'}
-                      </h3>
-                      
+                            {room.roomName || 'Room'}
+                          </h3>
+                          
                       <div className="space-y-2 md:space-y-3">
                         <p className="text-xs md:text-sm text-gray-600">
-                          {getRoomFeatures(room)}
-                        </p>
-                        
+                              {getRoomFeatures(room)}
+                            </p>
+                            
                         <p className="text-xs md:text-sm text-gray-600">
-                          {formatBeds(room.numberOfBeds || room.beds)}
-                        </p>
-                        
+                              {formatBeds(room.numberOfBeds || room.beds)}
+                            </p>
+                            
                         <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                           <span className="text-xs md:text-sm font-medium text-gray-700">Base rate:</span>
                           <span className="text-base md:text-lg font-semibold text-gray-900">
                             RWF {room.baseRate?.toLocaleString() || '0'}
-                          </span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                    <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+                          <button
+                            type="button"
+                            onClick={() => handleCopyRoom(room)}
+                        className="flex-1 sm:flex-none px-4 py-2 border-2 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 text-sm"
+                            style={{ borderColor: '#d1d5db' }}
+                          >
+                            <Copy className="h-4 w-4" />
+                            <span>Copy room</span>
+                          </button>
+                          
+                      <div className="relative flex-1 sm:flex-none">
+                            <button
+                              type="button"
+                              onClick={() => setShowMoreActions(showMoreActions === room.id ? null : room.id)}
+                          className="w-full sm:w-auto px-4 py-2 border-2 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 text-sm"
+                              style={{ borderColor: '#d1d5db' }}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                              <span>More actions</span>
+                            </button>
+                            
+                            {showMoreActions === room.id && (
+                          <div className="absolute top-full right-0 sm:left-0 mt-2 bg-white border rounded-lg shadow-lg z-10 min-w-[200px]">
+                                <button
+                                  type="button"
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                  onClick={() => {
+                                    // Edit room functionality
+                                    // Get propertyId from state or localStorage
+                                    const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
+                                    
+                                    navigate('/stays/setup/room-setup', {
+                                      state: {
+                                        ...location.state,
+                                        propertyId: propertyId > 0 ? propertyId : location.state?.propertyId,
+                                        roomData: room,
+                                        roomSetupStep: 1
+                                      }
+                                    });
+                                  }}
+                                >
+                                  Edit room
+                                </button>
+                                <button
+                                  type="button"
+                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                                  onClick={() => {
+                                    const updatedRooms = rooms.filter(r => r.id !== room.id);
+                                    setRooms(updatedRooms);
+                                    localStorage.setItem('stays_rooms', JSON.stringify(updatedRooms));
+                                    setShowMoreActions(null);
+                                  }}
+                                >
+                                  Delete room
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-                      <button
-                        type="button"
-                        onClick={() => handleCopyRoom(room)}
-                        className="flex-1 sm:flex-none px-4 py-2 border-2 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 text-sm"
-                        style={{ borderColor: '#d1d5db' }}
-                      >
-                        <Copy className="h-4 w-4" />
-                        <span>Copy room</span>
-                      </button>
-                      
-                      <div className="relative flex-1 sm:flex-none">
-                        <button
-                          type="button"
-                          onClick={() => setShowMoreActions(showMoreActions === room.id ? null : room.id)}
-                          className="w-full sm:w-auto px-4 py-2 border-2 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 text-sm"
-                          style={{ borderColor: '#d1d5db' }}
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                          <span>More actions</span>
-                        </button>
-                        
-                        {showMoreActions === room.id && (
-                          <div className="absolute top-full right-0 sm:left-0 mt-2 bg-white border rounded-lg shadow-lg z-10 min-w-[200px]">
-                            <button
-                              type="button"
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                              onClick={() => {
-                                // Edit room functionality
-                                // Get propertyId from state or localStorage
-                                const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
-                                
-                                navigate('/stays/setup/room-setup', {
-                                  state: {
-                                    ...location.state,
-                                    propertyId: propertyId > 0 ? propertyId : location.state?.propertyId,
-                                    roomData: room,
-                                    roomSetupStep: 1
-                                  }
-                                });
-                              }}
-                            >
-                              Edit room
-                            </button>
-                            <button
-                              type="button"
-                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                              onClick={() => {
-                                const updatedRooms = rooms.filter(r => r.id !== room.id);
-                                setRooms(updatedRooms);
-                                localStorage.setItem('stays_rooms', JSON.stringify(updatedRooms));
-                                setShowMoreActions(null);
-                              }}
-                            >
-                              Delete room
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
                 ))}
                 
                 {/* Add Room Button */}
-                <button
-                  type="button"
-                  onClick={handleAddRoomType}
-                  className="w-full border-2 border-dashed rounded-lg p-6 text-center hover:bg-gray-50 transition-colors"
-                  style={{ borderColor: '#3CAF54' }}
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    <Plus className="h-5 w-5" style={{ color: '#3CAF54' }} />
-                    <span className="font-medium" style={{ color: '#3CAF54' }}>Add room type</span>
-                  </div>
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleAddRoomType}
+                    className="w-full border-2 border-dashed rounded-lg p-6 text-center hover:bg-gray-50 transition-colors"
+                    style={{ borderColor: '#3CAF54' }}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <Plus className="h-5 w-5" style={{ color: '#3CAF54' }} />
+                      <span className="font-medium" style={{ color: '#3CAF54' }}>Add room type</span>
+                    </div>
+                  </button>
               </div>
             )}
 

@@ -18,13 +18,10 @@ const toursReviewController = require('../controllers/tours/toursReview.controll
 const { authenticate } = require('../middlewares/auth.middleware');
 
 // Configure multer for file uploads
+const { TOURS } = require('../config/uploads.config');
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../../uploads/tours');
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
+        cb(null, TOURS);
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -57,13 +54,10 @@ const upload = multer({
 });
 
 // Configure multer for tour package photo uploads
+const { TOURS_PACKAGES } = require('../config/uploads.config');
 const tourPackagePhotoStorage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../../uploads/tours/packages');
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
+        cb(null, TOURS_PACKAGES);
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);

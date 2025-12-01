@@ -358,8 +358,8 @@ export default function ImageManagementStep() {
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <Home className="h-5 w-5 text-[#3CAF54]" />
-                  <h2 className="text-xl font-semibold text-gray-900">Property Images</h2>
+                <Home className="h-5 w-5 text-[#3CAF54]" />
+                <h2 className="text-xl font-semibold text-gray-900">Property Images</h2>
                 </div>
                 <div className="text-sm text-gray-600">
                   <span className={propertyImages.length < 4 ? 'text-red-600 font-medium' : propertyImages.length >= 15 ? 'text-gray-500' : 'text-gray-600'}>
@@ -403,14 +403,14 @@ export default function ImageManagementStep() {
                     ) : propertyImages.length >= 15 ? (
                       <ImageIcon className="h-8 w-8 mb-2 text-gray-400" />
                     ) : (
-                      <Upload className="h-8 w-8 mb-2 text-gray-500" />
+                    <Upload className="h-8 w-8 mb-2 text-gray-500" />
                     )}
                     <p className="text-sm text-gray-600 mb-1">
                       {uploadingProperty ? 'Uploading images...' : propertyImages.length >= 15 ? (
                         'Maximum 15 images reached'
                       ) : (
                         <>
-                          <span className="font-semibold">Click to upload</span> or drag and drop
+                      <span className="font-semibold">Click to upload</span> or drag and drop
                         </>
                       )}
                     </p>
@@ -450,7 +450,7 @@ export default function ImageManagementStep() {
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-semibold text-gray-900">
                           {getRoomName(room)}
-                        </h3>
+                      </h3>
                         <div className="text-sm text-gray-600">
                           <span className={roomImagesList.length < 4 ? 'text-red-600 font-medium' : roomImagesList.length >= 10 ? 'text-gray-500' : 'text-gray-600'}>
                             {roomImagesList.length} / 10
@@ -493,14 +493,14 @@ export default function ImageManagementStep() {
                               ) : isMaxReached ? (
                                 <ImageIcon className="h-8 w-8 mb-2 text-gray-400" />
                               ) : (
-                                <Upload className="h-8 w-8 mb-2 text-gray-500" />
+                            <Upload className="h-8 w-8 mb-2 text-gray-500" />
                               )}
                             <p className="text-sm text-gray-600 mb-1">
                                 {isUploading ? 'Uploading images...' : isMaxReached ? (
                                   'Maximum 10 images reached'
                                 ) : (
                                   <>
-                                    <span className="font-semibold">Click to upload</span> or drag and drop
+                              <span className="font-semibold">Click to upload</span> or drag and drop
                                   </>
                                 )}
                             </p>
