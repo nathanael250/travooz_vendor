@@ -231,7 +231,6 @@ class ToursBusinessService {
                 phone: userPhone || data.phone,
                 country_code: normalizedCountryCode || '+250',
                 currency: data.currency || 'RWF',
-                initial_password: password || null,
                 status: 'draft'
             });
 

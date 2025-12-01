@@ -675,7 +675,6 @@ class AdminAccountsService {
                 tb.tour_type_ids,
                 tb.tour_type_names,
                 tb.currency,
-                tb.initial_password,
                 tb.phone AS business_phone,
                 tb.country_code,
                 tb.status AS business_status,
@@ -760,8 +759,7 @@ class AdminAccountsService {
                 name: row.user_name,
                 email: row.user_email,
                 phone: row.user_phone,
-                passwordHash: row.password_hash,
-                passwordPlaintext: row.initial_password
+                passwordHash: row.password_hash
             },
             owner: {
                 firstName: row.owner_first_name,

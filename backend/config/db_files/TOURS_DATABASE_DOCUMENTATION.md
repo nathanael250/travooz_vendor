@@ -38,7 +38,6 @@ Main tour business listing table. Created in **Step 1** (Location + Basic Info +
 - `tour_type_ids`: JSON array of all selected tour type/subcategory IDs
 - `tour_type_names`: JSON array of all selected tour type names
 - `subcategory_id`: Subcategory reference
-- `initial_password`: Plaintext password captured during onboarding (admin-only reference – handle securely)
 - `description`: Business description
 - `phone`: Contact phone number
 - `country_code`: Phone country code (default: '+250')

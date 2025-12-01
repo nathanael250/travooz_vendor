@@ -43,7 +43,6 @@ class ToursBusiness {
         this.phone = data.phone || null;
         this.country_code = data.country_code || '+250';
         this.currency = data.currency || 'RWF';
-        this.initial_password = data.initial_password || null;
         this.status = data.status || 'draft';
         this.is_live = data.is_live || 0;
         this.setup_complete = data.setup_complete || 0;
@@ -66,8 +65,8 @@ class ToursBusiness {
                 `INSERT INTO tours_businesses (
                     user_id, location, location_data, tour_business_name, tour_type,
                     tour_type_name, tour_type_ids, tour_type_names, subcategory_id, description,
-                    phone, country_code, currency, initial_password, status, is_live, setup_complete
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    phone, country_code, currency, status, is_live, setup_complete
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     this.user_id,
                     this.location,
@@ -82,7 +81,6 @@ class ToursBusiness {
                     this.phone,
                     this.country_code,
                     this.currency,
-                    this.initial_password,
                     this.status,
                     this.is_live,
                     this.setup_complete
@@ -110,7 +108,7 @@ class ToursBusiness {
                     location = ?, location_data = ?, tour_business_name = ?,
                     tour_type = ?, tour_type_name = ?, tour_type_ids = ?, tour_type_names = ?,
                     subcategory_id = ?, description = ?, phone = ?, country_code = ?,
-                    currency = ?, initial_password = ?, status = ?, is_live = ?, setup_complete = ?
+                    currency = ?, status = ?, is_live = ?, setup_complete = ?
                 WHERE tour_business_id = ?`,
                 [
                     this.location,
@@ -125,7 +123,6 @@ class ToursBusiness {
                     this.phone,
                     this.country_code,
                     this.currency,
-                    this.initial_password,
                     this.status,
                     this.is_live,
                     this.setup_complete,

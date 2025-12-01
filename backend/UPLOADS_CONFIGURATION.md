@@ -124,3 +124,4 @@ The following files have been updated to use the external uploads directory:
 - `src/controllers/stays/staysProperty.controller.js` - Property image handling
 - `src/controllers/tours/toursPackage.controller.js` - Tour package images
 
+
