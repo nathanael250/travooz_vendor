@@ -1,5 +1,7 @@
 const { executeQuery } = require('../../../config/database');
 const ToursApprovalNotificationService = require('../tours/toursApprovalNotification.service');
+const RestaurantApprovalNotificationService = require('../restaurant/restaurantApprovalNotification.service');
+const CarRentalApprovalNotificationService = require('../carRental/carRentalApprovalNotification.service');
 
 const getStatusList = (status) => {
     if (!status || status === 'all') return null;
@@ -322,9 +324,9 @@ class AdminAccountsService {
                     // Update car rental setup submissions (if exists)
                     await executeQuery(
                         `UPDATE car_rental_setup_submissions 
-                         SET status = 'approved', updated_at = NOW() 
+                         SET status = 'approved', approved_at = NOW(), approved_by = ?, notes = ?, updated_at = NOW() 
                          WHERE car_rental_business_id = ?`,
-                        [accountId]
+                        [adminId, notes, accountId]
                     ).catch(() => {
                         // Table might not exist or record might not exist, that's okay
                     });
@@ -344,6 +346,30 @@ class AdminAccountsService {
                          WHERE car_rental_business_id = ?`,
                         [accountId]
                     );
+                    
+                    // Fetch car rental business and owner info for notification
+                    const carRentalApprove = await executeQuery(
+                        `SELECT 
+                            crb.car_rental_business_id,
+                            crb.business_name,
+                            cu.email,
+                            cu.name
+                         FROM car_rental_businesses crb
+                         JOIN car_rental_users cu ON crb.user_id = cu.user_id
+                         WHERE crb.car_rental_business_id = ?`,
+                        [accountId]
+                    );
+                    
+                    if (carRentalApprove.length > 0) {
+                        const { business_name, email, name } = carRentalApprove[0];
+                        const dashboardUrl = process.env.CAR_RENTAL_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/car-rental/dashboard';
+                        await CarRentalApprovalNotificationService.sendApprovalEmail({
+                            email,
+                            name,
+                            businessName: business_name,
+                            dashboardUrl
+                        });
+                    }
                     break;
 
                 case 'tours':
@@ -434,6 +460,30 @@ class AdminAccountsService {
                     if (updateResult.affectedRows === 0) {
                         throw new Error(`Restaurant with id ${accountId} not found or already updated`);
                     }
+                    
+                    // Fetch restaurant and owner info for notification
+                    const [restaurantApprove] = await pool.execute(
+                        `SELECT 
+                            r.id,
+                            r.business_name,
+                            ru.email,
+                            ru.name
+                         FROM restaurants r
+                         LEFT JOIN restaurant_users ru ON r.user_id = ru.user_id
+                         WHERE r.id = ?`,
+                        [String(accountId)]
+                    );
+                    
+                    if (restaurantApprove.length > 0) {
+                        const { business_name, email, name } = restaurantApprove[0];
+                        const dashboardUrl = process.env.RESTAURANT_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/restaurant/dashboard';
+                        await RestaurantApprovalNotificationService.sendApprovalEmail({
+                            email,
+                            name,
+                            businessName: business_name,
+                            dashboardUrl
+                        });
+                    }
                     break;
 
                 default:
@@ -462,9 +512,9 @@ class AdminAccountsService {
                     // Update car rental setup submissions (if exists)
                     await executeQuery(
                         `UPDATE car_rental_setup_submissions 
-                         SET status = 'rejected', updated_at = NOW() 
+                         SET status = 'rejected', rejection_reason = ?, notes = ?, updated_at = NOW() 
                          WHERE car_rental_business_id = ?`,
-                        [accountId]
+                        [rejectionReason, notes, accountId]
                     ).catch(() => {
                         // Table might not exist or record might not exist, that's okay
                     });
@@ -484,6 +534,32 @@ class AdminAccountsService {
                          WHERE car_rental_business_id = ?`,
                         [accountId]
                     );
+                    
+                    // Fetch car rental business and owner info for notification
+                    const carRentalReject = await executeQuery(
+                        `SELECT 
+                            crb.car_rental_business_id,
+                            crb.business_name,
+                            cu.email,
+                            cu.name
+                         FROM car_rental_businesses crb
+                         JOIN car_rental_users cu ON crb.user_id = cu.user_id
+                         WHERE crb.car_rental_business_id = ?`,
+                        [accountId]
+                    );
+                    
+                    if (carRentalReject.length > 0) {
+                        const { business_name, email, name } = carRentalReject[0];
+                        const dashboardUrl = process.env.CAR_RENTAL_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/car-rental/dashboard';
+                        await CarRentalApprovalNotificationService.sendRejectionEmail({
+                            email,
+                            name,
+                            businessName: business_name,
+                            reason: rejectionReason || 'Your car rental submission requires updates.',
+                            notes: notes || '',
+                            dashboardUrl
+                        });
+                    }
                     break;
 
                 case 'tours':
@@ -621,12 +697,38 @@ class AdminAccountsService {
                     const { pool: poolReject } = require('../../../config/database');
                     const [rejectResult] = await poolReject.execute(
                         `UPDATE restaurants 
-                         SET status = 'rejected', updated_at = NOW() 
+                         SET status = 'rejected', rejection_reason = ?, updated_at = NOW() 
                          WHERE id = ?`,
-                        [String(accountId)]
+                        [rejectionReason, String(accountId)]
                     );
                     if (rejectResult.affectedRows === 0) {
                         throw new Error(`Restaurant with id ${accountId} not found or already updated`);
+                    }
+                    
+                    // Fetch restaurant and owner info for notification
+                    const [restaurantReject] = await poolReject.execute(
+                        `SELECT 
+                            r.id,
+                            r.business_name,
+                            ru.email,
+                            ru.name
+                         FROM restaurants r
+                         LEFT JOIN restaurant_users ru ON r.user_id = ru.user_id
+                         WHERE r.id = ?`,
+                        [String(accountId)]
+                    );
+                    
+                    if (restaurantReject.length > 0) {
+                        const { business_name, email, name } = restaurantReject[0];
+                        const dashboardUrl = process.env.RESTAURANT_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/restaurant/dashboard';
+                        await RestaurantApprovalNotificationService.sendRejectionEmail({
+                            email,
+                            name,
+                            businessName: business_name,
+                            reason: rejectionReason || 'Your restaurant submission requires updates.',
+                            notes: notes || '',
+                            dashboardUrl
+                        });
                     }
                     break;
 
