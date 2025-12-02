@@ -1,16 +1,12 @@
 import apiClient from './apiClient';
 
-// Create restaurant API client
-const restaurantApiClient = apiClient;
-
-// Restaurant Auth Service
-export const restaurantAuthService = {
+const restaurantAuthService = {
   /**
    * Login user
    */
   async login(email, password) {
     try {
-      const response = await restaurantApiClient.post('/restaurant/auth/login', {
+      const response = await apiClient.post('/restaurant/auth/login', {
         email,
         password,
       });
@@ -19,9 +15,6 @@ export const restaurantAuthService = {
         // Store token and user data
         localStorage.setItem('restaurant_token', response.data.data.token);
         localStorage.setItem('restaurant_user', JSON.stringify(response.data.data.user));
-        if (response.data.data.restaurantId) {
-          localStorage.setItem('restaurant_id', response.data.data.restaurantId);
-        }
         return response.data.data;
       } else {
         throw new Error(response.data.message || 'Login failed');
@@ -36,7 +29,7 @@ export const restaurantAuthService = {
    */
   async getProfile() {
     try {
-      const response = await restaurantApiClient.get('/restaurant/auth/profile');
+      const response = await apiClient.get('/restaurant/auth/profile');
       if (response.data.success) {
         localStorage.setItem('restaurant_user', JSON.stringify(response.data.data));
         return response.data.data;
@@ -52,7 +45,7 @@ export const restaurantAuthService = {
    */
   async requestPasswordReset(email) {
     try {
-      const response = await restaurantApiClient.post('/restaurant/auth/forgot-password', {
+      const response = await apiClient.post('/restaurant/auth/forgot-password', {
         email,
       });
 
@@ -71,7 +64,7 @@ export const restaurantAuthService = {
    */
   async resetPassword(token, password) {
     try {
-      const response = await restaurantApiClient.post('/restaurant/auth/reset-password', {
+      const response = await apiClient.post('/restaurant/auth/reset-password', {
         token,
         password,
       });
@@ -92,7 +85,6 @@ export const restaurantAuthService = {
   logout() {
     localStorage.removeItem('restaurant_token');
     localStorage.removeItem('restaurant_user');
-    localStorage.removeItem('restaurant_id');
   },
 
   /**
@@ -108,11 +100,15 @@ export const restaurantAuthService = {
   getCurrentUser() {
     const userStr = localStorage.getItem('restaurant_user');
     return userStr ? JSON.parse(userStr) : null;
-  }
+  },
+
+  /**
+   * Get authentication token
+   */
+  getToken() {
+    return localStorage.getItem('restaurant_token');
+  },
 };
 
 export default restaurantAuthService;
-
-
-
 

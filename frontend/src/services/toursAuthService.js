@@ -1,16 +1,12 @@
 import apiClient from './apiClient';
 
-// Create tours API client
-const toursApiClient = apiClient;
-
-// Tours Auth Service
-export const toursAuthService = {
+const toursAuthService = {
   /**
    * Login user
    */
   async login(email, password) {
     try {
-      const response = await toursApiClient.post('/tours/auth/login', {
+      const response = await apiClient.post('/tours/auth/login', {
         email,
         password,
       });
@@ -19,9 +15,6 @@ export const toursAuthService = {
         // Store token and user data
         localStorage.setItem('tours_token', response.data.data.token);
         localStorage.setItem('tours_user', JSON.stringify(response.data.data.user));
-        if (response.data.data.tourBusinessId) {
-          localStorage.setItem('tour_business_id', response.data.data.tourBusinessId);
-        }
         return response.data.data;
       } else {
         throw new Error(response.data.message || 'Login failed');
@@ -36,7 +29,7 @@ export const toursAuthService = {
    */
   async getProfile() {
     try {
-      const response = await toursApiClient.get('/tours/auth/profile');
+      const response = await apiClient.get('/tours/auth/profile');
       if (response.data.success) {
         localStorage.setItem('tours_user', JSON.stringify(response.data.data));
         return response.data.data;
@@ -52,7 +45,7 @@ export const toursAuthService = {
    */
   async requestPasswordReset(email) {
     try {
-      const response = await toursApiClient.post('/tours/auth/forgot-password', {
+      const response = await apiClient.post('/tours/auth/forgot-password', {
         email,
       });
 
@@ -71,7 +64,7 @@ export const toursAuthService = {
    */
   async resetPassword(token, password) {
     try {
-      const response = await toursApiClient.post('/tours/auth/reset-password', {
+      const response = await apiClient.post('/tours/auth/reset-password', {
         token,
         password,
       });
@@ -92,7 +85,6 @@ export const toursAuthService = {
   logout() {
     localStorage.removeItem('tours_token');
     localStorage.removeItem('tours_user');
-    localStorage.removeItem('tour_business_id');
   },
 
   /**
@@ -108,11 +100,15 @@ export const toursAuthService = {
   getCurrentUser() {
     const userStr = localStorage.getItem('tours_user');
     return userStr ? JSON.parse(userStr) : null;
-  }
+  },
+
+  /**
+   * Get authentication token
+   */
+  getToken() {
+    return localStorage.getItem('tours_token');
+  },
 };
 
 export default toursAuthService;
-
-
-
 

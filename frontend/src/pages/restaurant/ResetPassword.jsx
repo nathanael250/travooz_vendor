@@ -1,300 +1,185 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Lock, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react';
-import StaysNavbar from '../../components/stays/StaysNavbar';
-import StaysFooter from '../../components/stays/StaysFooter';
-import { restaurantAuthService } from '../../services/restaurantAuthService';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
+import restaurantAuthService from '../../services/restaurantAuthService';
+import logo from '../../assets/images/cdc_logo.jpg';
 
-export default function RestaurantResetPassword() {
+const ResetPassword = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
-
-  // Enable scrolling for this page
-  useEffect(() => {
-    document.body.classList.add('auth-page');
-    return () => {
-      document.body.classList.remove('auth-page');
-    };
-  }, []);
-
-  // Redirect if already logged in
-  useEffect(() => {
-    if (restaurantAuthService.isAuthenticated()) {
-      navigate('/restaurant/dashboard');
-    }
-  }, [navigate]);
-
-  // Redirect if no token
-  useEffect(() => {
-    if (!token) {
-      navigate('/restaurant/forgot-password', { replace: true });
-    }
-  }, [token, navigate]);
-
-  const [formData, setFormData] = useState({
-    password: '',
-    confirmPassword: ''
-  });
-
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [token, setToken] = useState('');
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    // Clear error for this field
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
+  useEffect(() => {
+    const tokenFromUrl = searchParams.get('token');
+    if (!tokenFromUrl) {
+      toast.error('Invalid or missing reset token');
+      navigate('/restaurant/login');
+    } else {
+      setToken(tokenFromUrl);
     }
-    setSubmitError('');
-  };
+  }, [searchParams, navigate]);
 
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+  const validatePassword = () => {
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters long');
+      return false;
     }
-
-    if (!formData.confirmPassword) {
-      newErrors.confirmPassword = 'Please confirm your password';
-    } else if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
+    if (password !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return false;
     }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitError('');
 
-    if (!validateForm()) {
+    if (!validatePassword()) {
       return;
     }
-
-    if (!token) {
-      setSubmitError('Invalid reset token. Please request a new password reset link.');
-      return;
-    }
-
-    setIsSubmitting(true);
 
     try {
-      await restaurantAuthService.resetPassword(token, formData.password);
-      setSuccess(true);
-      
-      // Redirect to login after 3 seconds
+      setLoading(true);
+      await restaurantAuthService.resetPassword(token, password);
+      setResetSuccess(true);
+      toast.success('Password reset successfully');
       setTimeout(() => {
         navigate('/restaurant/login');
       }, 3000);
     } catch (error) {
-      console.error('Password reset error:', error);
-      
-      // Handle validation errors
-      if (error.errors) {
-        const validationErrors = {};
-        error.errors.forEach(err => {
-          validationErrors[err.field] = err.message;
-        });
-        setErrors(validationErrors);
-      } else {
-        setSubmitError(error.message || 'Failed to reset password. The link may have expired. Please request a new one.');
-      }
+      console.error('Reset password error:', error);
+      toast.error(error.message || 'Failed to reset password');
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
-  if (!token) {
-    return null; // Will redirect in useEffect
-  }
-
   return (
-    <div className="flex flex-col min-h-screen" style={{ backgroundColor: '#f0fdf4' }}>
-      <StaysNavbar />
-      
-      <div className="flex-1 w-full py-8 px-4 flex items-center justify-center">
-        <div className="max-w-md w-full mx-auto">
-          {/* Reset Password Card */}
-          <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>
-            <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Reset Your Password</h1>
-              <p className="text-gray-600">Enter your new password below</p>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center p-4">
+      <div className="max-w-md w-full">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <img src={logo} alt="Travooz Logo" className="h-16 mx-auto mb-4" />
+          <h1 className="text-3xl font-bold text-gray-900">Restaurant Portal</h1>
+          <p className="text-gray-600 mt-2">Create New Password</p>
+        </div>
 
-            {success ? (
-              <div className="space-y-6">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
-                  <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-green-900 mb-2">Password Reset Successful!</h3>
-                  <p className="text-sm text-green-700">
-                    Your password has been reset successfully. You will be redirected to the login page shortly.
-                  </p>
+        {/* Card */}
+        <div className="bg-white rounded-lg shadow-xl p-8">
+          {!resetSuccess ? (
+            <>
+              <div className="text-center mb-6">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4">
+                  <Lock className="h-8 w-8 text-orange-600" />
                 </div>
-                <button
-                  onClick={() => navigate('/restaurant/login')}
-                  className="w-full text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
-                  style={{ backgroundColor: '#3CAF54' }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
-                >
-                  <span>Go to Login</span>
-                </button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Reset Password</h2>
+                <p className="text-gray-600">
+                  Enter your new password below.
+                </p>
               </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Password Field */}
+
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                     New Password
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Lock className="h-5 w-5 text-gray-400" />
-                    </div>
                     <input
+                      id="password"
                       type={showPassword ? 'text' : 'password'}
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      className={`w-full pl-10 pr-12 py-3 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 ${
-                        errors.password ? 'border-red-500' : ''
-                      }`}
-                      placeholder="Enter your new password"
-                      disabled={isSubmitting}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter new password"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent pr-12"
+                      required
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                     >
-                      {showPassword ? (
-                        <EyeOff className="h-5 w-5" />
-                      ) : (
-                        <Eye className="h-5 w-5" />
-                      )}
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
                   </div>
-                  {errors.password && (
-                    <p className="mt-1 ml-1 text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="h-4 w-4" />
-                      {errors.password}
-                    </p>
-                  )}
+                  <p className="text-xs text-gray-500 mt-1">Must be at least 6 characters</p>
                 </div>
 
-                {/* Confirm Password Field */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Confirm New Password
+                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                    Confirm Password
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Lock className="h-5 w-5 text-gray-400" />
-                    </div>
                     <input
+                      id="confirmPassword"
                       type={showConfirmPassword ? 'text' : 'password'}
-                      name="confirmPassword"
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      className={`w-full pl-10 pr-12 py-3 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 ${
-                        errors.confirmPassword ? 'border-red-500' : ''
-                      }`}
-                      placeholder="Confirm your new password"
-                      disabled={isSubmitting}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm new password"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent pr-12"
+                      required
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                     >
-                      {showConfirmPassword ? (
-                        <EyeOff className="h-5 w-5" />
-                      ) : (
-                        <Eye className="h-5 w-5" />
-                      )}
+                      {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
                   </div>
-                  {errors.confirmPassword && (
-                    <p className="mt-1 ml-1 text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="h-4 w-4" />
-                      {errors.confirmPassword}
-                    </p>
-                  )}
-                  {formData.password && formData.confirmPassword && formData.password === formData.confirmPassword && (
-                    <p className="mt-1 ml-1 text-sm text-green-600 flex items-center gap-1">
-                      <CheckCircle2 className="h-4 w-4" />
-                      Passwords match
-                    </p>
-                  )}
                 </div>
 
-                {/* Submit Error */}
-                {submitError && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <p className="text-sm text-red-600 flex items-center gap-2">
-                      <AlertCircle className="h-4 w-4" />
-                      {submitError}
-                    </p>
-                  </div>
-                )}
-
-                {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="w-full text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: isSubmitting ? '#2d8f42' : '#3CAF54' }}
-                  onMouseEnter={(e) => !isSubmitting && (e.target.style.backgroundColor = '#2d8f42')}
-                  onMouseLeave={(e) => !isSubmitting && (e.target.style.backgroundColor = '#3CAF54')}
+                  disabled={loading}
+                  className="w-full bg-orange-600 text-white py-3 rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                 >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      <span>Resetting Password...</span>
-                    </>
-                  ) : (
-                    <span>Reset Password</span>
-                  )}
+                  {loading ? 'Resetting...' : 'Reset Password'}
                 </button>
-
-                {/* Back to Login Link */}
-                <div className="text-center">
-                  <button
-                    type="button"
-                    onClick={() => navigate('/restaurant/login')}
-                    className="text-sm text-[#3CAF54] hover:text-[#2d8f42] font-medium hover:underline transition-colors flex items-center justify-center gap-2"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    Back to Login
-                  </button>
-                </div>
               </form>
-            )}
-          </div>
+
+              <div className="mt-6 text-center">
+                <Link
+                  to="/restaurant/login"
+                  className="text-orange-600 hover:text-orange-700 font-medium"
+                >
+                  Back to Login
+                </Link>
+              </div>
+            </>
+          ) : (
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
+                <CheckCircle className="h-8 w-8 text-green-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Password Reset Successful!</h2>
+              <p className="text-gray-600 mb-6">
+                Your password has been reset successfully. You will be redirected to the login page in a moment.
+              </p>
+              <Link
+                to="/restaurant/login"
+                className="inline-block w-full bg-orange-600 text-white py-3 rounded-lg hover:bg-orange-700 transition-colors font-medium"
+              >
+                Go to Login
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="text-center mt-6 text-sm text-gray-600">
+          <p>Need help? Contact support at support@travooz.com</p>
         </div>
       </div>
-
-      <StaysFooter />
     </div>
   );
-}
+};
 
-
-
+export default ResetPassword;
 

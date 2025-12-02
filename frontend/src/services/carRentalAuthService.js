@@ -1,16 +1,12 @@
 import apiClient from './apiClient';
 
-// Create car rental API client
-const carRentalApiClient = apiClient;
-
-// Car Rental Auth Service
-export const carRentalAuthService = {
+const carRentalAuthService = {
   /**
    * Login user
    */
   async login(email, password) {
     try {
-      const response = await carRentalApiClient.post('/car-rental/auth/login', {
+      const response = await apiClient.post('/car-rental/auth/login', {
         email,
         password,
       });
@@ -19,9 +15,6 @@ export const carRentalAuthService = {
         // Store token and user data
         localStorage.setItem('car_rental_token', response.data.data.token);
         localStorage.setItem('car_rental_user', JSON.stringify(response.data.data.user));
-        if (response.data.data.carRentalBusinessId) {
-          localStorage.setItem('car_rental_business_id', response.data.data.carRentalBusinessId);
-        }
         return response.data.data;
       } else {
         throw new Error(response.data.message || 'Login failed');
@@ -36,7 +29,7 @@ export const carRentalAuthService = {
    */
   async getProfile() {
     try {
-      const response = await carRentalApiClient.get('/car-rental/auth/profile');
+      const response = await apiClient.get('/car-rental/auth/profile');
       if (response.data.success) {
         localStorage.setItem('car_rental_user', JSON.stringify(response.data.data));
         return response.data.data;
@@ -52,7 +45,7 @@ export const carRentalAuthService = {
    */
   async requestPasswordReset(email) {
     try {
-      const response = await carRentalApiClient.post('/car-rental/auth/forgot-password', {
+      const response = await apiClient.post('/car-rental/auth/forgot-password', {
         email,
       });
 
@@ -71,7 +64,7 @@ export const carRentalAuthService = {
    */
   async resetPassword(token, password) {
     try {
-      const response = await carRentalApiClient.post('/car-rental/auth/reset-password', {
+      const response = await apiClient.post('/car-rental/auth/reset-password', {
         token,
         password,
       });
@@ -92,7 +85,6 @@ export const carRentalAuthService = {
   logout() {
     localStorage.removeItem('car_rental_token');
     localStorage.removeItem('car_rental_user');
-    localStorage.removeItem('car_rental_business_id');
   },
 
   /**
@@ -108,11 +100,15 @@ export const carRentalAuthService = {
   getCurrentUser() {
     const userStr = localStorage.getItem('car_rental_user');
     return userStr ? JSON.parse(userStr) : null;
-  }
+  },
+
+  /**
+   * Get authentication token
+   */
+  getToken() {
+    return localStorage.getItem('car_rental_token');
+  },
 };
 
 export default carRentalAuthService;
-
-
-
 

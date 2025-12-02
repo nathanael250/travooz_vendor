@@ -60,7 +60,7 @@ import ReviewListingStep from './pages/stays/ReviewListingStep';
 import SubmitListingStep from './pages/stays/SubmitListingStep';
 import SetupInProgress from './pages/stays/SetupInProgress';
 import StaysDashboard from './pages/stays/Dashboard';
-import MyProperty from './pages/stays/MyProperty';
+import MyProperty from './pages/stays/MyPropertyTabbed';
 import RoomAvailability from './pages/stays/RoomAvailability';
 import StaysBookings from './pages/stays/Bookings';
 import StaysFinance from './pages/stays/Finance';
