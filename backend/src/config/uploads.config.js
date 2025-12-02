@@ -27,10 +27,10 @@ const UPLOADS_BASE_PATH = path.join(UPLOAD_BASE_PATH, PROJECT_NAME);
 const ensureBaseDirectory = () => {
   // First ensure the base directory exists
   if (!fs.existsSync(UPLOAD_BASE_PATH)) {
-    try {
+  try {
       fs.mkdirSync(UPLOAD_BASE_PATH, { recursive: true, mode: 0o755 });
       console.log(`✅ Created base uploads directory: ${UPLOAD_BASE_PATH}`);
-    } catch (error) {
+  } catch (error) {
       console.error(`❌ Failed to create base uploads directory: ${UPLOAD_BASE_PATH}`, error.message);
       console.warn('⚠️  Please create the directory manually with: sudo mkdir -p /var/www/uploads && sudo chown -R $USER:$USER /var/www/uploads');
     }
@@ -44,8 +44,8 @@ const ensureBaseDirectory = () => {
     } catch (error) {
       console.error(`❌ Failed to create uploads directory: ${UPLOADS_BASE_PATH}`, error.message);
       console.warn('⚠️  Please create the directory manually with: sudo mkdir -p /var/www/uploads/travooz && sudo chown -R $USER:$USER /var/www/uploads/travooz');
-    }
   }
+}
 };
 
 // Initialize directory structure

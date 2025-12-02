@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Mail, Loader2, AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
-import { staysAuthService } from '../../services/staysService';
+import { carRentalAuthService } from '../../services/carRentalAuthService';
 
-export default function ForgotPassword() {
+export default function CarRentalForgotPassword() {
   const navigate = useNavigate();
 
   // Enable scrolling for this page
@@ -18,8 +18,8 @@ export default function ForgotPassword() {
 
   // Redirect if already logged in
   useEffect(() => {
-    if (staysAuthService.isAuthenticated()) {
-      navigate('/stays/dashboard');
+    if (carRentalAuthService.isAuthenticated()) {
+      navigate('/car-rental/dashboard');
     }
   }, [navigate]);
 
@@ -57,7 +57,7 @@ export default function ForgotPassword() {
     setIsSubmitting(true);
 
     try {
-      await staysAuthService.requestPasswordReset(email);
+      await carRentalAuthService.requestPasswordReset(email);
       setSuccess(true);
     } catch (error) {
       console.error('Password reset request error:', error);
@@ -105,7 +105,7 @@ export default function ForgotPassword() {
                   </p>
                 </div>
                 <button
-                  onClick={() => navigate('/stays/login')}
+                  onClick={() => navigate('/car-rental/login')}
                   className="w-full text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
                   style={{ backgroundColor: '#3CAF54' }}
                   onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
@@ -168,7 +168,7 @@ export default function ForgotPassword() {
                 <div className="text-center">
                   <button
                     type="button"
-                    onClick={() => navigate('/stays/login')}
+                    onClick={() => navigate('/car-rental/login')}
                     className="text-sm text-[#3CAF54] hover:text-[#2d8f42] font-medium hover:underline transition-colors flex items-center justify-center gap-2"
                   >
                     <ArrowLeft className="h-4 w-4" />
@@ -185,13 +185,5 @@ export default function ForgotPassword() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
 
 

@@ -1,4 +1,4 @@
-const carRentalAuthService = require('../../services/carRental/carRentalAuth.service');
+const restaurantAuthService = require('../../services/restaurant/restaurantAuth.service');
 const EmailService = require('../../utils/email.service');
 const { sendSuccess, sendError, sendValidationError } = require('../../utils/response.utils');
 const Joi = require('joi');
@@ -12,11 +12,11 @@ const login = async (req, res) => {
             return sendError(res, 'Email and password are required', 400);
         }
 
-        const result = await carRentalAuthService.login(email, password);
+        const result = await restaurantAuthService.login(email, password);
 
         return sendSuccess(res, result, 'Login successful', 200);
     } catch (error) {
-        console.error('Error in car rental login controller:', error);
+        console.error('Error in restaurant login controller:', error);
         return sendError(res, error.message || 'Login failed', 401);
     }
 };
@@ -30,7 +30,7 @@ const getProfile = async (req, res) => {
             return sendError(res, 'User authentication required', 401);
         }
 
-        const profile = await carRentalAuthService.getProfile(userId);
+        const profile = await restaurantAuthService.getProfile(userId);
 
         return sendSuccess(res, profile, 'Profile retrieved successfully', 200);
     } catch (error) {
@@ -81,14 +81,14 @@ const requestPasswordReset = async (req, res) => {
         const { email } = value;
 
         // Request password reset
-        const result = await carRentalAuthService.requestPasswordReset(email);
+        const result = await restaurantAuthService.requestPasswordReset(email);
 
         // If user exists, send email
         if (result.resetToken && result.user) {
             try {
                 const isConnected = await EmailService.verifyConnection();
                 if (isConnected) {
-                    const resetUrl = `${process.env.FRONTEND_URL || 'https://vendor.travooz.rw'}/car-rental/reset-password?token=${result.resetToken}`;
+                    const resetUrl = `${process.env.FRONTEND_URL || 'https://vendor.travooz.rw'}/restaurant/reset-password?token=${result.resetToken}`;
                     await EmailService.sendPasswordResetEmail({
                         email: result.user.email,
                         name: result.user.name || 'there',
@@ -133,7 +133,7 @@ const resetPassword = async (req, res) => {
         const { token, password } = value;
 
         // Reset password
-        const result = await carRentalAuthService.resetPassword(token, password);
+        const result = await restaurantAuthService.resetPassword(token, password);
 
         return sendSuccess(res, null, 'Password reset successfully. You can now login with your new password.');
     } catch (err) {
@@ -153,4 +153,5 @@ module.exports = {
     requestPasswordReset,
     resetPassword
 };
+
 

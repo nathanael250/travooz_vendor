@@ -2,7 +2,7 @@ const { executeQuery } = require('../../../config/database');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-class CarRentalAuthService {
+class RestaurantAuthService {
     /**
      * Login user with email and password
      * @param {string} email 
@@ -14,11 +14,11 @@ class CarRentalAuthService {
                 throw new Error('Email and password are required');
             }
 
-            console.log('🔍 Car rental login attempt for email:', email);
+            console.log('🔍 Restaurant login attempt for email:', email);
 
-            // Find user in car_rental_users table
+            // Find user in restaurant_users table
             const users = await executeQuery(
-                `SELECT * FROM car_rental_users WHERE email = ?`,
+                `SELECT * FROM restaurant_users WHERE email = ?`,
                 [email]
             );
 
@@ -31,7 +31,7 @@ class CarRentalAuthService {
 
             const user = users[0];
 
-            // Check if user is active (if the column exists)
+            // Check if user is active
             if (user.is_active !== undefined && !user.is_active) {
                 console.log('❌ User account is deactivated:', email);
                 throw new Error('Your account has been deactivated. Please contact support.');
@@ -47,10 +47,10 @@ class CarRentalAuthService {
 
             console.log('✅ Password verified successfully for user:', email);
 
-            // Get car rental business for this user
+            // Get restaurant business for this user
             const businesses = await executeQuery(
-                `SELECT car_rental_business_id, business_name, status 
-                 FROM car_rental_businesses 
+                `SELECT restaurant_id, business_name, status 
+                 FROM restaurants 
                  WHERE user_id = ? 
                  ORDER BY created_at DESC 
                  LIMIT 1`,
@@ -60,7 +60,7 @@ class CarRentalAuthService {
             // Update last login (if the column exists)
             if (user.last_login !== undefined) {
                 await executeQuery(
-                    `UPDATE car_rental_users SET last_login = NOW() WHERE user_id = ?`,
+                    `UPDATE restaurant_users SET last_login = NOW() WHERE user_id = ?`,
                     [user.user_id]
                 );
             }
@@ -87,11 +87,11 @@ class CarRentalAuthService {
                     phone: user.phone
                 },
                 token,
-                carRentalBusinessId: businesses.length > 0 ? businesses[0].car_rental_business_id : null,
-                carRentalBusiness: businesses.length > 0 ? businesses[0] : null
+                restaurantId: businesses.length > 0 ? businesses[0].restaurant_id : null,
+                restaurant: businesses.length > 0 ? businesses[0] : null
             };
         } catch (error) {
-            console.error('Error in car rental login:', error);
+            console.error('Error in restaurant login:', error);
             throw error;
         }
     }
@@ -104,7 +104,7 @@ class CarRentalAuthService {
         try {
             const users = await executeQuery(
                 `SELECT user_id, role, name, email, phone, created_at 
-                 FROM car_rental_users 
+                 FROM restaurant_users 
                  WHERE user_id = ?`,
                 [userId]
             );
@@ -129,7 +129,7 @@ class CarRentalAuthService {
         try {
             // Find user by email
             const users = await executeQuery(
-                `SELECT * FROM car_rental_users WHERE email = ?`,
+                `SELECT * FROM restaurant_users WHERE email = ?`,
                 [email]
             );
 
@@ -148,7 +148,7 @@ class CarRentalAuthService {
 
             // Update user with reset token
             await executeQuery(
-                `UPDATE car_rental_users 
+                `UPDATE restaurant_users 
                  SET password_reset_token = ?, password_reset_expires = ? 
                  WHERE user_id = ?`,
                 [resetToken, resetExpires, user.user_id]
@@ -178,7 +178,7 @@ class CarRentalAuthService {
         try {
             // Find user by reset token
             const users = await executeQuery(
-                `SELECT * FROM car_rental_users 
+                `SELECT * FROM restaurant_users 
                  WHERE password_reset_token = ? 
                  AND password_reset_expires > NOW()`,
                 [token]
@@ -195,7 +195,7 @@ class CarRentalAuthService {
 
             // Update password and clear reset token
             await executeQuery(
-                `UPDATE car_rental_users 
+                `UPDATE restaurant_users 
                  SET password_hash = ?, 
                      password_reset_token = NULL, 
                      password_reset_expires = NULL 
@@ -217,5 +217,6 @@ class CarRentalAuthService {
     }
 }
 
-module.exports = new CarRentalAuthService();
+module.exports = new RestaurantAuthService();
+
 

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Lock, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
-import { staysAuthService } from '../../services/staysService';
+import { toursAuthService } from '../../services/toursAuthService';
 
-export default function ResetPassword() {
+export default function ToursResetPassword() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
@@ -20,15 +20,15 @@ export default function ResetPassword() {
 
   // Redirect if already logged in
   useEffect(() => {
-    if (staysAuthService.isAuthenticated()) {
-      navigate('/stays/dashboard');
+    if (toursAuthService.isAuthenticated()) {
+      navigate('/tours/dashboard');
     }
   }, [navigate]);
 
   // Redirect if no token
   useEffect(() => {
     if (!token) {
-      navigate('/stays/forgot-password', { replace: true });
+      navigate('/tours/forgot-password', { replace: true });
     }
   }, [token, navigate]);
 
@@ -95,12 +95,12 @@ export default function ResetPassword() {
     setIsSubmitting(true);
 
     try {
-      await staysAuthService.resetPassword(token, formData.password);
+      await toursAuthService.resetPassword(token, formData.password);
       setSuccess(true);
       
       // Redirect to login after 3 seconds
       setTimeout(() => {
-        navigate('/stays/login');
+        navigate('/tours/login');
       }, 3000);
     } catch (error) {
       console.error('Password reset error:', error);
@@ -147,7 +147,7 @@ export default function ResetPassword() {
                   </p>
                 </div>
                 <button
-                  onClick={() => navigate('/stays/login')}
+                  onClick={() => navigate('/tours/login')}
                   className="w-full text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
                   style={{ backgroundColor: '#3CAF54' }}
                   onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
@@ -277,7 +277,7 @@ export default function ResetPassword() {
                 <div className="text-center">
                   <button
                     type="button"
-                    onClick={() => navigate('/stays/login')}
+                    onClick={() => navigate('/tours/login')}
                     className="text-sm text-[#3CAF54] hover:text-[#2d8f42] font-medium hover:underline transition-colors flex items-center justify-center gap-2"
                   >
                     <ArrowLeft className="h-4 w-4" />
@@ -294,13 +294,5 @@ export default function ResetPassword() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
 
 

@@ -34,8 +34,14 @@ import ListYourPropertyStep2 from './pages/stays/ListYourPropertyStep2';
 import ListYourPropertyStep3 from './pages/stays/ListYourPropertyStep3';
 import EmailVerification from './pages/stays/EmailVerification';
 import StaysLogin from './pages/stays/Login';
-import ForgotPassword from './pages/stays/ForgotPassword';
-import ResetPassword from './pages/stays/ResetPassword';
+import StaysForgotPassword from './pages/stays/ForgotPassword';
+import StaysResetPassword from './pages/stays/ResetPassword';
+import ToursForgotPassword from './pages/tours/ForgotPassword';
+import ToursResetPassword from './pages/tours/ResetPassword';
+import CarRentalForgotPassword from './pages/car-rental/ForgotPassword';
+import CarRentalResetPassword from './pages/car-rental/ResetPassword';
+import RestaurantForgotPassword from './pages/restaurant/ForgotPassword';
+import RestaurantResetPassword from './pages/restaurant/ResetPassword';
 import ContractStep from './pages/stays/ContractStep';
 import PoliciesAndSettingsStep from './pages/stays/PoliciesAndSettingsStep';
 import PropertyAmenitiesStep from './pages/stays/PropertyAmenitiesStep';
@@ -182,6 +188,8 @@ function App() {
 
           {/* Restaurant Login */}
           <Route path="/restaurant/login" element={<RestaurantLogin />} />
+          <Route path="/restaurant/forgot-password" element={<RestaurantForgotPassword />} />
+          <Route path="/restaurant/reset-password" element={<RestaurantResetPassword />} />
 
           {/* Client-facing Restaurant Ordering */}
           <Route path="/restaurant/:restaurantId/order" element={<OrderFood />} />
@@ -194,8 +202,8 @@ function App() {
           
           {/* Stays Login */}
           <Route path="/stays/login" element={<StaysLogin />} />
-          <Route path="/stays/forgot-password" element={<ForgotPassword />} />
-          <Route path="/stays/reset-password" element={<ResetPassword />} />
+          <Route path="/stays/forgot-password" element={<StaysForgotPassword />} />
+          <Route path="/stays/reset-password" element={<StaysResetPassword />} />
           
           {/* Stays Setup Flow */}
           <Route path="/stays/setup/contract" element={<ContractStep />} />
@@ -262,9 +270,13 @@ function App() {
 
           {/* Tour Login */}
           <Route path="/tours/login" element={<ToursLogin />} />
+          <Route path="/tours/forgot-password" element={<ToursForgotPassword />} />
+          <Route path="/tours/reset-password" element={<ToursResetPassword />} />
 
           {/* Car Rental Login */}
           <Route path="/car-rental/login" element={<CarRentalLogin />} />
+          <Route path="/car-rental/forgot-password" element={<CarRentalForgotPassword />} />
+          <Route path="/car-rental/reset-password" element={<CarRentalResetPassword />} />
 
           {/* Car Rental Setup Flow */}
           <Route path="/car-rental/setup/business-details" element={<CarRentalBusinessDetailsStep />} />

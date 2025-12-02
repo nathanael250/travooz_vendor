@@ -2,11 +2,18 @@ const express = require('express');
 const { pool } = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
 const { authenticateToken } = require('../middlewares/auth.middleware');
+const restaurantAuthController = require('../controllers/restaurant/restaurantAuth.controller');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
 const router = express.Router();
+
+// Auth routes (no authentication required)
+router.post('/auth/login', restaurantAuthController.login);
+router.get('/auth/profile', authenticateToken, restaurantAuthController.getProfile);
+router.post('/auth/forgot-password', restaurantAuthController.requestPasswordReset);
+router.post('/auth/reset-password', restaurantAuthController.resetPassword);
 
 const formatUserPhone = (phone, countryCode, defaultCode = '+250') => {
   const raw = (phone || '').toString().replace(/\s+/g, '');

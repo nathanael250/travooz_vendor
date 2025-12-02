@@ -84,6 +84,8 @@ const tourPackagePhotoUpload = multer({
 // Auth routes (no authentication required)
 router.post('/auth/login', toursAuthController.login);
 router.get('/auth/profile', authenticate, toursAuthController.getProfile);
+router.post('/auth/forgot-password', toursAuthController.requestPasswordReset);
+router.post('/auth/reset-password', toursAuthController.resetPassword);
 
 // Tour business routes
 router.post('/businesses', toursBusinessController.createTourBusiness);

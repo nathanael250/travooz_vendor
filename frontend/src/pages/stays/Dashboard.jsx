@@ -197,8 +197,15 @@ export default function StaysDashboard() {
     const normalizedUser = normalizeUser(currentUser);
 
     if (!normalizedUser || !normalizedUser.userId) {
-      toast.error('Session expired or user information missing. Please log in again to continue setup.');
-      navigate('/stays/login', { replace: true });
+      // Dismiss any existing session error toasts first
+      toast.dismiss('session-expired-error');
+      
+      // Show simple error toast without button
+      toast.error('Session expired or user information missing. Please log in again to continue setup.', {
+        duration: 5000,
+        id: 'session-expired-error', // Unique ID prevents duplicates
+        position: 'top-right'
+      });
       return;
     }
 
@@ -402,21 +409,32 @@ export default function StaysDashboard() {
     return (
       <div className="flex h-screen bg-gray-100">
         <div className="flex-1 flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-8 border text-center">
-            <AlertCircle className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Setup Incomplete</h2>
-            <p className="text-gray-600 mb-6">
-              Please complete your property setup to access the dashboard.
-            </p>
-            <button
-              onClick={handleContinueSetup}
-              className="w-full px-6 py-3 text-white font-semibold rounded-lg transition-colors shadow-md hover:shadow-lg"
-              style={{ backgroundColor: '#3CAF54' }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
-            >
-              Continue Setup
-            </button>
+          <div className="max-w-md w-full">
+            <div className="bg-white rounded-lg shadow-xl p-8 border text-center">
+              <AlertCircle className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Setup Incomplete</h2>
+              <p className="text-gray-600 mb-6">
+                Please complete your property setup to access the dashboard.
+              </p>
+              <button
+                onClick={handleContinueSetup}
+                className="w-full px-6 py-3 text-white font-semibold rounded-lg transition-colors shadow-md hover:shadow-lg"
+                style={{ backgroundColor: '#3CAF54' }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
+              >
+                Continue Setup
+              </button>
+            </div>
+            {/* Logout link below the card */}
+            <div className="text-center mt-4">
+              <button
+                onClick={handleLogout}
+                className="text-gray-600 hover:text-gray-900 text-sm underline"
+              >
+                Having trouble? Logout and sign in again
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -41,6 +41,8 @@ const carImageUpload = multer({
 // Auth routes (no authentication required)
 router.post('/auth/login', carRentalAuthController.login);
 router.get('/auth/profile', authenticate, carRentalAuthController.getProfile);
+router.post('/auth/forgot-password', carRentalAuthController.requestPasswordReset);
+router.post('/auth/reset-password', carRentalAuthController.resetPassword);
 
 // Register or create car rental business (Step 3)
 router.post('/register', async (req, res, next) => {
