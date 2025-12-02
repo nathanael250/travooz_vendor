@@ -260,3 +260,5 @@ SELECT * FROM tours_setup_submissions WHERE tour_business_id = <deleted_business
 
 For issues or questions regarding this feature, contact the development team.
 
+
+

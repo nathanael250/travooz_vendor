@@ -383,3 +383,5 @@ const RoomsTabContent = ({ property, onUpdate }) => {
 export default RoomsTabContent;
 
 
+
+

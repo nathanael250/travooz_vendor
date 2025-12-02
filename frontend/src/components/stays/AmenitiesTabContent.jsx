@@ -563,3 +563,5 @@ const AmenitiesTabContent = ({ property, onUpdate }) => {
 export default AmenitiesTabContent;
 
 
+
+

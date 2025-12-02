@@ -47,7 +47,7 @@ export default function VendorLanding() {
     },
     {
       id: 'car',
-      name: 'Car',
+      name: 'Car Hire',
       icon: Car,
       description: 'List your car rental or transportation services',
       route: '/car-rental/list-your-car-rental',
