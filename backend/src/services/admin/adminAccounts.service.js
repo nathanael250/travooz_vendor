@@ -2,6 +2,7 @@ const { executeQuery } = require('../../../config/database');
 const ToursApprovalNotificationService = require('../tours/toursApprovalNotification.service');
 const RestaurantApprovalNotificationService = require('../restaurant/restaurantApprovalNotification.service');
 const CarRentalApprovalNotificationService = require('../carRental/carRentalApprovalNotification.service');
+const StaysApprovalNotificationService = require('../stays/staysApprovalNotification.service');
 
 const getStatusList = (status) => {
     if (!status || status === 'all') return null;
@@ -436,7 +437,6 @@ class AdminAccountsService {
                     
                     if (staysProperty.length > 0) {
                         const { property_name, email, name } = staysProperty[0];
-                        const StaysApprovalNotificationService = require('../stays/staysApprovalNotification.service');
                         const dashboardUrl = process.env.STAYS_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/stays/dashboard';
                         await StaysApprovalNotificationService.sendApprovalEmail({
                             email,
@@ -678,7 +678,6 @@ class AdminAccountsService {
                     
                     if (staysPropertyReject.length > 0) {
                         const { property_name, email, name } = staysPropertyReject[0];
-                        const StaysApprovalNotificationService = require('../stays/staysApprovalNotification.service');
                         const dashboardUrl = process.env.STAYS_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/stays/dashboard';
                         await StaysApprovalNotificationService.sendRejectionEmail({
                             email,
