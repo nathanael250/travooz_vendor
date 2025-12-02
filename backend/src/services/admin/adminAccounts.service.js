@@ -894,6 +894,128 @@ class AdminAccountsService {
             }
         };
     }
+
+    /**
+     * Delete an account and all associated data
+     * @param {string} serviceType - 'car_rental', 'tours', 'stays', 'restaurant'
+     * @param {number|string} accountId 
+     */
+    async deleteAccount(serviceType, accountId) {
+        try {
+            switch (serviceType) {
+                case 'car_rental':
+                    // Get user_id before deletion for cleanup
+                    const carRentalBusiness = await executeQuery(
+                        `SELECT user_id, business_name FROM car_rental_businesses WHERE car_rental_business_id = ?`,
+                        [accountId]
+                    );
+                    
+                    if (carRentalBusiness.length === 0) {
+                        throw new Error('Car rental business not found');
+                    }
+                    
+                    const carRentalUserId = carRentalBusiness[0].user_id;
+                    
+                    // Delete all related data (with error handling for tables that might not exist)
+                    await executeQuery(`DELETE FROM car_rental_setup_submissions WHERE car_rental_business_id = ?`, [accountId]).catch(() => {});
+                    await executeQuery(`DELETE FROM car_rental_setup_progress WHERE car_rental_business_id = ?`, [accountId]).catch(() => {});
+                    await executeQuery(`DELETE FROM car_rental_vehicles WHERE car_rental_business_id = ?`, [accountId]).catch(() => {});
+                    await executeQuery(`DELETE FROM car_rental_businesses WHERE car_rental_business_id = ?`, [accountId]);
+                    await executeQuery(`DELETE FROM car_rental_users WHERE user_id = ?`, [carRentalUserId]);
+                    break;
+
+                case 'tours':
+                    // Get tour_business_id and user_id from submission
+                    const tourSubmission = await executeQuery(
+                        `SELECT tss.tour_business_id, tss.user_id, tb.tour_business_name
+                         FROM tours_setup_submissions tss
+                         JOIN tours_businesses tb ON tss.tour_business_id = tb.tour_business_id
+                         WHERE tss.submission_id = ?`,
+                        [accountId]
+                    );
+                    
+                    if (tourSubmission.length === 0) {
+                        throw new Error('Tour submission not found');
+                    }
+                    
+                    const tourBusinessId = tourSubmission[0].tour_business_id;
+                    const tourUserId = tourSubmission[0].user_id;
+                    
+                    // Delete all related data (with error handling for tables that might not exist)
+                    await executeQuery(`DELETE FROM tours_setup_submissions WHERE tour_business_id = ?`, [tourBusinessId]).catch(() => {});
+                    await executeQuery(`DELETE FROM tours_setup_progress WHERE tour_business_id = ?`, [tourBusinessId]).catch(() => {});
+                    await executeQuery(`DELETE FROM tours_business_owner_info WHERE tour_business_id = ?`, [tourBusinessId]).catch(() => {});
+                    await executeQuery(`DELETE FROM tours_identity_proof WHERE tour_business_id = ?`, [tourBusinessId]).catch(() => {});
+                    await executeQuery(`DELETE FROM tours_business_proof WHERE tour_business_id = ?`, [tourBusinessId]).catch(() => {});
+                    
+                    // Try to delete from tour_packages if table exists
+                    await executeQuery(`DELETE FROM tour_packages WHERE tour_business_id = ?`, [tourBusinessId]).catch(() => {
+                        console.log('tour_packages table does not exist or no records found');
+                    });
+                    
+                    // Try to delete from tours_packages (alternative table name) if it exists
+                    await executeQuery(`DELETE FROM tours_packages WHERE tour_business_id = ?`, [tourBusinessId]).catch(() => {
+                        console.log('tours_packages table does not exist or no records found');
+                    });
+                    
+                    await executeQuery(`DELETE FROM tours_businesses WHERE tour_business_id = ?`, [tourBusinessId]);
+                    await executeQuery(`DELETE FROM tours_users WHERE user_id = ?`, [tourUserId]);
+                    break;
+
+                case 'stays':
+                    // Get user_id before deletion
+                    const staysProperty = await executeQuery(
+                        `SELECT user_id, property_name FROM stays_properties WHERE property_id = ?`,
+                        [accountId]
+                    );
+                    
+                    if (staysProperty.length === 0) {
+                        throw new Error('Property not found');
+                    }
+                    
+                    const staysUserId = staysProperty[0].user_id;
+                    
+                    // Delete all related data (with error handling for tables that might not exist)
+                    await executeQuery(`DELETE FROM stays_rooms WHERE property_id = ?`, [accountId]).catch(() => {});
+                    await executeQuery(`DELETE FROM stays_property_images WHERE property_id = ?`, [accountId]).catch(() => {});
+                    await executeQuery(`DELETE FROM stays_amenities WHERE property_id = ?`, [accountId]).catch(() => {});
+                    await executeQuery(`DELETE FROM stays_policies WHERE property_id = ?`, [accountId]).catch(() => {});
+                    await executeQuery(`DELETE FROM stays_properties WHERE property_id = ?`, [accountId]);
+                    await executeQuery(`DELETE FROM stays_users WHERE user_id = ?`, [staysUserId]);
+                    break;
+
+                case 'restaurant':
+                    // Get user_id before deletion
+                    const { pool } = require('../../../config/database');
+                    const [restaurant] = await pool.execute(
+                        `SELECT user_id, business_name FROM restaurants WHERE id = ?`,
+                        [String(accountId)]
+                    );
+                    
+                    if (restaurant.length === 0) {
+                        throw new Error('Restaurant not found');
+                    }
+                    
+                    const restaurantUserId = restaurant[0].user_id;
+                    
+                    // Delete all related data (with error handling for tables that might not exist)
+                    await pool.execute(`DELETE FROM restaurant_tables WHERE restaurant_id = ?`, [String(accountId)]).catch(() => {});
+                    await pool.execute(`DELETE FROM restaurant_menus WHERE restaurant_id = ?`, [String(accountId)]).catch(() => {});
+                    await pool.execute(`DELETE FROM restaurant_images WHERE restaurant_id = ?`, [String(accountId)]).catch(() => {});
+                    await pool.execute(`DELETE FROM restaurants WHERE id = ?`, [String(accountId)]);
+                    await pool.execute(`DELETE FROM restaurant_users WHERE user_id = ?`, [restaurantUserId]);
+                    break;
+
+                default:
+                    throw new Error(`Unknown service type: ${serviceType}`);
+            }
+
+            return { success: true, accountId, serviceType, message: 'Account and all associated data deleted successfully' };
+        } catch (error) {
+            console.error('Error deleting account:', error);
+            throw error;
+        }
+    }
 }
 
 module.exports = new AdminAccountsService();

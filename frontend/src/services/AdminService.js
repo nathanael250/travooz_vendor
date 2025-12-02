@@ -94,6 +94,20 @@ class AdminService {
   }
 
   /**
+   * Delete an account and all associated data
+   */
+  async deleteAccount(serviceType, accountId) {
+    try {
+      const response = await apiClient.delete(`/admin/accounts/${serviceType}/${accountId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to delete account';
+      throw new Error(errorMessage);
+    }
+  }
+
+  /**
    * Get full account details for review
    */
   async getAccountDetails(serviceType, accountId) {

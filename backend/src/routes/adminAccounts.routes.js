@@ -43,6 +43,7 @@ router.get('/accounts/stats', adminAccountsController.getAccountStats.bind(admin
 router.get('/accounts/:serviceType/:accountId', adminAccountsController.getAccountDetails.bind(adminAccountsController));
 router.post('/accounts/:serviceType/:accountId/approve', adminAccountsController.approveAccount.bind(adminAccountsController));
 router.post('/accounts/:serviceType/:accountId/reject', adminAccountsController.rejectAccount.bind(adminAccountsController));
+router.delete('/accounts/:serviceType/:accountId', adminAccountsController.deleteAccount.bind(adminAccountsController));
 
 module.exports = router;
 

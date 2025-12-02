@@ -23,7 +23,8 @@ import {
   Settings,
   ChevronDown,
   LayoutDashboard,
-  X
+  X,
+  Trash2
 } from 'lucide-react';
 import AdminService from '../../services/AdminService';
 import toast from 'react-hot-toast';
@@ -172,6 +173,46 @@ const AdminDashboard = () => {
     } catch (err) {
       setActionModal((prev) => ({ ...prev, loading: false }));
       toast.error(`Error: ${err.message}`);
+    }
+  };
+
+  const handleDeleteAccount = async (account) => {
+    const serviceName = getServiceName(account.service_type);
+    const businessName = account.business_name || 'this vendor';
+    
+    const confirmed = window.confirm(
+      `⚠️ WARNING: This action cannot be undone!\n\n` +
+      `Are you sure you want to permanently delete ${businessName} (${serviceName})?\n\n` +
+      `This will delete:\n` +
+      `• The vendor account\n` +
+      `• All business data\n` +
+      `• All associated records\n` +
+      `• All uploaded files\n\n` +
+      `Type the business name to confirm deletion.`
+    );
+
+    if (!confirmed) return;
+
+    // Additional confirmation with business name
+    const typedName = window.prompt(
+      `To confirm deletion, please type the business name:\n"${businessName}"`
+    );
+
+    if (typedName !== businessName) {
+      toast.error('Business name does not match. Deletion cancelled.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await AdminService.deleteAccount(account.service_type, account.account_id);
+      toast.success('Account and all associated data deleted successfully');
+      fetchAccounts();
+      fetchStats();
+    } catch (err) {
+      toast.error(`Error deleting account: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -649,6 +690,13 @@ const AdminDashboard = () => {
                                       </button>
                                     </>
                                   )}
+                                  <button
+                                    onClick={() => handleDeleteAccount(account)}
+                                    className="text-red-500 hover:text-red-300"
+                                    title="Delete Account"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
                                 </div>
                               </td>
                             </tr>

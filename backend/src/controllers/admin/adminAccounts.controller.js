@@ -131,6 +131,35 @@ class AdminAccountsController {
             return sendError(res, error.message || 'Failed to get account details', error?.statusCode || 500);
         }
     }
+
+    /**
+     * Delete an account and all associated data
+     * DELETE /api/v1/admin/accounts/:serviceType/:accountId
+     */
+    async deleteAccount(req, res) {
+        try {
+            const { serviceType, accountId } = req.params;
+            const adminId = req.user.id || req.user.userId;
+
+            if (!adminId) {
+                return sendUnauthorized(res, 'Admin ID not found in token');
+            }
+
+            // For restaurants, accountId is UUID (varchar), not integer
+            // For other services (car_rental, tours, stays), accountId is integer
+            const parsedAccountId = serviceType === 'restaurant' ? accountId : parseInt(accountId);
+
+            const result = await adminAccountsService.deleteAccount(
+                serviceType,
+                parsedAccountId
+            );
+
+            return sendSuccess(res, result, 'Account deleted successfully', 200);
+        } catch (error) {
+            console.error('Delete account error:', error);
+            return sendError(res, error.message || 'Failed to delete account', 500);
+        }
+    }
 }
 
 module.exports = new AdminAccountsController();
