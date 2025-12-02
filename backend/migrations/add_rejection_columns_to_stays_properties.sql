@@ -23,3 +23,4 @@ ADD COLUMN `rejection_reason` TEXT NULL DEFAULT NULL AFTER `rejected_by`;
 
 
 
+

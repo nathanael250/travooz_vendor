@@ -21,3 +21,4 @@ ADD COLUMN `other_payment_types` json DEFAULT NULL AFTER `card_types`;
 
 
 
+

@@ -263,6 +263,17 @@ export default function RestaurantLogin() {
                   <span>Sign in</span>
                 )}
               </button>
+
+              {/* Forgot Password Link */}
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => navigate('/restaurant/forgot-password')}
+                  className="text-sm text-[#3CAF54] hover:text-[#2d8f42] font-medium hover:underline transition-colors"
+                >
+                  Forgot your password?
+                </button>
+              </div>
             </form>
 
             <div className="mt-6 text-center">
