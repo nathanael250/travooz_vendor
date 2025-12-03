@@ -31,6 +31,10 @@ const Cars = () => {
   const [editingCar, setEditingCar] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [businessId, setBusinessId] = useState(null);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [managingImagesCar, setManagingImagesCar] = useState(null);
+  const [imageModalImages, setImageModalImages] = useState([]);
+  const [imageModalLoading, setImageModalLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     vendor_id: null,
@@ -281,6 +285,89 @@ const Cars = () => {
     }
   };
 
+  const handleManageImages = (car) => {
+    setManagingImagesCar(car);
+    console.log('Managing images for car:', car);
+    
+    // Process existing images
+    const carImages = Array.isArray(car.images) ? car.images : [];
+    const processedImages = carImages
+      .filter(url => url)
+      .map((url, idx) => ({
+        id: Date.now() + idx,
+        url: url,
+        preview: buildImageUrl(url),
+        isNew: false
+      }));
+    
+    setImageModalImages(processedImages);
+    setShowImageModal(true);
+  };
+
+  const handleImageModalUpload = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    console.log('Image modal - uploading files:', files.length);
+    
+    const newImages = files.map((file, index) => {
+      const preview = createPreviewUrl(file);
+      return {
+        id: Date.now() + index,
+        file: file,
+        preview: preview,
+        isNew: true
+      };
+    });
+
+    setImageModalImages(prev => [...prev, ...newImages]);
+  };
+
+  const handleImageModalRemove = (imageId) => {
+    setImageModalImages(prev => prev.filter(img => img.id !== imageId));
+  };
+
+  const handleImageModalSave = async () => {
+    if (!managingImagesCar) return;
+
+    try {
+      setImageModalLoading(true);
+
+      // Separate existing images from new uploads
+      const existingImages = imageModalImages
+        .filter(img => !img.isNew && img.url)
+        .map(img => img.url);
+      
+      const newImageFiles = imageModalImages
+        .filter(img => img.isNew && img.file)
+        .map(img => img.file);
+
+      console.log('Saving images:', {
+        carId: managingImagesCar.car_id,
+        existingImages,
+        newFiles: newImageFiles.length
+      });
+
+      // Update car with new image list
+      await carRentalService.updateCar(
+        managingImagesCar.car_id,
+        { images: existingImages },
+        newImageFiles
+      );
+
+      toast.success('Images updated successfully!');
+      setShowImageModal(false);
+      setManagingImagesCar(null);
+      setImageModalImages([]);
+      fetchCars(businessId);
+    } catch (error) {
+      console.error('Error saving images:', error);
+      toast.error('Failed to update images');
+    } finally {
+      setImageModalLoading(false);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       vendor_id: parseInt(businessId),
@@ -449,6 +536,13 @@ const Cars = () => {
                   >
                     <Edit className="h-4 w-4" />
                     Edit
+                  </button>
+                  <button
+                    onClick={() => handleManageImages(car)}
+                    className="flex items-center justify-center gap-2 px-3 py-2 border border-blue-300 rounded-lg text-blue-700 hover:bg-blue-50 transition-colors"
+                    title="Manage Images"
+                  >
+                    <ImageIcon className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(car.car_id)}
@@ -825,6 +919,136 @@ const Cars = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Image Management Modal */}
+      {showImageModal && managingImagesCar && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Manage Images</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {managingImagesCar.brand} {managingImagesCar.model} - {managingImagesCar.year}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowImageModal(false);
+                    setManagingImagesCar(null);
+                    setImageModalImages([]);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                  disabled={imageModalLoading}
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Image Upload Area */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Car Images
+                  </label>
+                  <label className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-[#3CAF54] transition-colors">
+                    <div className="flex flex-col items-center gap-2">
+                      <Upload className="h-8 w-8 text-gray-400" />
+                      <span className="text-sm text-gray-600">Click to upload images</span>
+                      <span className="text-xs text-gray-500">or drag and drop</span>
+                    </div>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleImageModalUpload}
+                      className="hidden"
+                      disabled={imageModalLoading}
+                    />
+                  </label>
+                </div>
+
+                {/* Image Preview Grid */}
+                {imageModalImages.length > 0 ? (
+                  <div className="grid grid-cols-4 gap-4">
+                    {imageModalImages.map((image, idx) => {
+                      let fullImageUrl;
+                      if (image.preview) {
+                        fullImageUrl = image.preview;
+                      } else if (image.url) {
+                        fullImageUrl = buildImageUrl(image.url);
+                      } else {
+                        fullImageUrl = null;
+                      }
+                      
+                      return (
+                        <div key={image.id} className="relative group">
+                          {fullImageUrl ? (
+                            <img
+                              src={fullImageUrl}
+                              alt={`Car image ${idx + 1}`}
+                              className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                              onError={(e) => {
+                                console.error(`Image ${idx} load error:`, fullImageUrl);
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-32 bg-gray-200 rounded-lg border border-gray-200 flex items-center justify-center">
+                              <ImageIcon className="h-8 w-8 text-gray-400" />
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleImageModalRemove(image.id)}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            disabled={imageModalLoading}
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                          {image.isNew && (
+                            <span className="absolute top-1 left-1 bg-green-500 text-white text-xs px-2 py-1 rounded">
+                              New
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    No images yet. Upload some images above.
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 mt-6 pt-6 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowImageModal(false);
+                    setManagingImagesCar(null);
+                    setImageModalImages([]);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                  disabled={imageModalLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleImageModalSave}
+                  disabled={imageModalLoading}
+                  className="flex-1 px-4 py-2 rounded-lg text-white font-medium transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: '#3CAF54' }}
+                >
+                  {imageModalLoading ? 'Saving...' : 'Save Images'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
