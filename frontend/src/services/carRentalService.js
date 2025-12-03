@@ -43,9 +43,39 @@ const carRentalService = {
     return response.data;
   },
 
-  async updateCar(carId, carData) {
-    const response = await apiClient.put(`/car-rental/cars/${carId}`, carData);
-    return response.data;
+  async updateCar(carId, carData, imageFiles = []) {
+    // If there are new image files, use FormData
+    if (imageFiles && imageFiles.length > 0) {
+      const formData = new FormData();
+      
+      // Append all car data
+      Object.keys(carData).forEach(key => {
+        if (carData[key] !== null && carData[key] !== undefined) {
+          // Handle arrays and objects by stringifying them
+          if (Array.isArray(carData[key]) || typeof carData[key] === 'object') {
+            formData.append(key, JSON.stringify(carData[key]));
+          } else {
+            formData.append(key, carData[key]);
+          }
+        }
+      });
+      
+      // Append all image files
+      imageFiles.forEach(file => {
+        formData.append('images', file);
+      });
+      
+      const response = await apiClient.put(`/car-rental/cars/${carId}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      return response.data;
+    } else {
+      // No new images, just send JSON data
+      const response = await apiClient.put(`/car-rental/cars/${carId}`, carData);
+      return response.data;
+    }
   },
 
   async deleteCar(carId) {

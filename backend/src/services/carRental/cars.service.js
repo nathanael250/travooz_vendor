@@ -1,5 +1,39 @@
 const { executeQuery, pool } = require('../../../config/database');
 
+/**
+ * Helper function to normalize image paths
+ * Converts absolute paths to relative web paths
+ * @param {string} imagePath - Path from database
+ * @returns {string} Normalized path for web serving
+ */
+const normalizeImagePath = (imagePath) => {
+    if (!imagePath) return null;
+    
+    // If already a relative path starting with /uploads/, handle it
+    if (imagePath.startsWith('/uploads/')) {
+        // Remove /travooz/ since express.static already serves from /var/www/uploads/travooz/
+        // From: /uploads/travooz/cars/car-123.png
+        // To: /uploads/cars/car-123.png
+        return imagePath.replace('/uploads/travooz/', '/uploads/');
+    }
+    
+    // If absolute path, convert to relative web path
+    // From: /var/www/uploads/travooz/cars/car-123.png
+    // To: /uploads/cars/car-123.png
+    if (imagePath.includes('/var/www/uploads/travooz/')) {
+        return imagePath.replace('/var/www/uploads/travooz/', '/uploads/');
+    }
+    
+    // Fallback: try to extract after /travooz/
+    const travoozIndex = imagePath.lastIndexOf('/travooz/');
+    if (travoozIndex !== -1) {
+        return '/uploads/' + imagePath.substring(travoozIndex + '/travooz/'.length);
+    }
+    
+    // Last resort: return as-is
+    return imagePath;
+};
+
 class CarsService {
     /**
      * Ensure cars table exists in the database
@@ -91,7 +125,8 @@ class CarsService {
                      ORDER BY is_primary DESC, image_order ASC`,
                     [car.car_id]
                 );
-                car.images = images.map(img => img.image_path);
+                // Normalize image paths before returning
+                car.images = images.map(img => normalizeImagePath(img.image_path));
                 car.imageDetails = images;
             }
             
@@ -129,7 +164,8 @@ class CarsService {
                  ORDER BY is_primary DESC, image_order ASC`,
                 [carId]
             );
-            car.images = images.map(img => img.image_path);
+            // Normalize image paths before returning
+            car.images = images.map(img => normalizeImagePath(img.image_path));
             car.imageDetails = images;
             
             return car;
@@ -232,10 +268,13 @@ class CarsService {
      * Update a car
      * @param {number} carId 
      * @param {object} carData 
+     * @param {Array} uploadedFiles - Array of uploaded image files
      */
-    async updateCar(carId, carData) {
+    async updateCar(carId, carData, uploadedFiles = []) {
         try {
             await this.ensureCarsTable();
+            await this.ensureCarImagesTable();
+            
             const {
                 brand,
                 model,
@@ -254,10 +293,26 @@ class CarsService {
                 location,
                 description,
                 features,
-                images,
+                images, // Array of existing image URLs to keep
                 status
             } = carData;
 
+            // Parse images if it's a string
+            let existingImages = images;
+            if (typeof images === 'string') {
+                try {
+                    existingImages = JSON.parse(images);
+                } catch (e) {
+                    existingImages = [];
+                }
+            }
+            existingImages = Array.isArray(existingImages) ? existingImages : [];
+
+            console.log('Updating car:', carId);
+            console.log('Existing images to keep:', existingImages);
+            console.log('New uploaded files:', uploadedFiles.length);
+
+            // Update car basic information
             const updateFields = [];
             const updateValues = [];
 
@@ -278,19 +333,81 @@ class CarsService {
             if (location !== undefined) { updateFields.push('location = ?'); updateValues.push(location); }
             if (description !== undefined) { updateFields.push('description = ?'); updateValues.push(description); }
             if (features !== undefined) { updateFields.push('features = ?'); updateValues.push(JSON.stringify(features)); }
-            if (images !== undefined) { updateFields.push('images = ?'); updateValues.push(JSON.stringify(images)); }
             if (status !== undefined) { updateFields.push('status = ?'); updateValues.push(status); }
 
-            if (updateFields.length === 0) {
-                return await this.getCarById(carId);
+            if (updateFields.length > 0) {
+                updateValues.push(carId);
+                await executeQuery(
+                    `UPDATE cars SET ${updateFields.join(', ')} WHERE car_id = ?`,
+                    updateValues
+                );
             }
 
-            updateValues.push(carId);
-
-            await executeQuery(
-                `UPDATE cars SET ${updateFields.join(', ')} WHERE car_id = ?`,
-                updateValues
+            // Handle image updates
+            // Get current images from car_images table
+            const currentImages = await executeQuery(
+                `SELECT image_id, image_path FROM car_images WHERE car_id = ?`,
+                [carId]
             );
+
+            // Delete images that are not in the existing images list
+            for (const currentImage of currentImages) {
+                if (!existingImages.includes(currentImage.image_path)) {
+                    console.log('Deleting image:', currentImage.image_path);
+                    await executeQuery(
+                        `DELETE FROM car_images WHERE image_id = ?`,
+                        [currentImage.image_id]
+                    );
+                }
+            }
+
+            // Add new uploaded images
+            if (uploadedFiles && uploadedFiles.length > 0) {
+                // Get the max order from existing images
+                const maxOrderResult = await executeQuery(
+                    `SELECT MAX(image_order) as max_order FROM car_images WHERE car_id = ?`,
+                    [carId]
+                );
+                let nextOrder = (maxOrderResult[0]?.max_order || 0) + 1;
+
+                for (const file of uploadedFiles) {
+                    // Convert absolute path to relative web path
+                    // From: /var/www/uploads/travooz/cars/car-123.png
+                    // To: /uploads/cars/car-123.png (without travooz since express.static serves from that dir)
+                    let imagePath = file.path.replace(/\\/g, '/');
+                    
+                    // Extract just the filename part and construct the correct path
+                    if (imagePath.includes('/var/www/uploads/travooz/')) {
+                        imagePath = imagePath.replace('/var/www/uploads/travooz/', '/uploads/');
+                    }
+                    
+                    console.log('Adding new image:', imagePath);
+                    
+                    await executeQuery(
+                        `INSERT INTO car_images (car_id, image_path, image_type, image_order, is_primary) 
+                         VALUES (?, ?, ?, ?, ?)`,
+                        [carId, imagePath, 'gallery', nextOrder++, 0]
+                    );
+                }
+            }
+
+            // If no images left, reset primary image
+            const remainingImages = await executeQuery(
+                `SELECT image_id FROM car_images WHERE car_id = ?`,
+                [carId]
+            );
+            
+            if (remainingImages.length > 0) {
+                // Make sure the first image is primary
+                await executeQuery(
+                    `UPDATE car_images SET is_primary = 0 WHERE car_id = ?`,
+                    [carId]
+                );
+                await executeQuery(
+                    `UPDATE car_images SET is_primary = 1 WHERE car_id = ? ORDER BY image_order ASC LIMIT 1`,
+                    [carId]
+                );
+            }
 
             return await this.getCarById(carId);
         } catch (error) {

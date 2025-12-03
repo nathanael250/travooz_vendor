@@ -62,7 +62,13 @@ const updateCar = async (req, res) => {
     try {
         const { carId } = req.params;
         const carData = req.body;
-        const car = await carsService.updateCar(carId, carData);
+        
+        // Handle uploaded image files
+        const uploadedFiles = req.files || [];
+        console.log('Update car - uploaded files:', uploadedFiles.length);
+        console.log('Update car - car data:', carData);
+        
+        const car = await carsService.updateCar(carId, carData, uploadedFiles);
         return sendSuccess(res, car, 'Car updated successfully', 200);
     } catch (error) {
         console.error('Error in updateCar controller:', error);

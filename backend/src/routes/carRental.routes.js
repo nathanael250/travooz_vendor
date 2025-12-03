@@ -109,7 +109,7 @@ router.get('/status/:carRentalBusinessId', async (req, res, next) => {
 router.get('/business/:businessId/cars', authenticate, carsController.getCars);
 router.get('/cars/:carId', authenticate, carsController.getCar);
 router.post('/cars', authenticate, carImageUpload.array('images', 10), carsController.createCar);
-router.put('/cars/:carId', authenticate, carsController.updateCar);
+router.put('/cars/:carId', authenticate, carImageUpload.array('images', 10), carsController.updateCar);
 router.delete('/cars/:carId', authenticate, carsController.deleteCar);
 router.post('/cars/:carId/images', authenticate, carImageUpload.array('images', 10), carsController.addCarImages);
 router.delete('/cars/images/:imageId', authenticate, carsController.deleteCarImage);

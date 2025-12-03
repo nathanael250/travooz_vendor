@@ -9,6 +9,20 @@ const createPreviewUrl = (file) => {
   return URL.createObjectURL(file);
 };
 
+// Helper function to build image URL - removes /api/v1 from base URL for file serving
+const buildImageUrl = (imagePath) => {
+  if (!imagePath) return null;
+  if (imagePath.startsWith('http') || imagePath.startsWith('blob:')) return imagePath;
+  
+  // Get base URL without /api/v1
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+  const fileBaseUrl = apiBaseUrl.replace(/\/api\/v1\/?$/, '');
+  
+  // Ensure path starts with /
+  const normalizedPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+  return `${fileBaseUrl}${normalizedPath}`;
+};
+
 const Cars = () => {
   const navigate = useNavigate();
   const [cars, setCars] = useState([]);
@@ -63,7 +77,36 @@ const Cars = () => {
     try {
       setLoading(true);
       const response = await carRentalService.getCars(businessId);
-      setCars(response.data || []);
+      const carsData = response.data || [];
+      
+      // Process cars to ensure images is always an array
+      const processedCars = carsData.map(car => {
+        let images = car.images;
+        
+        // If images is a string, try to parse it as JSON
+        if (typeof images === 'string') {
+          try {
+            images = JSON.parse(images);
+          } catch (e) {
+            // If not JSON, treat as a single image path
+            images = images ? [images] : [];
+          }
+        }
+        
+        // Ensure images is an array
+        if (!Array.isArray(images)) {
+          images = [];
+        }
+        
+        console.log('Car images for', car.brand, car.model, ':', images);
+        
+        return {
+          ...car,
+          images
+        };
+      });
+      
+      setCars(processedCars);
     } catch (error) {
       console.error('Error fetching cars:', error);
       toast.error('Failed to load cars');
@@ -76,17 +119,37 @@ const Cars = () => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
 
-    const newImages = files.map((file, index) => ({
-      id: Date.now() + index,
-      file: file,
-      preview: createPreviewUrl(file),
-      isNew: true
-    }));
+    console.log('=== Uploading Files ===');
+    console.log('Files selected:', files.length);
+    
+    const newImages = files.map((file, index) => {
+      const preview = createPreviewUrl(file);
+      console.log(`File ${index}:`, {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        preview: preview
+      });
+      
+      return {
+        id: Date.now() + index,
+        file: file,
+        preview: preview,
+        isNew: true
+      };
+    });
 
-    setFormData(prev => ({
-      ...prev,
-      images: [...prev.images, ...newImages]
-    }));
+    console.log('New images created:', newImages);
+    console.log('Current images before:', formData.images.length);
+
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        images: [...prev.images, ...newImages]
+      };
+      console.log('Updated images after:', updated.images.length);
+      return updated;
+    });
     setImageFiles([...imageFiles, ...files]);
   };
 
@@ -100,6 +163,22 @@ const Cars = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Separate existing image URLs from new image files
+      const existingImages = formData.images
+        .filter(img => !img.isNew && img.url)
+        .map(img => img.url);
+      
+      const newImageFiles = formData.images
+        .filter(img => img.isNew && img.file)
+        .map(img => img.file);
+
+      console.log('=== Submitting Car ===');
+      console.log('Edit mode:', !!editingCar);
+      console.log('Car ID:', editingCar?.car_id);
+      console.log('Existing images to keep:', existingImages);
+      console.log('New image files to upload:', newImageFiles.map(f => f.name));
+      console.log('Total images in form:', formData.images);
+
       const submitData = {
         ...formData,
         vendor_id: parseInt(businessId),
@@ -111,22 +190,20 @@ const Cars = () => {
         weekly_rate: formData.weekly_rate ? parseFloat(formData.weekly_rate) : null,
         monthly_rate: formData.monthly_rate ? parseFloat(formData.monthly_rate) : null,
         security_deposit: parseFloat(formData.security_deposit),
-        is_available: formData.is_available ? 1 : 0
+        is_available: formData.is_available ? 1 : 0,
+        images: existingImages // Only send existing image URLs
       };
 
-      // Separate new image files from existing image URLs
-      const newImageFiles = formData.images
-        .filter(img => img.isNew && img.file)
-        .map(img => img.file);
-
       if (editingCar) {
-        // For updates, we'll handle images separately if needed
-        await carRentalService.updateCar(editingCar.car_id, submitData);
-        toast.success('Car updated successfully');
+        // Update car data
+        console.log('Calling updateCar with:', submitData, 'and', newImageFiles.length, 'new files');
+        await carRentalService.updateCar(editingCar.car_id, submitData, newImageFiles);
+        toast.success('Car updated successfully!');
       } else {
-        // For new cars, upload files
+        // Create new car with images
+        console.log('Calling createCar with:', submitData, 'and', newImageFiles.length, 'files');
         await carRentalService.createCar(submitData, newImageFiles);
-        toast.success('Car created successfully');
+        toast.success('Car created successfully!');
       }
 
       setShowModal(false);
@@ -135,6 +212,7 @@ const Cars = () => {
       fetchCars(businessId);
     } catch (error) {
       console.error('Error saving car:', error);
+      console.error('Error details:', error.response?.data);
       toast.error(error.response?.data?.message || 'Failed to save car');
     }
   };
@@ -142,14 +220,25 @@ const Cars = () => {
   const handleEdit = (car) => {
     setEditingCar(car);
     
+    console.log('Editing car:', car);
+    console.log('Car images raw:', car.images);
+    
     // Process images - they should come as array of paths from the API
     const imageArray = Array.isArray(car.images) ? car.images : [];
-    const processedImages = imageArray.map((url, idx) => ({
-      id: idx,
-      url: url,
-      preview: url.startsWith('http') || url.startsWith('/') ? url : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}${url}`,
-      isNew: false
-    }));
+    const processedImages = imageArray
+      .filter(url => url) // Remove null/undefined/empty
+      .map((url, idx) => {
+        const fullUrl = buildImageUrl(url);
+        console.log(`Processing image ${idx}:`, { original: url, built: fullUrl });
+        return {
+          id: Date.now() + idx, // Unique ID
+          url: url, // Keep original path
+          preview: fullUrl, // Full URL for display
+          isNew: false
+        };
+      });
+    
+    console.log('Processed images for form:', processedImages);
     
     setFormData({
       vendor_id: car.vendor_id,
@@ -297,11 +386,7 @@ const Cars = () => {
               {car.images && (() => {
                 const carImages = Array.isArray(car.images) ? car.images : [];
                 const firstImage = carImages[0];
-                const imageUrl = firstImage 
-                  ? (firstImage.startsWith('http') || firstImage.startsWith('/') 
-                      ? firstImage 
-                      : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}${firstImage}`)
-                  : null;
+                const imageUrl = buildImageUrl(firstImage);
                 return imageUrl ? (
                   <div className="w-full h-48 bg-gray-200 overflow-hidden">
                     <img 
@@ -309,6 +394,7 @@ const Cars = () => {
                       alt={`${car.brand} ${car.model}`}
                       className="w-full h-full object-cover"
                       onError={(e) => {
+                        console.error('Image load error:', imageUrl);
                         e.target.style.display = 'none';
                         e.target.parentElement.innerHTML = '<div class="w-full h-48 bg-gray-200 flex items-center justify-center"><svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>';
                       }}
@@ -640,18 +726,57 @@ const Cars = () => {
                     {/* Image Preview Grid */}
                     {formData.images.length > 0 && (
                       <div className="grid grid-cols-4 gap-4">
-                        {formData.images.map((image) => {
-                          const imageSrc = image.preview || image.url || image;
-                          const fullImageUrl = typeof imageSrc === 'string' && !imageSrc.startsWith('http') && !imageSrc.startsWith('blob:')
-                            ? `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}${imageSrc}`
-                            : imageSrc;
+                        {formData.images.map((image, idx) => {
+                          // Get the image source - prefer already-processed preview
+                          let fullImageUrl;
+                          if (image.preview) {
+                            // If preview exists and is already a full URL (blob: or http), use it directly
+                            fullImageUrl = image.preview;
+                          } else if (image.url) {
+                            // If only URL exists, build it
+                            fullImageUrl = buildImageUrl(image.url);
+                          } else if (typeof image === 'string') {
+                            // If image is just a string path
+                            fullImageUrl = buildImageUrl(image);
+                          } else {
+                            fullImageUrl = null;
+                          }
+                          
+                          console.log(`Modal image preview [${idx}]:`, {
+                            id: image.id,
+                            isNew: image.isNew,
+                            hasFile: !!image.file,
+                            hasPreview: !!image.preview,
+                            hasUrl: !!image.url,
+                            previewValue: image.preview,
+                            urlValue: image.url,
+                            finalUrl: fullImageUrl,
+                            imageType: typeof image
+                          });
+                          
                           return (
                             <div key={image.id} className="relative group">
-                              <img
-                                src={fullImageUrl}
-                                alt="Car preview"
-                                className="w-full h-24 object-cover rounded-lg border border-gray-200"
-                              />
+                              {fullImageUrl ? (
+                                <img
+                                  src={fullImageUrl}
+                                  alt="Car preview"
+                                  className="w-full h-24 object-cover rounded-lg border border-gray-200"
+                                  onLoad={() => {
+                                    console.log(`✓ Image ${idx} loaded successfully:`, fullImageUrl);
+                                  }}
+                                  onError={(e) => {
+                                    console.error(`✗ Image ${idx} load error:`, fullImageUrl);
+                                    e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext x="50" y="50" font-size="14" text-anchor="middle" dy=".3em" fill="%23999"%3EError%3C/text%3E%3C/svg%3E';
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-full h-24 bg-gray-200 rounded-lg border border-gray-200 flex items-center justify-center">
+                                  <div className="text-center">
+                                    <ImageIcon className="h-8 w-8 text-gray-400 mx-auto" />
+                                    <span className="text-xs text-gray-500 mt-1">No Image</span>
+                                  </div>
+                                </div>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => handleRemoveImage(image.id)}
