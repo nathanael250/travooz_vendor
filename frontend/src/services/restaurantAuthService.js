@@ -6,7 +6,7 @@ const restaurantAuthService = {
    */
   async login(email, password) {
     try {
-      const response = await apiClient.post('/restaurant/auth/login', {
+      const response = await apiClient.post('/eating-out/setup/auth/login', {
         email,
         password,
       });
@@ -29,7 +29,7 @@ const restaurantAuthService = {
    */
   async getProfile() {
     try {
-      const response = await apiClient.get('/restaurant/auth/profile');
+      const response = await apiClient.get('/eating-out/setup/auth/profile');
       if (response.data.success) {
         localStorage.setItem('restaurant_user', JSON.stringify(response.data.data));
         return response.data.data;
@@ -45,7 +45,7 @@ const restaurantAuthService = {
    */
   async requestPasswordReset(email) {
     try {
-      const response = await apiClient.post('/restaurant/auth/forgot-password', {
+      const response = await apiClient.post('/eating-out/setup/auth/forgot-password', {
         email,
       });
 
