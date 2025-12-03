@@ -64,7 +64,7 @@ const restaurantAuthService = {
    */
   async resetPassword(token, password) {
     try {
-      const response = await apiClient.post('/restaurant/auth/reset-password', {
+      const response = await apiClient.post('/eating-out/setup/auth/reset-password', {
         token,
         password,
       });

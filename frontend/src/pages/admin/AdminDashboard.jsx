@@ -198,7 +198,7 @@ const AdminDashboard = () => {
       `To confirm deletion, please type the business name:\n"${businessName}"`
     );
 
-    if (typedName !== businessName) {
+    if (!typedName || typedName.trim().toLowerCase() !== businessName.trim().toLowerCase()) {
       toast.error('Business name does not match. Deletion cancelled.');
       return;
     }

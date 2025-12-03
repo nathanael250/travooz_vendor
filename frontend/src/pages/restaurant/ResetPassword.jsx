@@ -1,58 +1,83 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { Lock, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import restaurantAuthService from '../../services/restaurantAuthService';
-import logo from '../../assets/images/cdc_logo.jpg';
+import StaysNavbar from '../../components/stays/StaysNavbar';
+import StaysFooter from '../../components/stays/StaysFooter';
 
 const ResetPassword = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const token = searchParams.get('token');
+
+  const [formData, setFormData] = useState({
+    password: '',
+    confirmPassword: ''
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [resetSuccess, setResetSuccess] = useState(false);
-  const [token, setToken] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  // Enable scrolling for this page
+  useEffect(() => {
+    document.body.classList.add('auth-page');
+    return () => {
+      document.body.classList.remove('auth-page');
+    };
+  }, []);
 
   useEffect(() => {
-    const tokenFromUrl = searchParams.get('token');
-    if (!tokenFromUrl) {
+    if (!token) {
       toast.error('Invalid or missing reset token');
-      navigate('/restaurant/login');
-    } else {
-      setToken(tokenFromUrl);
+      navigate('/restaurant/forgot-password');
     }
-  }, [searchParams, navigate]);
+  }, [token, navigate]);
 
-  const validatePassword = () => {
-    if (password.length < 6) {
-      toast.error('Password must be at least 6 characters long');
-      return false;
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
     }
-    if (password !== confirmPassword) {
-      toast.error('Passwords do not match');
-      return false;
+
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = 'Please confirm your password';
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
     }
-    return true;
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!validatePassword()) {
+    if (!validateForm()) {
       return;
     }
 
     try {
       setLoading(true);
-      await restaurantAuthService.resetPassword(token, password);
-      setResetSuccess(true);
-      toast.success('Password reset successfully');
+      await restaurantAuthService.resetPassword(token, formData.password);
+      setSuccess(true);
+      toast.success('Password reset successful!');
       setTimeout(() => {
         navigate('/restaurant/login');
-      }, 3000);
+      }, 2000);
     } catch (error) {
       console.error('Reset password error:', error);
       toast.error(error.message || 'Failed to reset password');
@@ -62,124 +87,144 @@ const ResetPassword = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <img src={logo} alt="Travooz Logo" className="h-16 mx-auto mb-4" />
-          <h1 className="text-3xl font-bold text-gray-900">Restaurant Portal</h1>
-          <p className="text-gray-600 mt-2">Create New Password</p>
-        </div>
-
-        {/* Card */}
-        <div className="bg-white rounded-lg shadow-xl p-8">
-          {!resetSuccess ? (
-            <>
-              <div className="text-center mb-6">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4">
-                  <Lock className="h-8 w-8 text-orange-600" />
+    <div className="flex flex-col min-h-screen" style={{ backgroundColor: '#f0fdf4' }}>
+      <StaysNavbar />
+      
+      <div className="flex-1 w-full py-8 px-4 flex items-center justify-center">
+        <div className="max-w-md w-full mx-auto">
+          {/* Card */}
+          <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>
+            {!success ? (
+              <>
+                <div className="text-center mb-8">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style={{ backgroundColor: '#dcfce7' }}>
+                    <Lock className="h-8 w-8" style={{ color: '#3CAF54' }} />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Reset Password</h2>
+                  <p className="text-gray-600">
+                    Enter your new password below
+                  </p>
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Reset Password</h2>
-                <p className="text-gray-600">
-                  Enter your new password below.
+
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  {/* Password Field */}
+                  <div>
+                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                      New Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="password"
+                        type={showPassword ? 'text' : 'password'}
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        placeholder="Enter new password"
+                        className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:ring-2 focus:ring-[#3CAF54]/20 ${
+                          errors.password ? 'border-red-500' : ''
+                        }`}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      </button>
+                    </div>
+                    {errors.password && (
+                      <p className="mt-1 ml-1 text-sm text-red-600 flex items-center gap-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {errors.password}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Confirm Password Field */}
+                  <div>
+                    <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                      Confirm Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="confirmPassword"
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        name="confirmPassword"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        placeholder="Confirm new password"
+                        className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:ring-2 focus:ring-[#3CAF54]/20 ${
+                          errors.confirmPassword ? 'border-red-500' : ''
+                        }`}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      </button>
+                    </div>
+                    {errors.confirmPassword && (
+                      <p className="mt-1 ml-1 text-sm text-red-600 flex items-center gap-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {errors.confirmPassword}
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3 rounded-lg text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: '#3CAF54' }}
+                  >
+                    {loading ? 'Resetting...' : 'Reset Password'}
+                  </button>
+                </form>
+
+                <div className="mt-6 text-center">
+                  <Link
+                    to="/restaurant/login"
+                    className="font-medium"
+                    style={{ color: '#3CAF54' }}
+                  >
+                    Back to Login
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style={{ backgroundColor: '#dcfce7' }}>
+                  <CheckCircle className="h-8 w-8" style={{ color: '#3CAF54' }} />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Password Reset Successful!</h2>
+                <p className="text-gray-600 mb-6">
+                  Your password has been reset successfully. You can now log in with your new password.
                 </p>
-              </div>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                    New Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="password"
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter new password"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent pr-12"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                    >
-                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">Must be at least 6 characters</p>
-                </div>
-
-                <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                    Confirm Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="confirmPassword"
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Confirm new password"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent pr-12"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                    >
-                      {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-orange-600 text-white py-3 rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                >
-                  {loading ? 'Resetting...' : 'Reset Password'}
-                </button>
-              </form>
-
-              <div className="mt-6 text-center">
                 <Link
                   to="/restaurant/login"
-                  className="text-orange-600 hover:text-orange-700 font-medium"
+                  className="block w-full py-3 rounded-lg text-white font-medium transition-colors"
+                  style={{ backgroundColor: '#3CAF54' }}
                 >
-                  Back to Login
+                  Go to Login
                 </Link>
               </div>
-            </>
-          ) : (
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
-                <CheckCircle className="h-8 w-8 text-green-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Password Reset Successful!</h2>
-              <p className="text-gray-600 mb-6">
-                Your password has been reset successfully. You will be redirected to the login page in a moment.
-              </p>
-              <Link
-                to="/restaurant/login"
-                className="inline-block w-full bg-orange-600 text-white py-3 rounded-lg hover:bg-orange-700 transition-colors font-medium"
-              >
-                Go to Login
-              </Link>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
 
-        {/* Footer */}
-        <div className="text-center mt-6 text-sm text-gray-600">
-          <p>Need help? Contact support at support@travooz.com</p>
+          {/* Footer */}
+          <div className="text-center mt-6 text-sm text-gray-600">
+            <p>Need help? Contact support at support@travooz.com</p>
+          </div>
         </div>
       </div>
+
+      <StaysFooter />
     </div>
   );
 };
 
 export default ResetPassword;
-

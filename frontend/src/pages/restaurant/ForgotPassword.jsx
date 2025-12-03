@@ -1,14 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, ArrowLeft } from 'lucide-react';
+import { Mail, ArrowLeft, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import restaurantAuthService from '../../services/restaurantAuthService';
-import logo from '../../assets/images/cdc_logo.jpg';
+import StaysNavbar from '../../components/stays/StaysNavbar';
+import StaysFooter from '../../components/stays/StaysFooter';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+
+  // Enable scrolling for this page
+  useEffect(() => {
+    document.body.classList.add('auth-page');
+    return () => {
+      document.body.classList.remove('auth-page');
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -32,112 +41,106 @@ const ForgotPassword = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <img src={logo} alt="Travooz Logo" className="h-16 mx-auto mb-4" />
-          <h1 className="text-3xl font-bold text-gray-900">Restaurant Portal</h1>
-          <p className="text-gray-600 mt-2">Reset Your Password</p>
-        </div>
-
-        {/* Card */}
-        <div className="bg-white rounded-lg shadow-xl p-8">
-          {!emailSent ? (
-            <>
-              <div className="text-center mb-6">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4">
-                  <Mail className="h-8 w-8 text-orange-600" />
+    <div className="flex flex-col min-h-screen" style={{ backgroundColor: '#f0fdf4' }}>
+      <StaysNavbar />
+      
+      <div className="flex-1 w-full py-8 px-4 flex items-center justify-center">
+        <div className="max-w-md w-full mx-auto">
+          {/* Card */}
+          <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>
+            {!emailSent ? (
+              <>
+                <div className="text-center mb-8">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style={{ backgroundColor: '#dcfce7' }}>
+                    <Mail className="h-8 w-8" style={{ color: '#3CAF54' }} />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Forgot Password?</h2>
+                  <p className="text-gray-600">
+                    Enter your email address and we'll send you a link to reset your password.
+                  </p>
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Forgot Password?</h2>
-                <p className="text-gray-600">
-                  Enter your email address and we'll send you a link to reset your password.
+
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                      Email address
+                    </label>
+                    <input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Enter your email"
+                      className="w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:ring-2 focus:ring-[#3CAF54]/20"
+                      style={{ focusBorderColor: '#3CAF54' }}
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3 rounded-lg text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: '#3CAF54', '&:hover': { backgroundColor: '#2d8f42' } }}
+                  >
+                    {loading ? 'Sending...' : 'Send Reset Link'}
+                  </button>
+                </form>
+
+                <div className="mt-6 text-center">
+                  <Link
+                    to="/restaurant/login"
+                    className="inline-flex items-center gap-2 font-medium"
+                    style={{ color: '#3CAF54' }}
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Back to Login
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style={{ backgroundColor: '#dcfce7' }}>
+                  <CheckCircle className="h-8 w-8" style={{ color: '#3CAF54' }} />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h2>
+                <p className="text-gray-600 mb-6">
+                  We've sent a password reset link to <strong>{email}</strong>. 
+                  Please check your email and follow the instructions to reset your password.
                 </p>
-              </div>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                    Email Address
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your email"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                    required
-                  />
+                <p className="text-sm text-gray-500 mb-6">
+                  Didn't receive the email? Check your spam folder or try again.
+                </p>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => setEmailSent(false)}
+                    className="w-full py-3 rounded-lg text-white font-medium transition-colors"
+                    style={{ backgroundColor: '#3CAF54' }}
+                  >
+                    Try Again
+                  </button>
+                  <Link
+                    to="/restaurant/login"
+                    className="block w-full text-center font-medium py-3"
+                    style={{ color: '#3CAF54' }}
+                  >
+                    Back to Login
+                  </Link>
                 </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-orange-600 text-white py-3 rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                >
-                  {loading ? 'Sending...' : 'Send Reset Link'}
-                </button>
-              </form>
-
-              <div className="mt-6 text-center">
-                <Link
-                  to="/restaurant/login"
-                  className="inline-flex items-center gap-2 text-orange-600 hover:text-orange-700 font-medium"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to Login
-                </Link>
               </div>
-            </>
-          ) : (
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
-                <Mail className="h-8 w-8 text-green-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h2>
-              <p className="text-gray-600 mb-6">
-                We've sent a password reset link to <strong>{email}</strong>. 
-                Please check your email and follow the instructions to reset your password.
-              </p>
-              <p className="text-sm text-gray-500 mb-6">
-                Didn't receive the email? Check your spam folder or try again.
-              </p>
-              <div className="space-y-3">
-                <button
-                  onClick={() => setEmailSent(false)}
-                  className="w-full bg-orange-600 text-white py-3 rounded-lg hover:bg-orange-700 transition-colors font-medium"
-                >
-                  Try Again
-                </button>
-                <Link
-                  to="/restaurant/login"
-                  className="block w-full text-center text-orange-600 hover:text-orange-700 font-medium py-3"
-                >
-                  Back to Login
-                </Link>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
 
-        {/* Footer */}
-        <div className="text-center mt-6 text-sm text-gray-600">
-          <p>Need help? Contact support at support@travooz.com</p>
+          {/* Footer */}
+          <div className="text-center mt-6 text-sm text-gray-600">
+            <p>Need help? Contact support at support@travooz.com</p>
+          </div>
         </div>
       </div>
+
+      <StaysFooter />
     </div>
   );
 };
 
 export default ForgotPassword;
-
-
-
-
-
-
-
-
-
-
