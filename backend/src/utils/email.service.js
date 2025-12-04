@@ -24,7 +24,7 @@ class EmailService {
             socketTimeout: 10000
         };
 
-        console.log('📧 Creating SMTP transporter with config:');
+        console.log(' Creating SMTP transporter with config:');
         console.log('   Host:', config.host);
         console.log('   Port:', config.port);
         console.log('   User:', config.auth.user);

@@ -191,6 +191,16 @@ class ClientDiscoveryService {
         `SELECT * FROM stays_rooms WHERE property_id = ?`,
         [propertyId]
       );
+      
+      // Fetch images for each room
+      for (const room of rooms) {
+        const roomImages = await executeQuery(
+          `SELECT image_url, image_order FROM stays_room_images WHERE room_id = ? ORDER BY image_order ASC`,
+          [room.room_id]
+        );
+        room.images = roomImages.map(img => img.image_url);
+      }
+      
       property.rooms = rooms;
 
       const policies = await executeQuery(

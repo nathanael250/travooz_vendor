@@ -465,7 +465,7 @@ class AdminAccountsService {
                     const [restaurantApprove] = await pool.execute(
                         `SELECT 
                             r.id,
-                            r.business_name,
+                            r.name as business_name,
                             ru.email,
                             ru.name
                          FROM restaurants r
@@ -709,7 +709,7 @@ class AdminAccountsService {
                     const [restaurantReject] = await poolReject.execute(
                         `SELECT 
                             r.id,
-                            r.business_name,
+                            r.name as business_name,
                             ru.email,
                             ru.name
                          FROM restaurants r
@@ -988,7 +988,7 @@ class AdminAccountsService {
                     // Get user_id before deletion
                     const { pool } = require('../../../config/database');
                     const [restaurant] = await pool.execute(
-                        `SELECT user_id, business_name FROM restaurants WHERE id = ?`,
+                        `SELECT user_id, name FROM restaurants WHERE id = ?`,
                         [String(accountId)]
                     );
                     
@@ -998,12 +998,48 @@ class AdminAccountsService {
                     
                     const restaurantUserId = restaurant[0].user_id;
                     
-                    // Delete all related data (with error handling for tables that might not exist)
+                    console.log(`🗑️  Deleting restaurant ${accountId} and all associated data...`);
+                    
+                    // Delete in correct order to respect foreign key constraints
+                    // 1. First, get all menu items for this restaurant
+                    const [menuItems] = await pool.execute(
+                        `SELECT id FROM menu_items WHERE restaurant_id = ?`,
+                        [String(accountId)]
+                    ).catch(() => [[]]);
+                    
+                    // 2. Delete order items that reference these menu items (child records first)
+                    if (menuItems && menuItems.length > 0) {
+                        const menuItemIds = menuItems.map(item => item.id);
+                        const placeholders = menuItemIds.map(() => '?').join(',');
+                        await pool.execute(
+                            `DELETE FROM restaurant_order_items WHERE menu_item_id IN (${placeholders})`,
+                            menuItemIds
+                        ).catch(() => {});
+                    }
+                    
+                    // 3. Delete orders for this restaurant
+                    await pool.execute(`DELETE FROM orders WHERE restaurant_id = ?`, [String(accountId)]).catch(() => {});
+                    await pool.execute(`DELETE FROM restaurant_orders WHERE restaurant_id = ?`, [String(accountId)]).catch(() => {});
+                    
+                    // 4. Delete table bookings
+                    await pool.execute(`DELETE FROM table_bookings WHERE restaurant_id = ?`, [String(accountId)]).catch(() => {});
+                    await pool.execute(`DELETE FROM restaurant_table_bookings WHERE restaurant_id = ?`, [String(accountId)]).catch(() => {});
+                    
+                    // 5. Now safe to delete menu items (no order items referencing them)
+                    await pool.execute(`DELETE FROM menu_items WHERE restaurant_id = ?`, [String(accountId)]).catch(() => {});
+                    
+                    // 6. Delete other related data
                     await pool.execute(`DELETE FROM restaurant_tables WHERE restaurant_id = ?`, [String(accountId)]).catch(() => {});
                     await pool.execute(`DELETE FROM restaurant_menus WHERE restaurant_id = ?`, [String(accountId)]).catch(() => {});
                     await pool.execute(`DELETE FROM restaurant_images WHERE restaurant_id = ?`, [String(accountId)]).catch(() => {});
+                    
+                    // 7. Delete the restaurant itself
                     await pool.execute(`DELETE FROM restaurants WHERE id = ?`, [String(accountId)]);
+                    
+                    // 8. Finally, delete the user account
                     await pool.execute(`DELETE FROM restaurant_users WHERE user_id = ?`, [restaurantUserId]);
+                    
+                    console.log(`✅ Restaurant ${accountId} and all associated data deleted successfully`);
                     break;
 
                 default:

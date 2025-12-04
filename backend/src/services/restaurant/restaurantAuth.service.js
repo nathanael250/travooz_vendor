@@ -127,18 +127,24 @@ class RestaurantAuthService {
      */
     async requestPasswordReset(email) {
         try {
+            console.log('🔍 [Restaurant Service] Searching for email:', email);
+            
             // Find user by email
             const users = await executeQuery(
                 `SELECT * FROM restaurant_users WHERE email = ?`,
                 [email]
             );
 
+            console.log('🔍 [Restaurant Service] Users found:', users.length);
+            
             // Don't reveal if email exists or not (security best practice)
             if (users.length === 0) {
+                console.log('❌ [Restaurant Service] No user found with email:', email);
                 return { message: 'If the email exists, a reset link has been sent' };
             }
 
             const user = users[0];
+            console.log('✅ [Restaurant Service] User found:', { user_id: user.user_id, email: user.email, name: user.name });
 
             // Generate reset token (random 32-character string)
             const crypto = require('crypto');
@@ -147,13 +153,16 @@ class RestaurantAuthService {
             resetExpires.setHours(resetExpires.getHours() + 1); // 1 hour expiry
 
             // Update user with reset token
-            await executeQuery(
+            console.log('💾 [Restaurant Service] Updating user with reset token...');
+            const updateResult = await executeQuery(
                 `UPDATE restaurant_users 
                  SET password_reset_token = ?, password_reset_expires = ? 
                  WHERE user_id = ?`,
                 [resetToken, resetExpires, user.user_id]
             );
+            console.log('✅ [Restaurant Service] Update result:', updateResult);
 
+            console.log('📧 [Restaurant Service] Returning reset data to controller');
             return {
                 resetToken,
                 user: {

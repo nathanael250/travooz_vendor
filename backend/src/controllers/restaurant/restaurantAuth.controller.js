@@ -82,9 +82,18 @@ const requestPasswordReset = async (req, res) => {
 
         // Request password reset
         const result = await restaurantAuthService.requestPasswordReset(email);
+        
+        // DEBUG: Log what the service returned
+        console.log('🔍 Password reset result:', {
+            hasResetToken: !!result.resetToken,
+            hasUser: !!result.user,
+            result: JSON.stringify(result, null, 2)
+        });
 
         // If user exists, send email
         if (result.resetToken && result.user) {
+            console.log('✅ Reset token and user found, attempting to send email...');
+
             try {
                 const isConnected = await EmailService.verifyConnection();
                 if (isConnected) {
