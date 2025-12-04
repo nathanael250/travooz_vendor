@@ -30,6 +30,28 @@ import logo from '../../assets/images/cdc_logo.jpg';
 import AmenitiesTabContent from '../../components/stays/AmenitiesTabContent';
 import RoomsTabContent from '../../components/stays/RoomsTabContent';
 
+// Helper function to build image URLs for both development and production
+const buildImageUrl = (imageUrl) => {
+  if (!imageUrl) return '';
+  
+  // If it's already a full URL (http:// or https://), return as is
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    return imageUrl;
+  }
+  
+  // Get the API base URL from environment
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+  
+  // Remove '/api/v1' from the base URL to get the server root
+  const serverUrl = apiBaseUrl.replace('/api/v1', '');
+  
+  // Ensure the image URL starts with /
+  const normalizedImageUrl = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+  
+  // Combine server URL with image path
+  return `${serverUrl}${normalizedImageUrl}`;
+};
+
 const MyPropertyTabbed = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -793,9 +815,13 @@ const ImagesTab = ({ property, editing }) => (
         {property.images.map((image, index) => (
           <div key={image.image_id || index} className="relative aspect-video rounded-lg overflow-hidden">
             <img
-              src={image.image_url}
+              src={buildImageUrl(image.image_url)}
               alt={`Property image ${index + 1}`}
               className="w-full h-full object-cover"
+              onError={(e) => {
+                console.error('Failed to load image:', image.image_url);
+                e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext fill="%23999" x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"%3ENo Image%3C/text%3E%3C/svg%3E';
+              }}
             />
             {image.is_primary && (
               <div className="absolute top-2 right-2 bg-green-600 text-white text-xs px-2 py-1 rounded">
