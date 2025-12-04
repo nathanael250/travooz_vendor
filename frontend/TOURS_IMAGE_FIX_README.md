@@ -75,3 +75,63 @@ Special handling for File objects:
 - Only server-returned URLs (from existing/saved images) get transformed
 
 This ensures both new uploads AND saved images display correctly!
+
+---
+
+## Additional Fix: Media Library
+
+### Problem
+The Tours Media Library page was also affected - images displayed locally but showed as generic file icons on production.
+
+### Files Modified (Updated)
+✅ `src/pages/tours/dashboard/ViewTourPackage.jsx`
+✅ `src/pages/tours/dashboard/CreateTourPackage.jsx`
+✅ `src/pages/tours/dashboard/MediaLibrary.jsx` ⬅️ **NEW**
+
+### Changes Made in MediaLibrary.jsx
+
+1. **Added `buildImageUrl()` helper function** with `[Tours Media]` log prefix
+2. **Updated Gallery Grid Images** - Line ~413
+   - Applied `buildImageUrl()` to photo thumbnails
+   - Added error handling with placeholder
+3. **Updated Modal View Images** - Line ~596
+   - Applied `buildImageUrl()` to full-size modal view
+   - Added error handling
+4. **Upload Preview** - NO CHANGE NEEDED
+   - Uses blob URLs from `URL.createObjectURL()` 
+   - Already works correctly
+
+### Testing the Media Library
+
+1. **Development:**
+   ```
+   http://localhost:5173/tours/dashboard/media
+   ```
+
+2. **Production:**
+   ```
+   https://vendor.travooz.rw/tours/dashboard/media
+   ```
+
+### Expected Results
+
+✅ Photo thumbnails display correctly in the grid
+✅ Primary photos show with yellow "Primary" badge
+✅ Click to view full-size image in modal
+✅ Upload preview works (uses blob URLs)
+✅ Search and filter by package name
+
+### Console Logs to Look For
+
+When viewing the Media Library page:
+```
+🔧 [Tours Media] VITE_API_BASE_URL: https://vendor.travooz.rw/api/v1
+🔧 [Tours Media] API Base URL being used: https://vendor.travooz.rw/api/v1
+🔧 [Tours Media] Server root URL: https://vendor.travooz.rw
+🖼️ [Tours Media] Final image URL: https://vendor.travooz.rw/uploads/tours/photo123.jpg
+```
+
+If images fail to load, you'll see:
+```
+[Tours Media] Failed to load image: /uploads/tours/photo123.jpg
+```

@@ -3,6 +3,38 @@ import { Image, Upload, Trash2, Eye, X, Package, Star, Search, Filter } from 'lu
 import apiClient from '../../../services/apiClient';
 import toast from 'react-hot-toast';
 
+// Helper function to build image URLs for both development and production
+const buildImageUrl = (imageUrl) => {
+  if (!imageUrl) {
+    console.warn('⚠️ [Tours Media] buildImageUrl called with empty imageUrl');
+    return '';
+  }
+  
+  // If it's already a full URL (http:// or https://), return as is
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    console.log('✅ [Tours Media] Image URL is already absolute:', imageUrl);
+    return imageUrl;
+  }
+  
+  // Get the API base URL from environment
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+  console.log('🔧 [Tours Media] VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL || '(not set, using default)');
+  console.log('🔧 [Tours Media] API Base URL being used:', apiBaseUrl);
+  
+  // Remove '/api/v1' from the base URL to get the server root
+  const serverUrl = apiBaseUrl.replace('/api/v1', '');
+  console.log('🔧 [Tours Media] Server root URL:', serverUrl);
+  
+  // Ensure the image URL starts with /
+  const normalizedImageUrl = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+  
+  // Combine server URL with image path
+  const finalUrl = `${serverUrl}${normalizedImageUrl}`;
+  console.log('🖼️ [Tours Media] Final image URL:', finalUrl, '(from', imageUrl, ')');
+  
+  return finalUrl;
+};
+
 const MediaLibrary = () => {
   const [packages, setPackages] = useState([]);
   const [allPhotos, setAllPhotos] = useState([]);
@@ -373,10 +405,14 @@ const MediaLibrary = () => {
                         </div>
                       )}
                       <img
-                        src={photoUrl}
+                        src={buildImageUrl(photoUrl)}
                         alt={photo.photo_name || 'Tour photo'}
                         className="w-full h-32 object-cover rounded-lg cursor-pointer"
                         onClick={() => setSelectedPhoto(photo)}
+                        onError={(e) => {
+                          console.error('[Tours Media] Failed to load image:', photoUrl);
+                          e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext fill="%23999" x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"%3ENo Image%3C/text%3E%3C/svg%3E';
+                        }}
                       />
                       <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity rounded-lg flex items-center justify-center gap-2">
                         <button
@@ -556,9 +592,13 @@ const MediaLibrary = () => {
               <X className="h-6 w-6" />
             </button>
             <img
-              src={selectedPhoto.photo_url || selectedPhoto.url}
+              src={buildImageUrl(selectedPhoto.photo_url || selectedPhoto.url)}
               alt={selectedPhoto.photo_name || 'Tour photo'}
               className="max-w-full max-h-[90vh] mx-auto rounded-lg"
+              onError={(e) => {
+                console.error('[Tours Media] Failed to load modal image:', selectedPhoto.photo_url || selectedPhoto.url);
+                e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext fill="%23999" x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"%3ENo Image%3C/text%3E%3C/svg%3E';
+              }}
             />
             <div className="mt-4 text-center text-white">
               <p className="font-medium">{selectedPhoto.photo_name || 'Tour Photo'}</p>
