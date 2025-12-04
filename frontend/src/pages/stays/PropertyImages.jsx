@@ -33,24 +33,34 @@ import {
 
 // Helper function to build image URLs for both development and production
 const buildImageUrl = (imageUrl) => {
-  if (!imageUrl) return '';
+  if (!imageUrl) {
+    console.warn('⚠️ buildImageUrl called with empty imageUrl');
+    return '';
+  }
   
   // If it's already a full URL (http:// or https://), return as is
   if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    console.log('✅ Image URL is already absolute:', imageUrl);
     return imageUrl;
   }
   
   // Get the API base URL from environment
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+  console.log('🔧 VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL || '(not set, using default)');
+  console.log('🔧 API Base URL being used:', apiBaseUrl);
   
   // Remove '/api/v1' from the base URL to get the server root
   const serverUrl = apiBaseUrl.replace('/api/v1', '');
+  console.log('🔧 Server root URL:', serverUrl);
   
   // Ensure the image URL starts with /
   const normalizedImageUrl = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
   
   // Combine server URL with image path
-  return `${serverUrl}${normalizedImageUrl}`;
+  const finalUrl = `${serverUrl}${normalizedImageUrl}`;
+  console.log('🖼️ Final image URL:', finalUrl, '(from', imageUrl, ')');
+  
+  return finalUrl;
 };
 
 const PropertyImages = () => {

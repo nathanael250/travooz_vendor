@@ -72,3 +72,31 @@ const buildImageUrl = (imageUrl) => {
 
 ## Fallback Behavior
 If an image fails to load, the `onError` handler displays a grey placeholder with "No Image" text, and logs the failed URL to the console for debugging.
+
+## Debugging
+
+I've added extensive console logging to help debug the issue. When you visit the Property Images page, open your browser's Developer Tools (F12) and check the Console tab.
+
+You should see logs like:
+```
+🔧 VITE_API_BASE_URL: https://vendor.travooz.rw/api/v1
+🔧 API Base URL being used: https://vendor.travooz.rw/api/v1
+🔧 Server root URL: https://vendor.travooz.rw
+🖼️ Final image URL: https://vendor.travooz.rw/uploads/stays/property-images/filename.jpg (from /uploads/stays/property-images/filename.jpg)
+```
+
+### Common Issues:
+
+1. **VITE_API_BASE_URL not set**: If you see `(not set, using default)`, create the `.env.production` file
+2. **Wrong server URL**: Check that the constructed URL matches your actual backend domain
+3. **CORS issues**: Check the Network tab (F12 -> Network) to see if image requests are being blocked
+4. **404 errors**: Image file doesn't exist on the server - check that uploads are being saved correctly
+
+### Next Steps:
+
+Please do the following and report back:
+1. Visit `https://vendor.travooz.rw/stays/dashboard/property-images` 
+2. Open Browser Console (F12 -> Console tab)
+3. Take a screenshot of the console logs
+4. Also check the Network tab (F12 -> Network) and filter by "Img" to see if image requests are failing
+5. Share what you see!
