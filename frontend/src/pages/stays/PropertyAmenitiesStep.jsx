@@ -30,10 +30,6 @@ export default function PropertyAmenitiesStep() {
   const [formData, setFormData] = useState({
     // Check-in / Check-out
     hasFrontDesk: 'no',
-    frontDeskSchedule: 'everyday', // 'everyday' or 'select_days'
-    deskOpens: '',
-    deskCloses: '',
-    frontDesk24Hours: false,
     checkInFrom: '',
     checkInTo: '',
     noCheckInEndTime: false,
@@ -88,16 +84,7 @@ export default function PropertyAmenitiesStep() {
   const validateForm = () => {
     const newErrors = {};
 
-    // Required fields based on selections
-    if (formData.hasFrontDesk === 'yes' && formData.frontDeskSchedule === 'everyday') {
-      if (!formData.deskOpens && !formData.frontDesk24Hours) {
-        newErrors.deskOpens = 'Desk opening time is required';
-      }
-      if (!formData.deskCloses && !formData.frontDesk24Hours) {
-        newErrors.deskCloses = 'Desk closing time is required';
-      }
-    }
-
+    // No validation needed for front desk - it's just a yes/no question
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -125,10 +112,6 @@ export default function PropertyAmenitiesStep() {
         checkInTime: formData.checkInTime || null,
         checkInEnds: formData.checkInEnds || null,
         hasFrontDesk: formData.hasFrontDesk || 'no',
-        frontDeskSchedule: formData.frontDeskSchedule || null,
-        frontDesk24Hours: formData.frontDesk24Hours || false,
-        deskOpens: formData.deskOpens || null,
-        deskCloses: formData.deskCloses || null,
         offerBreakfast: formData.offerBreakfast || 'no',
         breakfastType: formData.breakfastType || null,
         offerInternet: formData.offerInternet || 'no',
@@ -248,107 +231,6 @@ export default function PropertyAmenitiesStep() {
                         <span className="text-sm text-gray-700">No</span>
                       </label>
                     </div>
-
-                    {formData.hasFrontDesk === 'yes' && (
-                      <div className="ml-7 mt-4 space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            What is the front desk schedule?
-                          </label>
-                          <div className="flex gap-4 mb-3">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="frontDeskSchedule"
-                                value="everyday"
-                                checked={formData.frontDeskSchedule === 'everyday'}
-                                onChange={handleChange}
-                                className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                              />
-                              <span className="text-sm text-gray-700">Everyday</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="frontDeskSchedule"
-                                value="select_days"
-                                checked={formData.frontDeskSchedule === 'select_days'}
-                                onChange={handleChange}
-                                className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                              />
-                              <span className="text-sm text-gray-700">Select days</span>
-                            </label>
-                          </div>
-                          
-                          {formData.frontDeskSchedule === 'everyday' && (
-                            <div className="grid md:grid-cols-3 gap-4">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Desk opens
-                                </label>
-                                <select
-                                  name="deskOpens"
-                                  value={formData.deskOpens}
-                                  onChange={handleChange}
-                                  disabled={formData.frontDesk24Hours}
-                                  className={`w-full px-4 py-2 border-2 rounded-lg focus:outline-none ${
-                                    errors.deskOpens ? 'border-red-500' : 'border-gray-300 focus:border-[#3CAF54]'
-                                  } disabled:bg-gray-100 disabled:cursor-not-allowed`}
-                                >
-                                  <option value="">-select-</option>
-                                  {Array.from({ length: 24 }, (_, i) => {
-                                    const hour = String(i).padStart(2, '0');
-                                    return (
-                                      <option key={hour} value={`${hour}:00`}>{hour}:00</option>
-                                    );
-                                  })}
-                                </select>
-                                {errors.deskOpens && (
-                                  <p className="mt-1 text-sm text-red-600">{errors.deskOpens}</p>
-                                )}
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Desk closes
-                                </label>
-                                <select
-                                  name="deskCloses"
-                                  value={formData.deskCloses}
-                                  onChange={handleChange}
-                                  disabled={formData.frontDesk24Hours}
-                                  className={`w-full px-4 py-2 border-2 rounded-lg focus:outline-none ${
-                                    errors.deskCloses ? 'border-red-500' : 'border-gray-300 focus:border-[#3CAF54]'
-                                  } disabled:bg-gray-100 disabled:cursor-not-allowed`}
-                                >
-                                  <option value="">-select-</option>
-                                  {Array.from({ length: 24 }, (_, i) => {
-                                    const hour = String(i).padStart(2, '0');
-                                    return (
-                                      <option key={hour} value={`${hour}:00`}>{hour}:00</option>
-                                    );
-                                  })}
-                                </select>
-                                {errors.deskCloses && (
-                                  <p className="mt-1 text-sm text-red-600">{errors.deskCloses}</p>
-                                )}
-                              </div>
-                              <div className="flex items-end">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    name="frontDesk24Hours"
-                                    checked={formData.frontDesk24Hours}
-                                    onChange={handleChange}
-                                    className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                                  />
-                                  <span className="text-sm text-gray-700">Open 24 hours</span>
-                                </label>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* Check-in Time */}

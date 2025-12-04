@@ -15,6 +15,43 @@ import {
   updateRoomImage
 } from '../../services/staysService';
 
+// Helper function to build image URLs for both development and production
+const buildImageUrl = (imageUrl) => {
+  if (!imageUrl) {
+    console.warn('⚠️ [Stays Setup] buildImageUrl called with empty imageUrl');
+    return '';
+  }
+  
+  // If it's a blob URL (from file preview), return as-is
+  if (imageUrl.startsWith('blob:')) {
+    return imageUrl;
+  }
+  
+  // If it's already a full URL (http:// or https://), return as is
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    console.log('✅ [Stays Setup] Image URL is already absolute:', imageUrl);
+    return imageUrl;
+  }
+  
+  // Get the API base URL from environment
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+  console.log('🔧 [Stays Setup] VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL || '(not set, using default)');
+  console.log('🔧 [Stays Setup] API Base URL being used:', apiBaseUrl);
+  
+  // Remove '/api/v1' from the base URL to get the server root
+  const serverUrl = apiBaseUrl.replace('/api/v1', '');
+  console.log('🔧 [Stays Setup] Server root URL:', serverUrl);
+  
+  // Ensure the image URL starts with /
+  const normalizedImageUrl = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+  
+  // Combine server URL with image path
+  const finalUrl = `${serverUrl}${normalizedImageUrl}`;
+  console.log('🖼️ [Stays Setup] Final image URL:', finalUrl, '(from', imageUrl, ')');
+  
+  return finalUrl;
+};
+
 export default function ImageManagementStep() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -380,9 +417,13 @@ export default function ImageManagementStep() {
                     return (
                       <div key={imageId || imageSrc} className="relative group">
                       <img
-                          src={imageSrc}
+                          src={buildImageUrl(imageSrc)}
                           alt={imageName}
                         className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                        onError={(e) => {
+                          console.error('[Stays Setup] Failed to load property image:', imageSrc);
+                          e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext fill="%23999" x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"%3ENo Image%3C/text%3E%3C/svg%3E';
+                        }}
                       />
                       <button
                         type="button"
@@ -470,9 +511,13 @@ export default function ImageManagementStep() {
                               return (
                                 <div key={imageId || imageSrc} className="relative group">
                               <img
-                                    src={imageSrc}
+                                    src={buildImageUrl(imageSrc)}
                                     alt={imageName}
                                 className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                                onError={(e) => {
+                                  console.error('[Stays Setup] Failed to load room image:', imageSrc);
+                                  e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext fill="%23999" x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"%3ENo Image%3C/text%3E%3C/svg%3E';
+                                }}
                               />
                               <button
                                 type="button"
