@@ -182,6 +182,18 @@ class AdminService {
       throw new Error(errorMessage);
     }
   }
+
+  // Stays Property Details
+  async getStaysPropertyDetails(propertyId) {
+    try {
+      const response = await apiClient.get(`/admin/stays/properties/${propertyId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching property details:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to fetch property details';
+      throw new Error(errorMessage);
+    }
+  }
 }
 
 export default new AdminService();

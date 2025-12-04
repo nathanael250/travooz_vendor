@@ -81,8 +81,6 @@ const AmenitiesTabContent = ({ property, onUpdate }) => {
         petSurchargeAmount: property.amenities.pet_surcharge_amount || '',
         hasFrontDesk: property.amenities.has_front_desk || 'yes',
         frontDesk24Hours: property.amenities.front_desk_24_hours || false,
-        deskOpens: property.amenities.desk_opens || '',
-        deskCloses: property.amenities.desk_closes || '',
         minCheckInAge: property.amenities.min_check_in_age || '',
         checkInTime: property.amenities.check_in_time || '',
         checkInEnds: property.amenities.check_in_ends || '',

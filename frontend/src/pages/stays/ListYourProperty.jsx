@@ -31,6 +31,64 @@ export default function ListYourProperty() {
 
   const GOOGLE_MAPS_API_KEY = 'AIzaSyD2arEwy-YlQ7NU7fWOIxbJgTOLiH6RUqc'; // Not used - loaded from index.html
 
+  // Helper functions for location management
+  const createCoordinateLabel = (lat, lng) => `Pinned near (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+
+  const applyLocationSelection = (lat, lng, formattedAddress, placeId = `manual_${lat}_${lng}`, extraFields = {}) => {
+    const label = formattedAddress?.trim() || createCoordinateLabel(lat, lng);
+    const locationInfo = {
+      name: label,
+      formatted_address: label,
+      place_id: placeId,
+      lat,
+      lng,
+      ...extraFields
+    };
+
+    setSelectedMapLocation(locationInfo);
+    setLocation(label);
+    setLocationData(locationInfo);
+    setError('');
+  };
+
+  // OpenStreetMap fallback when Google geocoding fails
+  const fetchFallbackAddress = async (lat, lng) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`
+      );
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (fallbackError) {
+      console.error('Fallback geocoding error:', fallbackError);
+      return null;
+    }
+  };
+
+  const handleFallbackAddressLookup = async (lat, lng, placeId) => {
+    setIsGeocoding(true);
+    const fallbackData = await fetchFallbackAddress(lat, lng);
+    setIsGeocoding(false);
+
+    if (fallbackData?.display_name) {
+      const components = fallbackData.address
+        ? Object.entries(fallbackData.address).map(([key, value]) => ({
+            long_name: value,
+            short_name: value,
+            types: [key]
+          }))
+        : [];
+
+      applyLocationSelection(lat, lng, fallbackData.display_name, placeId, {
+        fallback_provider: 'nominatim',
+        address_components: components
+      });
+      setMapError('Using OpenStreetMap to describe this pinned location.');
+    } else {
+      setMapError('Address lookup failed. Saving precise coordinates only.');
+    }
+  };
+
   // Initialize Google Places Autocomplete
   const initializeAutocomplete = () => {
     if (!inputRef.current || !window.google || !window.google.maps || !window.google.maps.places) {
@@ -208,56 +266,40 @@ export default function ListYourProperty() {
 
         markerRef.current = marker;
 
-        // Update selected location immediately with coordinates
-        const fallbackAddress = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-        const initialLocationInfo = {
-          name: fallbackAddress,
-          formatted_address: fallbackAddress,
-          place_id: `manual_${lat}_${lng}`,
-          lat: lat,
-          lng: lng,
-          address_components: []
-        };
-        setSelectedMapLocation({ ...initialLocationInfo, lat, lng });
-        setLocation(fallbackAddress);
-        setLocationData(initialLocationInfo);
+        // Update selected location immediately with coordinates using helper
+        const placeId = `manual_${lat}_${lng}`;
+        applyLocationSelection(lat, lng, null, placeId, { address_components: [] });
         setMapError(''); // Clear any previous errors
         setIsGeocoding(true);
 
         // Reverse geocode to get address
         try {
           const geocoder = new window.google.maps.Geocoder();
-          geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+          geocoder.geocode({ location: { lat, lng } }, async (results, status) => {
             setIsGeocoding(false);
             
             if (status === 'OK' && results && results[0]) {
               const place = results[0];
-              const locationInfo = {
-                name: place.formatted_address,
-                formatted_address: place.formatted_address,
-                place_id: place.place_id || `manual_${lat}_${lng}`,
-                lat: lat,
-                lng: lng,
-                address_components: place.address_components || []
-              };
-              setSelectedMapLocation({ ...locationInfo, lat, lng });
-              // Automatically fill the address field with the formatted address
-              setLocation(place.formatted_address);
-              setLocationData(locationInfo);
-              setError('');
+              applyLocationSelection(
+                lat,
+                lng,
+                place.formatted_address,
+                place.place_id || placeId,
+                { address_components: place.address_components || [] }
+              );
               setMapError('');
             } else {
-              // If geocoding fails, keep the coordinates we already set
-              // Show warning but don't block the user
+              // If Google geocoding fails, try OpenStreetMap as fallback
               if (status === 'ZERO_RESULTS') {
-                setMapError('No address found for this location. Using coordinates instead.');
+                setMapError('No address found for this location. Trying alternate service...');
               } else if (status === 'OVER_QUERY_LIMIT') {
-                setMapError('Geocoding service temporarily unavailable. Using coordinates instead.');
+                setMapError('Geocoding service temporarily unavailable. Trying alternate service...');
               } else if (status === 'REQUEST_DENIED') {
-                setMapError('Geocoding request denied. Using coordinates instead.');
+                setMapError('Geocoding request denied. Trying alternate service...');
               } else {
-                setMapError(`Geocoding failed (${status}). Using coordinates instead.`);
+                setMapError(`Geocoding failed (${status}). Trying alternate service...`);
               }
+              await handleFallbackAddressLookup(lat, lng, placeId);
             }
           });
         } catch (error) {
@@ -271,46 +313,31 @@ export default function ListYourProperty() {
           const newLat = e.latLng.lat();
           const newLng = e.latLng.lng();
           
-          // Immediately update with coordinates
-          const fallbackAddress = `${newLat.toFixed(6)}, ${newLng.toFixed(6)}`;
-          const initialLocationInfo = {
-            name: fallbackAddress,
-            formatted_address: fallbackAddress,
-            place_id: `manual_${newLat}_${newLng}`,
-            lat: newLat,
-            lng: newLng,
-            address_components: []
-          };
-          setSelectedMapLocation({ ...initialLocationInfo, lat: newLat, lng: newLng });
-          setLocation(fallbackAddress);
-          setLocationData(initialLocationInfo);
+          // Immediately update with coordinates using helper
+          const newPlaceId = `manual_${newLat}_${newLng}`;
+          applyLocationSelection(newLat, newLng, null, newPlaceId, { address_components: [] });
           setIsGeocoding(true);
 
           // Reverse geocode new position
           try {
             const geocoder = new window.google.maps.Geocoder();
-            geocoder.geocode({ location: { lat: newLat, lng: newLng } }, (results, status) => {
+            geocoder.geocode({ location: { lat: newLat, lng: newLng } }, async (results, status) => {
               setIsGeocoding(false);
               
               if (status === 'OK' && results && results[0]) {
                 const place = results[0];
-                const locationInfo = {
-                  name: place.formatted_address,
-                  formatted_address: place.formatted_address,
-                  place_id: place.place_id || `manual_${newLat}_${newLng}`,
-                  lat: newLat,
-                  lng: newLng,
-                  address_components: place.address_components || []
-                };
-                setSelectedMapLocation({ ...locationInfo, lat: newLat, lng: newLng });
-                // Automatically update the address field when marker is dragged
-                setLocation(place.formatted_address);
-                setLocationData(locationInfo);
-                setError('');
+                applyLocationSelection(
+                  newLat,
+                  newLng,
+                  place.formatted_address,
+                  place.place_id || newPlaceId,
+                  { address_components: place.address_components || [] }
+                );
                 setMapError('');
               } else {
-                // If geocoding fails, keep the coordinates we already set
-                setMapError('Address lookup failed. Using coordinates.');
+                // If Google geocoding fails, try OpenStreetMap as fallback
+                setMapError('Address lookup failed. Trying alternate service...');
+                await handleFallbackAddressLookup(newLat, newLng, newPlaceId);
               }
             });
           } catch (error) {
@@ -407,6 +434,16 @@ export default function ListYourProperty() {
 
   const handleNext = (e) => {
     e.preventDefault();
+    
+    // Clear any old property setup data from localStorage when starting NEW property
+    console.log('🧹 Clearing old property setup data from localStorage...');
+    localStorage.removeItem('stays_rooms');
+    localStorage.removeItem('stays_property_id');
+    localStorage.removeItem('stays_contract_accepted');
+    localStorage.removeItem('stays_policies');
+    localStorage.removeItem('stays_amenities');
+    localStorage.removeItem('stays_setup_complete');
+    console.log('✅ Old data cleared - starting fresh property creation!');
     
     // Location is optional - user can proceed without selecting a location
     // Navigate to next step with location data (if available)

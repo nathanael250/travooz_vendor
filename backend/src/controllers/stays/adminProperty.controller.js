@@ -61,8 +61,8 @@ class AdminPropertyController {
                 countParams.push(searchTerm, searchTerm, searchTerm);
             }
             
-            const [countResult] = await executeQuery(countQuery, countParams);
-            const total = countResult[0].total;
+            const countResult = await executeQuery(countQuery, countParams);
+            const total = (countResult && countResult.length > 0) ? countResult[0].total : 0;
             
             return sendSuccess(res, {
                 data: properties,
@@ -85,7 +85,7 @@ class AdminPropertyController {
      */
     static async getPropertyStats(req, res) {
         try {
-            const [stats] = await executeQuery(`
+            const stats = await executeQuery(`
                 SELECT 
                     COUNT(*) as total,
                     SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
@@ -96,7 +96,7 @@ class AdminPropertyController {
                 FROM stays_properties
             `);
             
-            return sendSuccess(res, stats[0], 'Statistics retrieved successfully');
+            return sendSuccess(res, (stats && stats.length > 0) ? stats[0] : {}, 'Statistics retrieved successfully');
         } catch (error) {
             console.error('Error fetching property stats:', error);
             return sendError(res, error.message || 'Failed to fetch statistics', 500);
@@ -112,7 +112,7 @@ class AdminPropertyController {
             const { id } = req.params;
             
             // Get property with owner info (using stays_users table)
-            const [properties] = await executeQuery(`
+            const properties = await executeQuery(`
                 SELECT 
                     p.*,
                     u.name as owner_name,
@@ -123,39 +123,39 @@ class AdminPropertyController {
                 WHERE p.property_id = ?
             `, [id]);
             
-            if (properties.length === 0) {
+            if (!properties || properties.length === 0) {
                 return sendError(res, 'Property not found', 404);
             }
             
             const property = properties[0];
             
             // Get images
-            const [images] = await executeQuery(
+            const images = await executeQuery(
                 'SELECT * FROM stays_property_images WHERE property_id = ? ORDER BY image_order ASC',
                 [id]
             );
-            property.images = images;
+            property.images = images || [];
             
             // Get policies
-            const [policies] = await executeQuery(
+            const policies = await executeQuery(
                 'SELECT * FROM stays_property_policies WHERE property_id = ?',
                 [id]
             );
-            property.policies = policies[0] || null;
+            property.policies = (policies && policies.length > 0) ? policies[0] : null;
             
             // Get amenities
-            const [amenities] = await executeQuery(
+            const amenities = await executeQuery(
                 'SELECT * FROM stays_property_amenities WHERE property_id = ?',
                 [id]
             );
-            property.amenities = amenities[0] || null;
+            property.amenities = (amenities && amenities.length > 0) ? amenities[0] : null;
             
             // Get rooms
-            const [rooms] = await executeQuery(
+            const rooms = await executeQuery(
                 'SELECT * FROM stays_rooms WHERE property_id = ?',
                 [id]
             );
-            property.rooms = rooms;
+            property.rooms = rooms || [];
             
             return sendSuccess(res, property, 'Property details retrieved successfully');
         } catch (error) {
@@ -181,12 +181,12 @@ class AdminPropertyController {
             }
             
             // Check if property exists
-            const [properties] = await executeQuery(
+            const properties = await executeQuery(
                 'SELECT * FROM stays_properties WHERE property_id = ?',
                 [id]
             );
             
-            if (properties.length === 0) {
+            if (!properties || properties.length === 0) {
                 return sendError(res, 'Property not found', 404);
             }
             

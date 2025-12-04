@@ -221,6 +221,10 @@ const AdminDashboard = () => {
       navigate(`/admin/accounts/${account.service_type}/${account.account_id}`);
       return;
     }
+    if (account?.service_type === 'stays') {
+      navigate(`/admin/accounts/${account.service_type}/${account.account_id}`);
+      return;
+    }
     setSelectedAccount(account);
     setDetailsOpen(true);
   };

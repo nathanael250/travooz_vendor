@@ -146,6 +146,7 @@ import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminAccountDetails from './pages/admin/AdminAccountDetails';
 import AdminPackages from './pages/admin/AdminPackages';
+import StaysPropertyDetails from './pages/admin/StaysPropertyDetails';
 
 // API Documentation (Public)
 import APIDocumentation from './pages/api-docs/APIDocumentation';
@@ -330,6 +331,7 @@ function App() {
           {/* Admin Pages */}
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/accounts/stays/:accountId" element={<StaysPropertyDetails />} />
           <Route path="/admin/accounts/:serviceType/:accountId" element={<AdminAccountDetails />} />
           <Route path="/admin/packages" element={<AdminPackages />} />
           <Route path="/admin/tour-approvals" element={<TourApprovals />} />

@@ -436,14 +436,21 @@ class AdminAccountsService {
                     
                     if (staysProperty.length > 0) {
                         const { property_name, email, name } = staysProperty[0];
-                        const StaysApprovalNotificationService = require('../stays/staysApprovalNotification.service');
-                        const dashboardUrl = process.env.STAYS_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/stays/dashboard';
-                        await StaysApprovalNotificationService.sendApprovalEmail({
-                            email,
-                            name,
-                            propertyName: property_name,
-                            dashboardUrl
-                        });
+                        // Send approval email (non-blocking - don't fail approval if email fails)
+                        try {
+                            const StaysApprovalNotificationService = require('../stays/staysApprovalNotification.service');
+                            const dashboardUrl = process.env.STAYS_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/stays/dashboard';
+                            await StaysApprovalNotificationService.sendApprovalEmail({
+                                email,
+                                name,
+                                propertyName: property_name,
+                                dashboardUrl
+                            });
+                            console.log('✅ Approval email sent successfully');
+                        } catch (emailError) {
+                            // Log error but don't fail the approval
+                            console.error('⚠️  Failed to send approval email (approval still succeeded):', emailError.message);
+                        }
                     }
                     break;
 
@@ -654,14 +661,16 @@ class AdminAccountsService {
                     break;
 
                 case 'stays':
-                    // Update stays property
+                    // Update stays property (stays_properties doesn't have rejected_at/rejected_by/rejection_reason columns)
                     await executeQuery(
                         `UPDATE stays_properties 
-                         SET status = 'rejected', rejected_at = NOW(), rejected_by = ?, 
-                             rejection_reason = ?
+                         SET status = 'rejected'
                          WHERE property_id = ?`,
-                        [adminId, rejectionReason, accountId]
+                        [accountId]
                     );
+                    
+                    // Log rejection reason in console for now (can add to a rejection_notes table if needed)
+                    console.log(`Property ${accountId} rejected by admin ${adminId}. Reason: ${rejectionReason}`);
                     
                     // Fetch property and owner info for notification
                     const staysPropertyReject = await executeQuery(
@@ -678,16 +687,23 @@ class AdminAccountsService {
                     
                     if (staysPropertyReject.length > 0) {
                         const { property_name, email, name } = staysPropertyReject[0];
-                        const StaysApprovalNotificationService = require('../stays/staysApprovalNotification.service');
-                        const dashboardUrl = process.env.STAYS_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/stays/dashboard';
-                        await StaysApprovalNotificationService.sendRejectionEmail({
-                            email,
-                            name,
-                            propertyName: property_name,
-                            reason: rejectionReason || 'Your property submission requires updates.',
-                            notes: notes || '',
-                            dashboardUrl
-                        });
+                        // Send rejection email (non-blocking - don't fail rejection if email fails)
+                        try {
+                            const StaysApprovalNotificationService = require('../stays/staysApprovalNotification.service');
+                            const dashboardUrl = process.env.STAYS_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/stays/dashboard';
+                            await StaysApprovalNotificationService.sendRejectionEmail({
+                                email,
+                                name,
+                                propertyName: property_name,
+                                reason: rejectionReason || 'Your property submission requires updates.',
+                                notes: notes || '',
+                                dashboardUrl
+                            });
+                            console.log('✅ Rejection email sent successfully');
+                        } catch (emailError) {
+                            // Log error but don't fail the rejection
+                            console.error('⚠️  Failed to send rejection email (rejection still succeeded):', emailError.message);
+                        }
                     }
                     break;
 

@@ -30,8 +30,21 @@ export default function RoomsAndRatesStep() {
 
   // Load rooms from localStorage
   useEffect(() => {
-    const savedRooms = JSON.parse(localStorage.getItem('stays_rooms') || '[]');
-    setRooms(savedRooms);
+    // Check if this is a NEW property (no propertyId or propertyId is 0)
+    const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
+    const isNewProperty = !propertyId || propertyId === 0;
+    
+    if (isNewProperty) {
+      // For NEW properties, start with empty rooms (ignore old localStorage data)
+      console.log('🆕 New property detected - clearing old room data');
+      localStorage.removeItem('stays_rooms');
+      setRooms([]);
+    } else {
+      // For EXISTING properties, load saved rooms
+      console.log('📂 Existing property - loading saved rooms from localStorage');
+      const savedRooms = JSON.parse(localStorage.getItem('stays_rooms') || '[]');
+      setRooms(savedRooms);
+    }
 
     // Show toast if coming from room setup completion
     if (location.state?.roomAdded) {
