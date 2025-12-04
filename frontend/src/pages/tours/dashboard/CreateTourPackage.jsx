@@ -6,6 +6,28 @@ import StaysFooter from '../../../components/stays/StaysFooter';
 import { saveTourPackage, getTourPackage, transformApiDataToFormData } from '../../../services/tourPackageService';
 import apiClient from '../../../services/apiClient';
 
+// Helper function to build image URLs for both development and production
+const buildImageUrl = (imageUrl) => {
+  if (!imageUrl) return '';
+  
+  // If it's already a full URL (http:// or https://), return as is
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    return imageUrl;
+  }
+  
+  // Get the API base URL from environment
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+  
+  // Remove '/api/v1' from the base URL to get the server root
+  const serverUrl = apiBaseUrl.replace('/api/v1', '');
+  
+  // Ensure the image URL starts with /
+  const normalizedImageUrl = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+  
+  // Combine server URL with image path
+  return `${serverUrl}${normalizedImageUrl}`;
+};
+
 const CreateTourPackage = () => {
   const navigate = useNavigate();
   const { packageId: urlPackageId } = useParams();
@@ -3089,10 +3111,9 @@ const CreateTourPackage = () => {
                         photoUrl = photo.photo_url || photo.image_url || photo.url || photo.imageUrl;
                       }
                       
-                      // Get API base URL for relative paths
-                      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
-                      if (photoUrl && photoUrl.startsWith('/uploads/') && apiBaseUrl) {
-                        photoUrl = `${apiBaseUrl}${photoUrl}`;
+                      // Build proper URL for relative paths (but not for blob URLs from File objects)
+                      if (photoUrl && !photoUrl.startsWith('blob:')) {
+                        photoUrl = buildImageUrl(photoUrl);
                       }
                       
                       return (
@@ -3103,6 +3124,7 @@ const CreateTourPackage = () => {
                               alt={`Photo ${index + 1}`}
                               className="w-full h-full object-cover"
                               onError={(e) => {
+                                console.error('[Tours] Failed to load image:', photoUrl);
                                 // Use a data URI instead of external placeholder to avoid network issues
                                 e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI2YzZjRmNiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5Y2EzYWYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5JbWFnZSBub3QgZm91bmQ8L3RleHQ+PC9zdmc+';
                                 e.target.onerror = null; // Prevent infinite loop

@@ -5,6 +5,38 @@ import { getTourPackage } from '../../../services/tourPackageService';
 import { transformApiDataToFormData } from '../../../services/tourPackageService';
 import toast from 'react-hot-toast';
 
+// Helper function to build image URLs for both development and production
+const buildImageUrl = (imageUrl) => {
+  if (!imageUrl) {
+    console.warn('⚠️ [Tours] buildImageUrl called with empty imageUrl');
+    return '';
+  }
+  
+  // If it's already a full URL (http:// or https://), return as is
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    console.log('✅ [Tours] Image URL is already absolute:', imageUrl);
+    return imageUrl;
+  }
+  
+  // Get the API base URL from environment
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+  console.log('🔧 [Tours] VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL || '(not set, using default)');
+  console.log('🔧 [Tours] API Base URL being used:', apiBaseUrl);
+  
+  // Remove '/api/v1' from the base URL to get the server root
+  const serverUrl = apiBaseUrl.replace('/api/v1', '');
+  console.log('🔧 [Tours] Server root URL:', serverUrl);
+  
+  // Ensure the image URL starts with /
+  const normalizedImageUrl = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+  
+  // Combine server URL with image path
+  const finalUrl = `${serverUrl}${normalizedImageUrl}`;
+  console.log('🖼️ [Tours] Final image URL:', finalUrl, '(from', imageUrl, ')');
+  
+  return finalUrl;
+};
+
 const ViewTourPackage = () => {
   const { packageId } = useParams();
   const navigate = useNavigate();
@@ -311,10 +343,11 @@ const ViewTourPackage = () => {
               return (
                 <div key={idx} className="aspect-square rounded-lg overflow-hidden border border-gray-200">
                   <img
-                    src={photoUrl}
+                    src={buildImageUrl(photoUrl)}
                     alt={`Package photo ${idx + 1}`}
                     className="w-full h-full object-cover"
                     onError={(e) => {
+                      console.error('[Tours] Failed to load image:', photoUrl);
                       // Use a data URI instead of external placeholder to avoid network issues
                       e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI2YzZjRmNiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5Y2EzYWYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5JbWFnZSBub3QgZm91bmQ8L3RleHQ+PC9zdmc+';
                       e.target.onerror = null; // Prevent infinite loop
