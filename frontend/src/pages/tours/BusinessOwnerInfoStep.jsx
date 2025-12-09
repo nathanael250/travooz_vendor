@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, User, Mail, Globe, Shield } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import { tourPackageSetupService } from '../../services/tourPackageService';
 import toast from 'react-hot-toast';
+import apiClient from '../../services/apiClient';
 
 export default function BusinessOwnerInfoStep() {
   const navigate = useNavigate();
@@ -24,16 +25,47 @@ export default function BusinessOwnerInfoStep() {
     };
   }, []);
 
+  // Get existing data from location state
+  const existingBusinessOwnerInfo = location.state?.businessOwnerInfo || {};
+  
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    countryOfResidence: '',
-    email: email || '',
+    firstName: existingBusinessOwnerInfo.firstName || '',
+    lastName: existingBusinessOwnerInfo.lastName || '',
+    countryOfResidence: existingBusinessOwnerInfo.countryOfResidence || '',
+    email: existingBusinessOwnerInfo.email || email || '',
   });
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Load existing data from API if available and not in state
+  useEffect(() => {
+    const loadExistingData = async () => {
+      if (tourBusinessId && userId && !existingBusinessOwnerInfo.firstName) {
+        setLoading(true);
+        try {
+          const ownerRes = await apiClient.get(`/tours/setup/business-owner-info?tourBusinessId=${tourBusinessId}`);
+          if (ownerRes.data?.data) {
+            const owner = ownerRes.data.data;
+            setFormData({
+              firstName: owner.first_name || '',
+              lastName: owner.last_name || '',
+              countryOfResidence: owner.country_of_residence || '',
+              email: owner.email || email || '',
+            });
+          }
+        } catch (err) {
+          console.warn('Could not load business owner info:', err);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadExistingData();
+  }, [tourBusinessId, userId, existingBusinessOwnerInfo.firstName, email]);
 
   // Common countries list
   const countries = [
@@ -111,12 +143,16 @@ export default function BusinessOwnerInfoStep() {
       
       toast.success('Business owner information saved successfully');
       
-      // Navigate to next step (Prove Your Identity)
+      // Navigate to next step (Prove Your Identity) - preserve all existing data
       navigate('/tours/setup/prove-identity', {
         state: {
           ...location.state,
+          step2Data: location.state?.step2Data || step2Data,
           businessOwnerInfo: formData,
-          userId
+          identityProof: location.state?.identityProof || {},
+          businessProof: location.state?.businessProof || {},
+          userId,
+          tourBusinessId
         }
       });
     } catch (error) {
@@ -142,7 +178,24 @@ export default function BusinessOwnerInfoStep() {
         <div className="max-w-3xl w-full mx-auto">
           {/* Progress Indicator */}
           <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
+            {/* Mobile: Simple progress bar */}
+            <div className="block md:hidden mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium" style={{ color: '#1f6f31' }}>
+                  Step 2 of 6: Business Owner Information
+                </span>
+                <span className="text-xs text-gray-500">33%</span>
+              </div>
+              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{ backgroundColor: '#3CAF54', width: '33%' }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Desktop: Show all steps */}
+            <div className="hidden md:flex items-center justify-center mb-4">
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
                   ✓
@@ -169,7 +222,7 @@ export default function BusinessOwnerInfoStep() {
                 </div>
               </div>
             </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Step 2 of 6: Business Owner Information</p>
+            <p className="text-center text-sm font-medium hidden md:block" style={{ color: '#1f6f31' }}>Step 2 of 6: Business Owner Information</p>
           </div>
 
           {/* Main Content */}

@@ -68,8 +68,7 @@ export default function ReviewTourDataStep() {
                 selectedTourTypeNames: tourTypeNames,
                 location: business.location,
                 locationData: locationData,
-                phone: business.phone,
-                currency: business.currency
+                phone: business.phone
               });
             }
           } catch (err) {
@@ -158,6 +157,10 @@ export default function ReviewTourDataStep() {
     };
     
     switch(step) {
+      case 'business-info':
+        // Navigate to step 2 (business details)
+        navigate('/tours/list-your-tour/step-2', { state: stateData });
+        break;
       case 'owner':
         navigate('/tours/setup/business-owner-info', { state: stateData });
         break;
@@ -207,7 +210,24 @@ export default function ReviewTourDataStep() {
         <div className="max-w-3xl w-full mx-auto">
           {/* Progress Indicator */}
           <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
+            {/* Mobile: Simple progress bar */}
+            <div className="block md:hidden mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium" style={{ color: '#1f6f31' }}>
+                  Step 5 of 6: Review & Verify
+                </span>
+                <span className="text-xs text-gray-500">83%</span>
+              </div>
+              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{ backgroundColor: '#3CAF54', width: '83%' }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Desktop: Show all steps */}
+            <div className="hidden md:flex items-center justify-center mb-4">
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
                   ✓
@@ -234,7 +254,7 @@ export default function ReviewTourDataStep() {
                 </div>
               </div>
             </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Step 5 of 6: Review & Verify</p>
+            <p className="text-center text-sm font-medium hidden md:block" style={{ color: '#1f6f31' }}>Step 5 of 6: Review & Verify</p>
           </div>
 
           {/* Main Content */}
@@ -288,6 +308,13 @@ export default function ReviewTourDataStep() {
                     <Building2 className="h-6 w-6" style={{ color: '#3CAF54' }} />
                     <h2 className="text-xl font-semibold text-gray-900">Business Information</h2>
                   </div>
+                  <button
+                    onClick={() => handleEdit('business-info')}
+                    className="flex items-center gap-2 text-sm text-green-600 hover:text-green-700 font-medium"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Edit
+                  </button>
                 </div>
                 <div className="space-y-2 text-sm">
                   <div>

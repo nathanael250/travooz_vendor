@@ -4,9 +4,11 @@ import {
   DollarSign, TrendingUp, Calendar, Car, Info, ArrowRight, FileText, MapPin, CreditCard
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import useTranslation from '../../../hooks/useTranslation';
 
 const DashboardOverview = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [stats, setStats] = useState({
     totalRevenue: 0,
     todayBookings: 0,
@@ -55,7 +57,7 @@ const DashboardOverview = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading dashboard...</div>
+        <div className="text-gray-500">{t('dashboard.loading')}</div>
       </div>
     );
   }
@@ -67,10 +69,10 @@ const DashboardOverview = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              Welcome to Your Car Rental Dashboard
+              {t('car.dashboard.welcome')}
             </h1>
             <p className="text-gray-600">
-              Manage your car rental business, track bookings, and grow your revenue
+              {t('car.dashboard.welcomeDesc')}
             </p>
           </div>
           <div className="hidden md:flex items-center gap-2">
@@ -88,9 +90,9 @@ const DashboardOverview = () => {
             </div>
             <TrendingUp className="h-5 w-5 text-green-500" />
           </div>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Total Revenue</h3>
+          <h3 className="text-sm font-medium text-gray-600 mb-1">{t('car.dashboard.totalRevenue')}</h3>
           <p className="text-2xl font-bold text-gray-900">${stats.totalRevenue.toLocaleString()}</p>
-          <p className="text-xs text-gray-500 mt-1">All time</p>
+          <p className="text-xs text-gray-500 mt-1">{t('car.dashboard.allTime')}</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
@@ -100,9 +102,9 @@ const DashboardOverview = () => {
             </div>
             <TrendingUp className="h-5 w-5 text-blue-500" />
           </div>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Today's Bookings</h3>
+          <h3 className="text-sm font-medium text-gray-600 mb-1">{t('car.dashboard.todayBookings')}</h3>
           <p className="text-2xl font-bold text-gray-900">{stats.todayBookings}</p>
-          <p className="text-xs text-gray-500 mt-1">New bookings today</p>
+          <p className="text-xs text-gray-500 mt-1">{t('car.dashboard.newBookingsToday')}</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
@@ -112,9 +114,9 @@ const DashboardOverview = () => {
             </div>
             <TrendingUp className="h-5 w-5 text-purple-500" />
           </div>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Total Bookings</h3>
+          <h3 className="text-sm font-medium text-gray-600 mb-1">{t('car.dashboard.totalBookings')}</h3>
           <p className="text-2xl font-bold text-gray-900">{stats.totalBookings}</p>
-          <p className="text-xs text-gray-500 mt-1">All bookings</p>
+          <p className="text-xs text-gray-500 mt-1">{t('car.dashboard.allBookings')}</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
@@ -124,9 +126,9 @@ const DashboardOverview = () => {
             </div>
             <TrendingUp className="h-5 w-5 text-orange-500" />
           </div>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Active Cars</h3>
+          <h3 className="text-sm font-medium text-gray-600 mb-1">{t('car.dashboard.activeCars')}</h3>
           <p className="text-2xl font-bold text-gray-900">{stats.activeCars}</p>
-          <p className="text-xs text-gray-500 mt-1">Available for rent</p>
+          <p className="text-xs text-gray-500 mt-1">{t('car.dashboard.availableForRent')}</p>
         </div>
       </div>
 
@@ -141,8 +143,8 @@ const DashboardOverview = () => {
               <Car className="h-6 w-6" style={{ color: '#3CAF54' }} />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-gray-900 mb-1">Manage Cars</h3>
-              <p className="text-sm text-gray-600">Add, edit, or remove cars from your fleet</p>
+              <h3 className="font-semibold text-gray-900 mb-1">{t('car.dashboard.manageCars')}</h3>
+              <p className="text-sm text-gray-600">{t('car.dashboard.manageCarsDesc')}</p>
             </div>
             <ArrowRight className="h-5 w-5 text-gray-400" />
           </div>
@@ -157,8 +159,8 @@ const DashboardOverview = () => {
               <Calendar className="h-6 w-6 text-blue-600" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-gray-900 mb-1">View Bookings</h3>
-              <p className="text-sm text-gray-600">Manage reservations and customer bookings</p>
+              <h3 className="font-semibold text-gray-900 mb-1">{t('car.dashboard.viewBookings')}</h3>
+              <p className="text-sm text-gray-600">{t('car.dashboard.viewBookingsDesc')}</p>
             </div>
             <ArrowRight className="h-5 w-5 text-gray-400" />
           </div>

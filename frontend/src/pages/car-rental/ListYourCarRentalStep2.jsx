@@ -25,7 +25,6 @@ export default function ListYourCarRentalStep2() {
     subcategoryId: '',
     description: '',
     phone: '',
-    currency: 'RWF',
   });
 
   const [errors, setErrors] = useState({});
@@ -43,11 +42,6 @@ export default function ListYourCarRentalStep2() {
     { subcategory_id: 9, name: 'Other' }
   ];
 
-  const currencies = [
-    { value: 'RWF', label: 'RWF - Rwandan Franc' },
-    { value: 'USD', label: 'USD - US Dollar' },
-    { value: 'EUR', label: 'EUR - Euro' }
-  ];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -125,7 +119,24 @@ export default function ListYourCarRentalStep2() {
         <div className="max-w-2xl w-full mx-auto">
           {/* Progress Indicator */}
           <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
+            {/* Mobile: Simple progress bar */}
+            <div className="block md:hidden mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium" style={{ color: '#1f6f31' }}>
+                  Step 2 of 3
+                </span>
+                <span className="text-xs text-gray-500">67%</span>
+              </div>
+              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{ backgroundColor: '#3CAF54', width: '67%' }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Desktop: Show all steps */}
+            <div className="hidden md:flex items-center justify-center mb-4">
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
                   ✓
@@ -140,7 +151,7 @@ export default function ListYourCarRentalStep2() {
                 </div>
               </div>
             </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Step 2 of 3</p>
+            <p className="text-center text-sm font-medium hidden md:block" style={{ color: '#1f6f31' }}>Step 2 of 3</p>
           </div>
 
           {/* Main Content */}
@@ -238,23 +249,6 @@ export default function ListYourCarRentalStep2() {
                   {errors.phone && (
                     <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
                   )}
-                </div>
-
-                <div>
-                  <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-2">
-                    Currency
-                  </label>
-                  <select
-                    id="currency"
-                    name="currency"
-                    value={formData.currency}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
-                  >
-                    {currencies.map(curr => (
-                      <option key={curr.value} value={curr.value}>{curr.label}</option>
-                    ))}
-                  </select>
                 </div>
               </div>
 

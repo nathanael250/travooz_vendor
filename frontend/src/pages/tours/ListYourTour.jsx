@@ -349,51 +349,73 @@ export default function ListYourTour() {
 
   // Initialize Google Places Autocomplete
   const initializeAutocomplete = () => {
-    if (!inputRef.current || !window.google || !window.google.maps || !window.google.maps.places) {
+    if (!inputRef.current) {
+      console.warn('Input ref not ready for autocomplete initialization');
+      // Retry after a short delay
+      setTimeout(() => {
+        if (inputRef.current && window.google && window.google.maps && window.google.maps.places) {
+          initializeAutocomplete();
+        }
+      }, 100);
+      return;
+    }
+    
+    if (!window.google || !window.google.maps || !window.google.maps.places) {
+      console.warn('Google Maps Places API not loaded yet');
       return;
     }
 
-    const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
-      types: ['establishment', 'geocode'], // Allow both places and addresses
-      fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components']
-    });
-
-    autocompleteRef.current = autocomplete;
-
-    if (!suggestionsServiceRef.current) {
-      suggestionsServiceRef.current = new window.google.maps.places.AutocompleteService();
+    // Clean up existing autocomplete if any
+    if (autocompleteRef.current) {
+      window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
     }
 
-    if (!placesServiceRef.current) {
-      placesServiceRef.current = new window.google.maps.places.PlacesService(document.createElement('div'));
-    }
+    try {
+      const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
+        types: ['establishment', 'geocode'], // Allow both places and addresses
+        fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components']
+      });
 
-    // Listen for place selection
-    autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace();
-      
-      if (!place.geometry) {
-        setError('Please select a valid location from the suggestions');
-        return;
+      autocompleteRef.current = autocomplete;
+
+      if (!suggestionsServiceRef.current) {
+        suggestionsServiceRef.current = new window.google.maps.places.AutocompleteService();
       }
 
-      // Store location data
-      const locationInfo = {
-        name: place.name || place.formatted_address,
-        formatted_address: place.formatted_address,
-        place_id: place.place_id,
-        lat: place.geometry.location.lat(),
-        lng: place.geometry.location.lng(),
-        address_components: place.address_components
-      };
+      if (!placesServiceRef.current) {
+        placesServiceRef.current = new window.google.maps.places.PlacesService(document.createElement('div'));
+      }
 
-      setLocationData(locationInfo);
-      setLocation(place.name || place.formatted_address);
-      setError('');
-      setSuggestions([]);
-      setShowSuggestions(false);
-      setSuggestionError('');
-    });
+      // Listen for place selection
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        
+        if (!place.geometry) {
+          setError('Please select a valid location from the suggestions');
+          return;
+        }
+
+        // Store location data
+        const locationInfo = {
+          name: place.name || place.formatted_address,
+          formatted_address: place.formatted_address,
+          place_id: place.place_id,
+          lat: place.geometry.location.lat(),
+          lng: place.geometry.location.lng(),
+          address_components: place.address_components
+        };
+
+        setLocationData(locationInfo);
+        setLocation(place.name || place.formatted_address);
+        setError('');
+        setSuggestions([]);
+        setShowSuggestions(false);
+        setSuggestionError('');
+      });
+    } catch (error) {
+      console.error('Error initializing Google Places Autocomplete:', error);
+      setError('Failed to initialize location autocomplete. Please refresh the page.');
+    }
   };
 
   // Load Google Maps script - check if already loaded or wait for it
@@ -444,15 +466,34 @@ export default function ListYourTour() {
     // Listen for error events
     window.addEventListener('googlemaps:error', handleGoogleMapsError);
 
+    // Listen for Google Maps loaded event
+    const handleGoogleMapsLoaded = () => {
+      if (checkGoogleMaps()) {
+        if (checkInterval) clearInterval(checkInterval);
+        if (timeout) clearTimeout(timeout);
+      }
+    };
+    window.addEventListener('googlemaps:loaded', handleGoogleMapsLoaded);
+    
+    // Check if window.googleMapsLoaded is already set
+    if (window.googleMapsLoaded && checkGoogleMaps()) {
+      return () => {
+        window.removeEventListener('googlemaps:error', handleGoogleMapsError);
+        window.removeEventListener('googlemaps:loaded', handleGoogleMapsLoaded);
+      };
+    }
+
     // Wait for Google Maps to load (it's loaded in index.html)
     let checkInterval = setInterval(() => {
-      if (checkGoogleMaps()) {
+      // Check both window.googleMapsLoaded flag and actual Google Maps object
+      if (window.googleMapsLoaded || checkGoogleMaps()) {
         clearInterval(checkInterval);
+        if (timeout) clearTimeout(timeout);
       }
     }, 100);
 
     // Timeout after 15 seconds (matching index.html timeout)
-    const timeout = setTimeout(() => {
+    let timeout = setTimeout(() => {
       clearInterval(checkInterval);
       if (!window.google || !window.google.maps) {
         // Only set error if not already set by global error handler
@@ -464,9 +505,10 @@ export default function ListYourTour() {
     }, 15000);
 
     return () => {
-      clearInterval(checkInterval);
-      clearTimeout(timeout);
+      if (checkInterval) clearInterval(checkInterval);
+      if (timeout) clearTimeout(timeout);
       window.removeEventListener('googlemaps:error', handleGoogleMapsError);
+      window.removeEventListener('googlemaps:loaded', handleGoogleMapsLoaded);
     };
   }, []);
 

@@ -1,18 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Globe, Upload, X, FileCheck, CreditCard } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import { tourPackageSetupService } from '../../services/tourPackageService';
 import toast from 'react-hot-toast';
+import apiClient from '../../services/apiClient';
 
 export default function ProveIdentityStep() {
   const navigate = useNavigate();
   const location = useLocation();
   
   const businessOwnerInfo = location.state?.businessOwnerInfo || {};
+  const existingIdentityProof = location.state?.identityProof || {};
   const userId = location.state?.userId;
   const tourBusinessId = location.state?.tourBusinessId || localStorage.getItem('tour_business_id');
+  const step2Data = location.state?.step2Data || {};
+  const businessProof = location.state?.businessProof || {};
 
   // Enable scrolling for this page
   React.useEffect(() => {
@@ -22,15 +26,115 @@ export default function ProveIdentityStep() {
     };
   }, []);
 
+  // Initialize preview from existing data
+  const getInitialPreview = () => {
+    if (existingIdentityProof.idCardPhoto) {
+      // If it's a URL string, use it directly
+      if (typeof existingIdentityProof.idCardPhoto === 'string') {
+        return existingIdentityProof.idCardPhoto;
+      }
+      // If it's a File object, create object URL
+      if (existingIdentityProof.idCardPhoto instanceof File) {
+        return URL.createObjectURL(existingIdentityProof.idCardPhoto);
+      }
+    }
+    // Also check for idCardPhotoUrl if available
+    if (existingIdentityProof.idCardPhotoUrl && typeof existingIdentityProof.idCardPhotoUrl === 'string') {
+      return existingIdentityProof.idCardPhotoUrl;
+    }
+    return null;
+  };
+
   const [formData, setFormData] = useState({
-    idCountry: '',
-    idCardPhoto: null,
+    idCountry: existingIdentityProof.idCountry || '',
+    idCardPhoto: existingIdentityProof.idCardPhoto instanceof File ? existingIdentityProof.idCardPhoto : null,
   });
 
-  const [idCardPreview, setIdCardPreview] = useState(null);
+  const [idCardPreview, setIdCardPreview] = useState(getInitialPreview());
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Helper function to check if a file/URL is a PDF
+  const isPDF = (fileOrUrl) => {
+    if (!fileOrUrl) return false;
+    if (fileOrUrl instanceof File) {
+      return fileOrUrl.type === 'application/pdf';
+    }
+    if (typeof fileOrUrl === 'string') {
+      return fileOrUrl.toLowerCase().endsWith('.pdf') || fileOrUrl.toLowerCase().includes('application/pdf');
+    }
+    return false;
+  };
+
+  // Helper function to check if a file/URL is an image
+  const isImage = (fileOrUrl) => {
+    if (!fileOrUrl) return false;
+    if (fileOrUrl instanceof File) {
+      return fileOrUrl.type.startsWith('image/');
+    }
+    if (typeof fileOrUrl === 'string') {
+      const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+      return imageExtensions.some(ext => fileOrUrl.toLowerCase().includes(ext));
+    }
+    return false;
+  };
+
+  // Ensure preview is set when component mounts with existing data
+  useEffect(() => {
+    if (!idCardPreview && existingIdentityProof.idCardPhoto) {
+      const photoUrl = existingIdentityProof.idCardPhotoUrl || existingIdentityProof.idCardPhoto;
+      if (typeof photoUrl === 'string' && isImage(photoUrl)) {
+        setIdCardPreview(photoUrl);
+      } else if (photoUrl instanceof File && isImage(photoUrl)) {
+        setIdCardPreview(URL.createObjectURL(photoUrl));
+      }
+    }
+  }, []); // Run once on mount
+
+  // Load existing data from API if available and not in state
+  useEffect(() => {
+    const loadExistingData = async () => {
+      if (tourBusinessId && userId && !existingIdentityProof.idCountry) {
+        setLoading(true);
+        try {
+          const identityRes = await apiClient.get(`/tours/setup/identity-proof?tourBusinessId=${tourBusinessId}`);
+          if (identityRes.data?.data) {
+            const identity = identityRes.data.data;
+            const idCardPhotoUrl = identity.id_card_photo_url || identity.id_card_photo;
+            setFormData({
+              idCountry: identity.id_country || '',
+              idCardPhoto: null, // We'll use the URL for preview
+            });
+            if (idCardPhotoUrl) {
+              // Set the preview URL - this will be used to display the image
+              setIdCardPreview(idCardPhotoUrl);
+              // Also store the URL in formData for reference
+              setFormData(prev => ({
+                ...prev,
+                idCardPhotoUrl: idCardPhotoUrl
+              }));
+            }
+          }
+        } catch (err) {
+          console.warn('Could not load identity proof:', err);
+        } finally {
+          setLoading(false);
+        }
+      } else if (existingIdentityProof.idCardPhoto || existingIdentityProof.idCardPhotoUrl) {
+        // If we have existing data from state, ensure preview is set
+        const photoUrl = existingIdentityProof.idCardPhotoUrl || existingIdentityProof.idCardPhoto;
+        if (typeof photoUrl === 'string') {
+          setIdCardPreview(photoUrl);
+        } else if (photoUrl instanceof File) {
+          setIdCardPreview(URL.createObjectURL(photoUrl));
+        }
+      }
+    };
+
+    loadExistingData();
+  }, [tourBusinessId, userId, existingIdentityProof.idCountry, existingIdentityProof.idCardPhoto]);
 
   // Common countries list
   const countries = [
@@ -88,15 +192,16 @@ export default function ProveIdentityStep() {
       idCardPhoto: file
     }));
 
-    // Create preview for images
+    // Create preview for images only
     if (file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onloadend = () => {
         setIdCardPreview(reader.result);
       };
       reader.readAsDataURL(file);
-    } else {
-      setIdCardPreview('pdf');
+    } else if (file.type === 'application/pdf') {
+      // For PDFs, don't set a preview (will show document icon)
+      setIdCardPreview(null);
     }
   };
 
@@ -116,7 +221,7 @@ export default function ProveIdentityStep() {
     if (!formData.idCountry) {
       newErrors.idCountry = 'Please select the country where your ID is registered';
     }
-    if (!formData.idCardPhoto) {
+    if (!formData.idCardPhoto && !idCardPreview) {
       newErrors.idCardPhoto = 'ID card photo is required';
     }
 
@@ -133,25 +238,29 @@ export default function ProveIdentityStep() {
         throw new Error('Tour business ID is required. Please go back and complete the previous steps.');
       }
       
-      // Save identity proof
+      // Save identity proof - only upload new file if it's a File object
       await tourPackageSetupService.saveIdentityProof({
         tourBusinessId: parseInt(tourBusinessId),
         idCountry: formData.idCountry,
-        idCardPhoto: formData.idCardPhoto,
+        idCardPhoto: formData.idCardPhoto instanceof File ? formData.idCardPhoto : undefined,
+        idCardPhotoUrl: !(formData.idCardPhoto instanceof File) && idCardPreview ? idCardPreview : undefined,
         userId
       });
       
       toast.success('Identity proof saved successfully');
       
-      // Navigate to next step (Prove Your Business)
+      // Navigate to next step (Prove Your Business) - preserve all existing data
       navigate('/tours/setup/prove-business', {
         state: {
           ...location.state,
-          businessOwnerInfo,
+          step2Data: location.state?.step2Data || step2Data,
+          businessOwnerInfo: location.state?.businessOwnerInfo || businessOwnerInfo,
           identityProof: {
             idCountry: formData.idCountry,
-            idCardPhoto: formData.idCardPhoto
+            idCardPhoto: formData.idCardPhoto || idCardPreview, // Preserve URL if no new file
+            idCardPhotoUrl: idCardPreview && typeof idCardPreview === 'string' ? idCardPreview : null
           },
+          businessProof: location.state?.businessProof || businessProof,
           userId,
           tourBusinessId
         }
@@ -170,7 +279,16 @@ export default function ProveIdentityStep() {
     navigate('/tours/setup/business-owner-info', {
       state: {
         ...location.state,
-        businessOwnerInfo
+        step2Data: location.state?.step2Data || step2Data,
+        businessOwnerInfo: location.state?.businessOwnerInfo || businessOwnerInfo,
+        identityProof: {
+          idCountry: formData.idCountry,
+          idCardPhoto: formData.idCardPhoto || idCardPreview,
+          idCardPhotoUrl: idCardPreview && typeof idCardPreview === 'string' ? idCardPreview : null
+        },
+        businessProof: location.state?.businessProof || businessProof,
+        userId,
+        tourBusinessId
       }
     });
   };
@@ -182,7 +300,24 @@ export default function ProveIdentityStep() {
         <div className="max-w-3xl w-full mx-auto">
           {/* Progress Indicator */}
           <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
+            {/* Mobile: Simple progress bar */}
+            <div className="block md:hidden mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium" style={{ color: '#1f6f31' }}>
+                  Step 3 of 6: Prove Your Identity
+                </span>
+                <span className="text-xs text-gray-500">50%</span>
+              </div>
+              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{ backgroundColor: '#3CAF54', width: '50%' }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Desktop: Show all steps */}
+            <div className="hidden md:flex items-center justify-center mb-4">
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
                   ✓
@@ -209,7 +344,7 @@ export default function ProveIdentityStep() {
                 </div>
               </div>
             </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Step 3 of 6: Prove Your Identity</p>
+            <p className="text-center text-sm font-medium hidden md:block" style={{ color: '#1f6f31' }}>Step 3 of 6: Prove Your Identity</p>
           </div>
 
           {/* Main Content */}
@@ -260,7 +395,7 @@ export default function ProveIdentityStep() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Upload ID Card Photo *
                 </label>
-                {!formData.idCardPhoto ? (
+                {!formData.idCardPhoto && !idCardPreview ? (
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-green-500 transition-colors">
                     <input
                       type="file"
@@ -282,27 +417,75 @@ export default function ProveIdentityStep() {
                   <div className="border-2 border-green-200 rounded-lg p-4 bg-green-50">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        {idCardPreview && idCardPreview !== 'pdf' ? (
-                          <img src={idCardPreview} alt="ID Card" className="h-16 w-16 object-cover rounded" />
-                        ) : (
+                        {(() => {
+                          // Determine the image source - prioritize preview URL
+                          let imageSrc = null;
+                          if (idCardPreview) {
+                            if (isImage(idCardPreview)) {
+                              imageSrc = idCardPreview;
+                            }
+                          } else if (formData.idCardPhoto) {
+                            if (isImage(formData.idCardPhoto)) {
+                              imageSrc = formData.idCardPhoto instanceof File 
+                                ? URL.createObjectURL(formData.idCardPhoto) 
+                                : formData.idCardPhoto;
+                            }
+                          }
+                          
+                          return imageSrc ? (
+                            <img 
+                              src={imageSrc} 
+                              alt="ID Card" 
+                              className="h-16 w-16 object-cover rounded" 
+                              onError={(e) => {
+                                // If image fails to load, hide image and show document icon
+                                console.error('Image failed to load:', imageSrc);
+                                e.target.style.display = 'none';
+                              }}
+                            />
+                          ) : null;
+                        })() || (
                           <div className="h-16 w-16 bg-gray-200 rounded flex items-center justify-center">
                             <FileCheck className="h-8 w-8 text-gray-400" />
                           </div>
                         )}
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{formData.idCardPhoto.name}</p>
-                          <p className="text-xs text-gray-500">
-                            {(formData.idCardPhoto.size / 1024 / 1024).toFixed(2)} MB
+                          <p className="text-sm font-medium text-gray-900">
+                            {formData.idCardPhoto?.name || (isPDF(idCardPreview || formData.idCardPhoto) ? 'ID Card (PDF)' : 'ID Card Photo')}
                           </p>
+                          {formData.idCardPhoto?.size ? (
+                            <p className="text-xs text-gray-500">
+                              {(formData.idCardPhoto.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          ) : idCardPreview && (
+                            <p className="text-xs text-gray-500">
+                              {isPDF(idCardPreview) ? 'PDF document uploaded' : 'Previously uploaded'}
+                            </p>
+                          )}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={removeIdCard}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                      >
-                        <X className="h-5 w-5" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={handleIdCardChange}
+                          className="hidden"
+                          id="idCard-replace-input"
+                        />
+                        <label
+                          htmlFor="idCard-replace-input"
+                          className="px-3 py-1 text-xs text-green-600 hover:text-green-700 font-medium cursor-pointer border border-green-300 rounded hover:bg-green-50 transition-colors"
+                        >
+                          Replace
+                        </label>
+                        <button
+                          type="button"
+                          onClick={removeIdCard}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

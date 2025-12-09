@@ -1,33 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
+import apiClient from '../../services/apiClient';
 
 export default function ListYourTourStep2() {
   const navigate = useNavigate();
   const location = useLocation();
   const locationData = location.state?.locationData || null;
   const previousLocation = location.state?.location || '';
-
-  // Enable scrolling for this page
-  React.useEffect(() => {
-    document.body.classList.add('auth-page');
-    return () => {
-      document.body.classList.remove('auth-page');
-    };
-  }, []);
-
-  const [formData, setFormData] = useState({
-    tourBusinessName: '',
-    selectedTourTypes: [],
-    description: '',
-    countryCode: '+250', // Default to Rwanda
-    phone: '',
-    currency: 'RWF',
-  });
-
-  const [errors, setErrors] = useState({});
+  const existingStep2Data = location.state?.step2Data || {};
+  const tourBusinessId = location.state?.tourBusinessId || localStorage.getItem('tour_business_id');
+  const userId = location.state?.userId || JSON.parse(localStorage.getItem('user') || '{}')?.userId || JSON.parse(localStorage.getItem('user') || '{}')?.id;
 
   // Tour types
   const tourTypes = [
@@ -42,11 +27,6 @@ export default function ListYourTourStep2() {
     { subcategory_id: 9, name: 'Other' }
   ];
 
-  const currencies = [
-    { value: 'RWF', label: 'RWF - Rwandan Franc' },
-    { value: 'USD', label: 'USD - US Dollar' },
-    { value: 'EUR', label: 'EUR - Euro' }
-  ];
 
   // Common country codes (focusing on East Africa)
   const countryCodes = [
@@ -62,6 +42,88 @@ export default function ListYourTourStep2() {
     { code: '+234', country: 'Nigeria' },
     { code: '+27', country: 'South Africa' }
   ];
+
+  // Helper function to map tour type names to IDs
+  const mapTourTypeNamesToIds = (tourTypeNames) => {
+    if (!tourTypeNames || !Array.isArray(tourTypeNames)) return [];
+    return tourTypeNames.map(t => {
+      const type = tourTypes.find(tt => tt.name === t);
+      return type ? type.subcategory_id.toString() : '';
+    }).filter(Boolean);
+  };
+
+  // Enable scrolling for this page
+  React.useEffect(() => {
+    document.body.classList.add('auth-page');
+    return () => {
+      document.body.classList.remove('auth-page');
+    };
+  }, []);
+
+  const [formData, setFormData] = useState({
+    tourBusinessName: existingStep2Data.tourBusinessName || '',
+    selectedTourTypes: existingStep2Data.selectedTourTypes || mapTourTypeNamesToIds(existingStep2Data.selectedTourTypeNames) || [],
+    description: existingStep2Data.description || '',
+    countryCode: existingStep2Data.countryCode || '+250', // Default to Rwanda
+    phone: existingStep2Data.phone || '',
+    otherTourType: existingStep2Data.otherTourType || '', // Custom tour type when "Other" is selected
+  });
+
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  // Load existing data from API if available and not in state
+  useEffect(() => {
+    const loadExistingData = async () => {
+      if (tourBusinessId && userId && !existingStep2Data.tourBusinessName) {
+        setLoading(true);
+        try {
+          const businessRes = await apiClient.get(`/tours/businesses/${tourBusinessId}`);
+          if (businessRes.data?.data) {
+            const business = businessRes.data.data;
+            let tourTypeNames = [];
+            if (business.tour_type_names) {
+              try {
+                tourTypeNames = typeof business.tour_type_names === 'string' 
+                  ? JSON.parse(business.tour_type_names) 
+                  : business.tour_type_names;
+              } catch (e) {
+                tourTypeNames = [];
+              }
+            }
+            
+            // Extract phone country code if phone exists
+            let countryCode = '+250';
+            let phone = '';
+            if (business.phone) {
+              const phoneMatch = business.phone.match(/^(\+\d+)\s*(.+)$/);
+              if (phoneMatch) {
+                countryCode = phoneMatch[1];
+                phone = phoneMatch[2];
+              } else {
+                phone = business.phone;
+              }
+            }
+
+            setFormData({
+              tourBusinessName: business.tour_business_name || '',
+              selectedTourTypes: mapTourTypeNamesToIds(tourTypeNames),
+              description: business.description || '',
+              countryCode: countryCode,
+              phone: phone,
+              otherTourType: '', // Will need to check if "Other" is in tourTypeNames
+            });
+          }
+        } catch (err) {
+          console.warn('Could not load business data:', err);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadExistingData();
+  }, [tourBusinessId, userId, existingStep2Data.tourBusinessName]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -91,9 +153,14 @@ export default function ListYourTourStep2() {
         setErrors(prevErrors => ({ ...prevErrors, tourType: '' }));
       }
 
+      // If "Other" is being unchecked, clear the custom text
+      const isOther = value === '9';
+      const otherStillSelected = nextSelected.includes('9');
+
       return {
         ...prev,
-        selectedTourTypes: nextSelected
+        selectedTourTypes: nextSelected,
+        otherTourType: otherStillSelected ? prev.otherTourType : ''
       };
     });
   };
@@ -108,6 +175,10 @@ export default function ListYourTourStep2() {
     }
     if (!formData.selectedTourTypes.length) {
       newErrors.tourType = 'Tour type is required';
+    }
+    // Validate "Other" tour type if selected
+    if (formData.selectedTourTypes.includes('9') && !formData.otherTourType.trim()) {
+      newErrors.otherTourType = 'Please specify the tour type';
     }
     if (!formData.description.trim()) {
       newErrors.description = 'Description is required';
@@ -127,7 +198,14 @@ export default function ListYourTourStep2() {
       : '';
 
     const selectedTypeDetails = formData.selectedTourTypes
-      .map(value => tourTypes.find(type => type.subcategory_id.toString() === value))
+      .map(value => {
+        const type = tourTypes.find(type => type.subcategory_id.toString() === value);
+        // If "Other" is selected, use the custom text
+        if (value === '9' && formData.otherTourType.trim()) {
+          return { ...type, name: formData.otherTourType.trim() };
+        }
+        return type;
+      })
       .filter(Boolean);
 
     const primaryType = selectedTypeDetails[0];
@@ -147,9 +225,15 @@ export default function ListYourTourStep2() {
           tourType: primaryType ? primaryType.subcategory_id.toString() : '',
           tourTypeName: primaryType ? primaryType.name : '',
           subcategoryId: primaryType ? primaryType.subcategory_id : '',
-          phone: formData.phone.trim(),
+          phone: formattedPhone,
           countryCode: formData.countryCode
-        }
+        },
+        // Preserve existing data
+        businessOwnerInfo: location.state?.businessOwnerInfo || {},
+        identityProof: location.state?.identityProof || {},
+        businessProof: location.state?.businessProof || {},
+        userId: location.state?.userId || userId,
+        tourBusinessId: location.state?.tourBusinessId || tourBusinessId
       }
     });
   };
@@ -172,7 +256,24 @@ export default function ListYourTourStep2() {
         <div className="max-w-2xl w-full mx-auto">
           {/* Progress Indicator */}
           <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
+            {/* Mobile: Simple progress bar */}
+            <div className="block md:hidden mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium" style={{ color: '#1f6f31' }}>
+                  Step 2 of 3
+                </span>
+                <span className="text-xs text-gray-500">67%</span>
+              </div>
+              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{ backgroundColor: '#3CAF54', width: '67%' }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Desktop: Show all steps */}
+            <div className="hidden md:flex items-center justify-center mb-4">
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
                   ✓
@@ -187,7 +288,7 @@ export default function ListYourTourStep2() {
                 </div>
               </div>
             </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Step 2 of 3</p>
+            <p className="text-center text-sm font-medium hidden md:block" style={{ color: '#1f6f31' }}>Step 2 of 3</p>
           </div>
 
           {/* Main Content */}
@@ -255,6 +356,28 @@ export default function ListYourTourStep2() {
                     );
                   })}
                 </div>
+                {/* Show input field when "Other" is selected */}
+                {formData.selectedTourTypes.includes('9') && (
+                  <div className="mt-4">
+                    <label htmlFor="otherTourType" className="block text-sm font-medium text-gray-700 mb-2">
+                      Please specify the tour type *
+                    </label>
+                    <input
+                      type="text"
+                      id="otherTourType"
+                      name="otherTourType"
+                      value={formData.otherTourType}
+                      onChange={handleChange}
+                      placeholder="Enter your tour type"
+                      className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
+                        errors.otherTourType ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
+                      }`}
+                    />
+                    {errors.otherTourType && (
+                      <p className="mt-1 text-sm text-red-600">{errors.otherTourType}</p>
+                    )}
+                  </div>
+                )}
                 <p className="mt-2 text-xs text-gray-500">
                   We recommend choosing every tour type you can operate. Your first selection becomes the primary category in our reports.
                 </p>
@@ -328,22 +451,6 @@ export default function ListYourTourStep2() {
                   )}
                 </div>
 
-                <div>
-                  <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-2">
-                    Currency
-                  </label>
-                  <select
-                    id="currency"
-                    name="currency"
-                    value={formData.currency}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
-                  >
-                    {currencies.map(curr => (
-                      <option key={curr.value} value={curr.value}>{curr.label}</option>
-                    ))}
-                  </select>
-                </div>
               </div>
 
               {locationData && (

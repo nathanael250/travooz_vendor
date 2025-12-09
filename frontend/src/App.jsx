@@ -65,6 +65,7 @@ import RoomAvailability from './pages/stays/RoomAvailability';
 import StaysBookings from './pages/stays/Bookings';
 import StaysFinance from './pages/stays/Finance';
 import PropertyImages from './pages/stays/PropertyImages';
+import StaysDashboardLayout from './components/stays/StaysDashboardLayout';
 
 // Restaurant Dashboard Pages
 import RestaurantDashboard from './pages/restaurant/Dashboard';
@@ -225,13 +226,15 @@ function App() {
           <Route path="/stays/setup/submit" element={<SubmitListingStep />} />
           <Route path="/stays/setup/in-progress" element={<SetupInProgress />} />
           
-          {/* Stays Dashboard */}
-          <Route path="/stays/dashboard" element={<StaysDashboard />} />
-          <Route path="/stays/dashboard/my-property" element={<MyProperty />} />
-          <Route path="/stays/dashboard/bookings" element={<StaysBookings />} />
-          <Route path="/stays/dashboard/room-availability" element={<RoomAvailability />} />
-          <Route path="/stays/dashboard/finance" element={<StaysFinance />} />
-          <Route path="/stays/dashboard/property-images" element={<PropertyImages />} />
+          {/* Stays Dashboard - Nested Routes with Layout */}
+          <Route path="/stays/dashboard" element={<StaysDashboardLayout />}>
+            <Route index element={<StaysDashboard />} />
+            <Route path="my-property" element={<MyProperty />} />
+            <Route path="bookings" element={<StaysBookings />} />
+            <Route path="room-availability" element={<RoomAvailability />} />
+            <Route path="finance" element={<StaysFinance />} />
+            <Route path="property-images" element={<PropertyImages />} />
+          </Route>
 
           {/* Restaurant Dashboard - Nested Routes with Layout */}
           <Route path="/restaurant" element={<RestaurantDashboardLayout />}>

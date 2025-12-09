@@ -22,10 +22,13 @@ import {
 import { tourPackageSetupService } from '../../services/tourPackageService';
 import toast from 'react-hot-toast';
 import logo from '../../assets/images/cdc_logo.jpg';
+import useTranslation from '../../hooks/useTranslation';
+import LanguageSelector from '../common/LanguageSelector';
 
 const TourDashboardLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
@@ -143,19 +146,19 @@ const TourDashboardLayout = () => {
   };
 
   const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/tours/dashboard', category: 'Main' },
-    { icon: Package, label: 'My Tour Packages', path: '/tours/dashboard/packages', category: 'Main' },
-    { icon: Calendar, label: 'Schedules & Availability', path: '/tours/dashboard/schedules', category: 'Main' },
-    { icon: DollarSign, label: 'Pricing & Offers', path: '/tours/dashboard/pricing', category: 'Main' },
-    { icon: BookOpen, label: 'Bookings', path: '/tours/dashboard/bookings', category: 'Operations' },
-    { icon: Users, label: 'Participants', path: '/tours/dashboard/participants', category: 'Operations' },
-    { icon: Image, label: 'Media Library', path: '/tours/dashboard/media', category: 'Content' },
-    { icon: BarChart3, label: 'Reports & Analytics', path: '/tours/dashboard/analytics', category: 'Analytics' },
-    { icon: Star, label: 'Reviews & Ratings', path: '/tours/dashboard/reviews', category: 'Analytics' },
-    { icon: FileText, label: 'Finance', path: '/tours/dashboard/finance', category: 'Financial' },
-    { icon: Settings, label: 'Account Settings', path: '/tours/dashboard/settings', category: 'Settings' },
-    { icon: Shield, label: 'Security & Access', path: '/tours/dashboard/security', category: 'Settings' },
-    { icon: HelpCircle, label: 'Support & Help', path: '/tours/dashboard/support', category: 'Support' },
+    { icon: LayoutDashboard, label: t('tours.nav.dashboard'), path: '/tours/dashboard', category: 'Main' },
+    { icon: Package, label: t('tours.nav.packages'), path: '/tours/dashboard/packages', category: 'Main' },
+    { icon: Calendar, label: t('tours.nav.schedules'), path: '/tours/dashboard/schedules', category: 'Main' },
+    { icon: DollarSign, label: t('tours.nav.pricing'), path: '/tours/dashboard/pricing', category: 'Main' },
+    { icon: BookOpen, label: t('tours.nav.bookings'), path: '/tours/dashboard/bookings', category: 'Operations' },
+    { icon: Users, label: t('tours.nav.participants'), path: '/tours/dashboard/participants', category: 'Operations' },
+    { icon: Image, label: t('tours.nav.media'), path: '/tours/dashboard/media', category: 'Content' },
+    { icon: BarChart3, label: t('tours.nav.reports'), path: '/tours/dashboard/analytics', category: 'Analytics' },
+    { icon: Star, label: t('tours.nav.reviews'), path: '/tours/dashboard/reviews', category: 'Analytics' },
+    { icon: FileText, label: t('tours.nav.finance'), path: '/tours/dashboard/finance', category: 'Financial' },
+    { icon: Settings, label: t('tours.nav.settings'), path: '/tours/dashboard/settings', category: 'Settings' },
+    { icon: Shield, label: t('tours.nav.security'), path: '/tours/dashboard/security', category: 'Settings' },
+    { icon: HelpCircle, label: t('tours.nav.support'), path: '/tours/dashboard/support', category: 'Support' },
   ];
 
 
@@ -226,7 +229,7 @@ const TourDashboardLayout = () => {
             className="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700 w-full"
           >
             <LogOut className="h-5 w-5 flex-shrink-0" />
-            {(sidebarOpen || (!isMobile && sidebarExpanded)) && <span>Logout</span>}
+            {(sidebarOpen || (!isMobile && sidebarExpanded)) && <span>{t('common.logout')}</span>}
           </button>
           {(sidebarOpen || (!isMobile && sidebarExpanded)) && (
             <div className="mt-2 text-xs text-gray-500 text-center">
@@ -265,7 +268,7 @@ const TourDashboardLayout = () => {
             </button>
             <div className="flex items-center gap-2">
               <Package className="h-6 w-6" style={{ color: '#3CAF54' }} />
-              <span className="text-lg font-semibold">Tour Agent Dashboard</span>
+              <span className="text-lg font-semibold">{t('tours.dashboard.title')}</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -273,10 +276,7 @@ const TourDashboardLayout = () => {
               <Bell className="h-5 w-5 cursor-pointer" />
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">3</span>
             </div>
-            <select className="bg-gray-700 text-white px-3 py-1 rounded text-sm">
-              <option>EN</option>
-              <option>FR</option>
-            </select>
+            <LanguageSelector compact={true} isDark={true} />
             <div className="h-8 w-8 rounded-full bg-gray-600 flex items-center justify-center cursor-pointer">
               <UserIcon className="h-5 w-5" />
             </div>

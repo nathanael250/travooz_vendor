@@ -67,7 +67,8 @@ export default function ListYourRestaurantStep3() {
     countryCode: '+250', // Default to Rwanda
     phone: '',
     email: '',
-    password: ''
+    password: '',
+    confirmPassword: ''
   });
 
   const [focusedFields, setFocusedFields] = useState({
@@ -75,10 +76,12 @@ export default function ListYourRestaurantStep3() {
     lastName: false,
     phone: false,
     email: false,
-    password: false
+    password: false,
+    confirmPassword: false
   });
 
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -215,6 +218,13 @@ export default function ListYourRestaurantStep3() {
       } else if (!passwordGuidelines.notCommon) {
         newErrors.password = 'Password is too common or easily guessed';
       }
+    }
+
+    // Validate confirm password
+    if (!formData.confirmPassword.trim()) {
+      newErrors.confirmPassword = 'Please confirm your password';
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -363,22 +373,39 @@ export default function ListYourRestaurantStep3() {
         <div className="max-w-2xl w-full mx-auto">
           {/* Progress Indicator */}
           <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
+            {/* Mobile: Simple progress bar */}
+            <div className="block md:hidden mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium" style={{ color: '#1f6f31' }}>
+                  Step 3 of 3
+                </span>
+                <span className="text-xs text-gray-500">100%</span>
+              </div>
+              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{ backgroundColor: '#3CAF54', width: '100%' }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Desktop: Show all steps */}
+            <div className="hidden md:flex items-center justify-center mb-4">
               <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  1
+                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
+                  ✓
                 </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  2
+                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
+                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
+                  ✓
                 </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
+                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
                 <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
                   3
                 </div>
               </div>
             </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Step 3 of 3</p>
+            <p className="text-center text-sm font-medium hidden md:block" style={{ color: '#1f6f31' }}>Step 3 of 3</p>
           </div>
 
           {/* Main Content */}
@@ -689,6 +716,67 @@ export default function ListYourRestaurantStep3() {
                     <p className="mt-2 ml-1 text-sm text-red-600 flex items-center gap-1">
                       <AlertCircle className="h-4 w-4" />
                       {errors.password}
+                    </p>
+                  )}
+                </div>
+
+                {/* Confirm Password */}
+                <div>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      onFocus={() => setFocusedFields(prev => ({ ...prev, confirmPassword: true }))}
+                      onBlur={() => setFocusedFields(prev => ({ ...prev, confirmPassword: false }))}
+                      className={`w-full px-4 pt-6 pb-2 pr-12 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 ${
+                        errors.confirmPassword ? 'border-red-500' : ''
+                      }`}
+                    />
+                    <label
+                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        focusedFields.confirmPassword || formData.confirmPassword
+                          ? 'top-2 text-xs text-gray-500'
+                          : 'top-1/2 -translate-y-1/2 text-base text-gray-400'
+                      }`}
+                    >
+                      Confirm password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Password Match Indicator */}
+                  {formData.confirmPassword && formData.password && (
+                    <div className="mt-2">
+                      {formData.password === formData.confirmPassword ? (
+                        <p className="text-sm text-green-600 flex items-center gap-1">
+                          <Check className="h-4 w-4" />
+                          Passwords match
+                        </p>
+                      ) : (
+                        <p className="text-sm text-red-600 flex items-center gap-1">
+                          <AlertCircle className="h-4 w-4" />
+                          Passwords do not match
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {errors.confirmPassword && (
+                    <p className="mt-2 ml-1 text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4" />
+                      {errors.confirmPassword}
                     </p>
                   )}
                 </div>

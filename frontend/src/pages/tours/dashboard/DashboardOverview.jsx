@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import NoTourPackagesCard from '../../../components/tours/NoTourPackagesCard';
+import useTranslation from '../../../hooks/useTranslation';
 
 // Helper function to format date as "MMM dd"
 const formatDate = (date) => {
@@ -25,6 +26,7 @@ const formatDateInput = (date) => {
 
 const DashboardOverview = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [stats, setStats] = useState({
     totalRevenue: 0,
     todayBookings: 0,
@@ -251,7 +253,7 @@ const DashboardOverview = () => {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading dashboard...</p>
+          <p className="text-gray-600">{t('dashboard.loading')}</p>
         </div>
       </div>
     );
@@ -271,8 +273,8 @@ const DashboardOverview = () => {
       {/* Header with Date Filters */}
       <div className="flex justify-between items-center bg-white p-4 rounded-lg border border-gray-200">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
-          <p className="text-sm text-gray-600 mt-1">Welcome back! Here's what's happening with your tours.</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('dashboard.overview')}</h1>
+          <p className="text-sm text-gray-600 mt-1">{t('tours.dashboard.welcome')}</p>
         </div>
         <div className="flex items-center gap-2">
           <select
@@ -280,11 +282,11 @@ const DashboardOverview = () => {
             onChange={(e) => setDateRange(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#3CAF54]"
           >
-            <option value="today">Today</option>
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
-            <option value="year">This Year</option>
-            <option value="custom">Custom</option>
+            <option value="today">{t('common.dateRange.today')}</option>
+            <option value="week">{t('common.dateRange.week')}</option>
+            <option value="month">{t('common.dateRange.month')}</option>
+            <option value="year">{t('common.dateRange.year')}</option>
+            <option value="custom">{t('common.dateRange.custom')}</option>
           </select>
           {dateRange === 'custom' && (
             <input
@@ -303,38 +305,38 @@ const DashboardOverview = () => {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-medium text-gray-600 uppercase">Total Revenue</h3>
+            <h3 className="text-xs font-medium text-gray-600 uppercase">{t('tours.dashboard.totalRevenue')}</h3>
             <DollarSign className="h-5 w-5 text-green-500" />
           </div>
           <div className="text-2xl font-bold text-green-500">{stats.totalRevenue.toLocaleString()} RWF</div>
-          <p className="text-xs text-gray-500 mt-1">All revenue generated</p>
+          <p className="text-xs text-gray-500 mt-1">{t('tours.dashboard.allRevenueGenerated')}</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-medium text-gray-600 uppercase">Today Bookings</h3>
+            <h3 className="text-xs font-medium text-gray-600 uppercase">{t('tours.dashboard.todayBookings')}</h3>
             <Calendar className="h-5 w-5 text-orange-500" />
           </div>
           <div className="text-2xl font-bold text-orange-500">{stats.todayBookings}</div>
-          <p className="text-xs text-gray-500 mt-1">Bookings made today</p>
+          <p className="text-xs text-gray-500 mt-1">{t('tours.dashboard.bookingsMadeToday')}</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-medium text-gray-600 uppercase">Total Bookings</h3>
+            <h3 className="text-xs font-medium text-gray-600 uppercase">{t('tours.dashboard.totalBookings')}</h3>
             <TrendingUp className="h-5 w-5 text-blue-500" />
           </div>
           <div className="text-2xl font-bold text-blue-500">{stats.totalBookings}</div>
-          <p className="text-xs text-gray-500 mt-1">All total bookings</p>
+          <p className="text-xs text-gray-500 mt-1">{t('tours.dashboard.allTotalBookings')}</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-medium text-gray-600 uppercase">Tour Packages</h3>
+            <h3 className="text-xs font-medium text-gray-600 uppercase">{t('tours.dashboard.tourPackages')}</h3>
             <Plane className="h-5 w-5 text-green-500" />
           </div>
           <div className="text-2xl font-bold text-green-500">{stats.activePackages}</div>
-          <p className="text-xs text-gray-500 mt-1">Active packages</p>
+          <p className="text-xs text-gray-500 mt-1">{t('tours.dashboard.activePackagesDesc')}</p>
         </div>
       </div>
 
@@ -342,7 +344,7 @@ const DashboardOverview = () => {
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Booking Status Overview */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Booking Status Overview</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('tours.dashboard.bookingStatusOverview')}</h2>
           <div className="space-y-4">
             {bookingStatusData.map((item, index) => (
               <div key={index} className="flex items-center justify-between">

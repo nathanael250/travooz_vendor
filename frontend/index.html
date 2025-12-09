@@ -5,6 +5,10 @@
     <link rel="icon" type="image/svg+xml" href="/cdc_logo.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Travooz Vendor Platform</title>
+    <!-- Google Fonts - Inter for professional typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <!-- Google Maps API -->
     <script>
       // Global callback function for Google Maps API
@@ -18,6 +22,9 @@
         console.log('Google Maps API loaded successfully');
         window.googleMapsLoaded = true;
         window.googleMapsLoadError = null;
+        
+        // Dispatch custom event to notify React components
+        window.dispatchEvent(new CustomEvent('googlemaps:loaded'));
       };
       
       // Global error handler for Google Maps API

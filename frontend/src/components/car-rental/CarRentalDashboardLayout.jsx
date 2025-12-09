@@ -20,10 +20,13 @@ import {
   CreditCard
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import useTranslation from '../../hooks/useTranslation';
+import LanguageSelector from '../common/LanguageSelector';
 
 const CarRentalDashboardLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
@@ -81,20 +84,20 @@ const CarRentalDashboardLayout = () => {
   };
 
   const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/car-rental/dashboard', category: 'Main' },
-    { icon: Car, label: 'My Cars', path: '/car-rental/dashboard/cars', category: 'Main' },
-    { icon: UserIcon, label: 'Drivers', path: '/car-rental/dashboard/drivers', category: 'Main' },
-    { icon: Calendar, label: 'Availability & Calendar', path: '/car-rental/dashboard/availability', category: 'Main' },
-    { icon: DollarSign, label: 'Pricing & Rates', path: '/car-rental/dashboard/pricing', category: 'Main' },
-    { icon: BookOpen, label: 'Bookings', path: '/car-rental/dashboard/bookings', category: 'Operations' },
-    { icon: MapPin, label: 'Locations', path: '/car-rental/dashboard/locations', category: 'Operations' },
-    { icon: BarChart3, label: 'Reports & Analytics', path: '/car-rental/dashboard/analytics', category: 'Analytics' },
-    { icon: Star, label: 'Reviews & Ratings', path: '/car-rental/dashboard/reviews', category: 'Analytics' },
-    { icon: FileText, label: 'Finance', path: '/car-rental/dashboard/finance', category: 'Financial' },
-    { icon: CreditCard, label: 'Payments', path: '/car-rental/dashboard/payments', category: 'Financial' },
-    { icon: Settings, label: 'Account Settings', path: '/car-rental/dashboard/settings', category: 'Settings' },
-    { icon: Shield, label: 'Security & Access', path: '/car-rental/dashboard/security', category: 'Settings' },
-    { icon: HelpCircle, label: 'Support & Help', path: '/car-rental/dashboard/support', category: 'Support' },
+    { icon: LayoutDashboard, label: t('car.nav.dashboard'), path: '/car-rental/dashboard', category: 'Main' },
+    { icon: Car, label: t('car.nav.cars'), path: '/car-rental/dashboard/cars', category: 'Main' },
+    { icon: UserIcon, label: t('car.nav.drivers'), path: '/car-rental/dashboard/drivers', category: 'Main' },
+    { icon: Calendar, label: t('car.nav.availability'), path: '/car-rental/dashboard/availability', category: 'Main' },
+    { icon: DollarSign, label: t('car.nav.pricing'), path: '/car-rental/dashboard/pricing', category: 'Main' },
+    { icon: BookOpen, label: t('car.nav.bookings'), path: '/car-rental/dashboard/bookings', category: 'Operations' },
+    { icon: MapPin, label: t('car.nav.locations'), path: '/car-rental/dashboard/locations', category: 'Operations' },
+    { icon: BarChart3, label: t('car.nav.analytics'), path: '/car-rental/dashboard/analytics', category: 'Analytics' },
+    { icon: Star, label: t('car.nav.reviews'), path: '/car-rental/dashboard/reviews', category: 'Analytics' },
+    { icon: FileText, label: t('car.nav.finance'), path: '/car-rental/dashboard/finance', category: 'Financial' },
+    { icon: CreditCard, label: t('car.nav.payments'), path: '/car-rental/dashboard/payments', category: 'Financial' },
+    { icon: Settings, label: t('car.nav.settings'), path: '/car-rental/dashboard/settings', category: 'Settings' },
+    { icon: Shield, label: t('car.nav.security'), path: '/car-rental/dashboard/security', category: 'Settings' },
+    { icon: HelpCircle, label: t('car.nav.support'), path: '/car-rental/dashboard/support', category: 'Support' },
   ];
 
   return (
@@ -165,7 +168,7 @@ const CarRentalDashboardLayout = () => {
             className="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700 w-full"
           >
             <LogOut className="h-5 w-5 flex-shrink-0" />
-            {(sidebarOpen || (!isMobile && sidebarExpanded)) && <span>Logout</span>}
+            {(sidebarOpen || (!isMobile && sidebarExpanded)) && <span>{t('common.logout')}</span>}
           </button>
           {(sidebarOpen || (!isMobile && sidebarExpanded)) && user && (
             <div className="mt-2 text-xs text-gray-500 text-center">
@@ -204,7 +207,7 @@ const CarRentalDashboardLayout = () => {
             </button>
             <div className="flex items-center gap-2">
               <Car className="h-6 w-6" style={{ color: '#3CAF54' }} />
-              <span className="text-lg font-semibold text-gray-900">Car Rental Dashboard</span>
+              <span className="text-lg font-semibold text-gray-900">{t('car.dashboard.title')}</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -212,6 +215,7 @@ const CarRentalDashboardLayout = () => {
               <Bell className="h-5 w-5 cursor-pointer text-gray-600" />
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">0</span>
             </div>
+            <LanguageSelector compact={true} />
             <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center cursor-pointer">
               <UserIcon className="h-5 w-5 text-gray-600" />
             </div>

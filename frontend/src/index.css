@@ -49,6 +49,10 @@ body.auth-page #root {
   animation: fadeIn 0.3s ease-out;
 }
 
+.animate-fade-in {
+  animation: fadeIn 0.6s ease-out;
+}
+
 .animate-slideInRight {
   animation: slideInRight 0.3s ease-out;
 }
