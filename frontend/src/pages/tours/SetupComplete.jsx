@@ -338,18 +338,18 @@ export default function SetupComplete() {
                   <span>Go to {getStepName(rejectionDetails.step)}</span>
                   <ArrowRight className="h-5 w-5" />
                 </button>
-              ) : (
-            <button
-              onClick={handleGoToDashboard}
+              ) : isApproved ? (
+                <button
+                  onClick={handleGoToDashboard}
                   className="w-full text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
-              style={{ backgroundColor: '#3CAF54' }}
+                  style={{ backgroundColor: '#3CAF54' }}
                   onMouseEnter={(e) => (e.target.style.backgroundColor = '#2d8f42')}
                   onMouseLeave={(e) => (e.target.style.backgroundColor = '#3CAF54')}
-            >
-                  <span>{isApproved ? 'Go to Dashboard' : 'Check Status'}</span>
-              <ArrowRight className="h-5 w-5" />
-            </button>
-              )}
+                >
+                  <span>Go to Dashboard</span>
+                  <ArrowRight className="h-5 w-5" />
+                </button>
+              ) : null}
 
               {!isApproved && (
                 <button
