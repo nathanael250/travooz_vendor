@@ -122,43 +122,43 @@ export default function PaymentsPricingStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-3xl w-full mx-auto">
           {/* Progress Indicator */}
-          <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
+          <div className="mb-6 sm:mb-8">
+            <div className="flex items-center justify-center mb-3 sm:mb-4 overflow-x-auto pb-2">
+              <div className="flex items-center space-x-1 sm:space-x-2 min-w-max px-2">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 text-white rounded-full flex items-center justify-center text-[10px] sm:text-sm font-semibold shadow-md flex-shrink-0" style={{ backgroundColor: '#3CAF54' }}>
                   ✓
                 </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
+                <div className="w-8 sm:w-16 h-0.5 sm:h-1 flex-shrink-0" style={{ backgroundColor: '#3CAF54' }}></div>
+                <div className="w-6 h-6 sm:w-8 sm:h-8 text-white rounded-full flex items-center justify-center text-[10px] sm:text-sm font-semibold shadow-md flex-shrink-0" style={{ backgroundColor: '#3CAF54' }}>
                   ✓
                 </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
+                <div className="w-8 sm:w-16 h-0.5 sm:h-1 flex-shrink-0" style={{ backgroundColor: '#3CAF54' }}></div>
+                <div className="w-6 h-6 sm:w-8 sm:h-8 text-white rounded-full flex items-center justify-center text-[10px] sm:text-sm font-semibold shadow-md flex-shrink-0" style={{ backgroundColor: '#3CAF54' }}>
                   ✓
                 </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
+                <div className="w-8 sm:w-16 h-0.5 sm:h-1 flex-shrink-0" style={{ backgroundColor: '#3CAF54' }}></div>
+                <div className="w-6 h-6 sm:w-8 sm:h-8 text-white rounded-full flex items-center justify-center text-[10px] sm:text-sm font-semibold shadow-md flex-shrink-0" style={{ backgroundColor: '#3CAF54' }}>
                   ✓
                 </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
+                <div className="w-8 sm:w-16 h-0.5 sm:h-1 flex-shrink-0" style={{ backgroundColor: '#3CAF54' }}></div>
+                <div className="w-6 h-6 sm:w-8 sm:h-8 text-white rounded-full flex items-center justify-center text-[10px] sm:text-sm font-semibold shadow-md flex-shrink-0" style={{ backgroundColor: '#3CAF54' }}>
                   4
                 </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
+                <div className="w-8 sm:w-16 h-0.5 sm:h-1 flex-shrink-0" style={{ backgroundColor: '#bbf7d0' }}></div>
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-sm font-semibold flex-shrink-0" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
                   5
                 </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
+                <div className="w-8 sm:w-16 h-0.5 sm:h-1 flex-shrink-0" style={{ backgroundColor: '#bbf7d0' }}></div>
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-sm font-semibold flex-shrink-0" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
                   6
                 </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
+                <div className="w-8 sm:w-16 h-0.5 sm:h-1 flex-shrink-0" style={{ backgroundColor: '#bbf7d0' }}></div>
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-sm font-semibold flex-shrink-0" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
                   7
                 </div>
               </div>
             </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Setup Step 4 of 8</p>
+            <p className="text-center text-xs sm:text-sm font-medium" style={{ color: '#1f6f31' }}>Setup Step 4 of 8</p>
           </div>
 
           {/* Main Content */}
