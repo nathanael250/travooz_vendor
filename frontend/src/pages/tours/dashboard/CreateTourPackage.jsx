@@ -166,8 +166,6 @@ const CreateTourPackage = () => {
   // Photo upload limits
   const MIN_PHOTOS = 4; // Minimum number of photos required
   const MAX_PHOTOS = 20; // Maximum number of photos allowed
-  const MAX_FILE_SIZE = 7 * 1024 * 1024; // 7MB in bytes
-  const MIN_IMAGE_WIDTH = 1280; // Minimum image width in pixels
 
   // Not suitable for options list
   const NOT_SUITABLE_OPTIONS = [
@@ -2966,12 +2964,6 @@ const CreateTourPackage = () => {
                   <span className="flex items-center gap-1">
                     <span className="font-medium text-gray-700">Maximum:</span> {MAX_PHOTOS} photos allowed
                   </span>
-                  <span className="flex items-center gap-1">
-                    <span className="font-medium text-gray-700">File size:</span> Max 7MB per image
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="font-medium text-gray-700">Dimensions:</span> Min {MIN_IMAGE_WIDTH}px width
-                  </span>
                 </div>
                 {formData.photos.length > 0 && (
                   <div className="mt-2">
@@ -3014,63 +3006,26 @@ const CreateTourPackage = () => {
                         return;
                       }
                       
-                      // Validate each file
+                      // Validate each file - only check if it's an image
                       const validFiles = [];
                       const errors = [];
                       
-                      // Process files sequentially to avoid race conditions
                       for (const file of files) {
-                        // Check file size
-                        if (file.size > MAX_FILE_SIZE) {
-                          errors.push(`${file.name}: exceeds 7MB limit (${(file.size / (1024 * 1024)).toFixed(2)}MB)`);
-                          continue;
-                        }
-                        
-                        // Check file type
+                        // Basic check: ensure it's an image file
                         if (!file.type.startsWith('image/')) {
                           errors.push(`${file.name}: not a valid image file`);
                           continue;
                         }
                         
-                        // Validate image dimensions (async)
-                        try {
-                          const isValid = await new Promise((resolve) => {
-                            const img = new Image();
-                            const objectUrl = URL.createObjectURL(file);
-                            
-                            img.onload = () => {
-                              URL.revokeObjectURL(objectUrl);
-                              if (img.width < MIN_IMAGE_WIDTH) {
-                                resolve({ valid: false, error: `${file.name}: width ${img.width}px is less than minimum ${MIN_IMAGE_WIDTH}px` });
-                              } else {
-                                resolve({ valid: true });
-                              }
-                            };
-                            
-                            img.onerror = () => {
-                              URL.revokeObjectURL(objectUrl);
-                              resolve({ valid: false, error: `${file.name}: could not be loaded as an image` });
-                            };
-                            
-                            img.src = objectUrl;
-                          });
-                          
-                          if (isValid.valid) {
-                            validFiles.push(file);
-                          } else {
-                            errors.push(isValid.error);
-                          }
-                        } catch (error) {
-                          errors.push(`${file.name}: validation error`);
-                        }
+                        validFiles.push(file);
                       }
                       
                       // Update form data with valid files
                       if (validFiles.length > 0) {
-                      setFormData(prev => ({
-                        ...prev,
+                        setFormData(prev => ({
+                          ...prev,
                           photos: [...prev.photos, ...validFiles]
-                      }));
+                        }));
                       }
                       
                       // Show errors if any
@@ -3118,7 +3073,7 @@ const CreateTourPackage = () => {
                     </div>
                     {formData.photos.length < MAX_PHOTOS && (
                     <p className="text-xs text-gray-500">
-                        JPG, PNG, or GIF format. Minimum {MIN_IMAGE_WIDTH}px width. Max 7MB per file.
+                        JPG, PNG, or GIF format.
                     </p>
                     )}
                   </label>

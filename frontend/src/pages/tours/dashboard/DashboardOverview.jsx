@@ -269,18 +269,18 @@ const DashboardOverview = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header with Date Filters */}
-      <div className="flex justify-between items-center bg-white p-4 rounded-lg border border-gray-200">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-white p-4 sm:p-6 rounded-lg border border-gray-200 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{t('dashboard.overview')}</h1>
-          <p className="text-sm text-gray-600 mt-1">{t('tours.dashboard.welcome')}</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{t('dashboard.overview')}</h1>
+          <p className="text-xs sm:text-sm text-gray-600 mt-1">{t('tours.dashboard.welcome')}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#3CAF54]"
+            className="px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-300 rounded-md text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#3CAF54]"
           >
             <option value="today">{t('common.dateRange.today')}</option>
             <option value="week">{t('common.dateRange.week')}</option>
@@ -295,56 +295,56 @@ const DashboardOverview = () => {
               onChange={(e) => {
                 setSelectedDate(new Date(e.target.value));
               }}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#3CAF54]"
+              className="px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-300 rounded-md text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#3CAF54]"
             />
           )}
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+      <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-medium text-gray-600 uppercase">{t('tours.dashboard.totalRevenue')}</h3>
-            <DollarSign className="h-5 w-5 text-green-500" />
+            <h3 className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">{t('tours.dashboard.totalRevenue')}</h3>
+            <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
           </div>
-          <div className="text-2xl font-bold text-green-500">{stats.totalRevenue.toLocaleString()} RWF</div>
-          <p className="text-xs text-gray-500 mt-1">{t('tours.dashboard.allRevenueGenerated')}</p>
+          <div className="text-xl sm:text-2xl font-bold text-green-500">{stats.totalRevenue.toLocaleString()} RWF</div>
+          <p className="text-[10px] sm:text-xs text-gray-500 mt-1">{t('tours.dashboard.allRevenueGenerated')}</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-medium text-gray-600 uppercase">{t('tours.dashboard.todayBookings')}</h3>
-            <Calendar className="h-5 w-5 text-orange-500" />
+            <h3 className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">{t('tours.dashboard.todayBookings')}</h3>
+            <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500 flex-shrink-0" />
           </div>
-          <div className="text-2xl font-bold text-orange-500">{stats.todayBookings}</div>
-          <p className="text-xs text-gray-500 mt-1">{t('tours.dashboard.bookingsMadeToday')}</p>
+          <div className="text-xl sm:text-2xl font-bold text-orange-500">{stats.todayBookings}</div>
+          <p className="text-[10px] sm:text-xs text-gray-500 mt-1">{t('tours.dashboard.bookingsMadeToday')}</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-medium text-gray-600 uppercase">{t('tours.dashboard.totalBookings')}</h3>
-            <TrendingUp className="h-5 w-5 text-blue-500" />
+            <h3 className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">{t('tours.dashboard.totalBookings')}</h3>
+            <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500 flex-shrink-0" />
           </div>
-          <div className="text-2xl font-bold text-blue-500">{stats.totalBookings}</div>
-          <p className="text-xs text-gray-500 mt-1">{t('tours.dashboard.allTotalBookings')}</p>
+          <div className="text-xl sm:text-2xl font-bold text-blue-500">{stats.totalBookings}</div>
+          <p className="text-[10px] sm:text-xs text-gray-500 mt-1">{t('tours.dashboard.allTotalBookings')}</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-medium text-gray-600 uppercase">{t('tours.dashboard.tourPackages')}</h3>
-            <Plane className="h-5 w-5 text-green-500" />
+            <h3 className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">{t('tours.dashboard.tourPackages')}</h3>
+            <Plane className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
           </div>
-          <div className="text-2xl font-bold text-green-500">{stats.activePackages}</div>
-          <p className="text-xs text-gray-500 mt-1">{t('tours.dashboard.activePackagesDesc')}</p>
+          <div className="text-xl sm:text-2xl font-bold text-green-500">{stats.activePackages}</div>
+          <p className="text-[10px] sm:text-xs text-gray-500 mt-1">{t('tours.dashboard.activePackagesDesc')}</p>
         </div>
       </div>
 
       {/* Charts Row */}
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Booking Status Overview */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('tours.dashboard.bookingStatusOverview')}</h2>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">{t('tours.dashboard.bookingStatusOverview')}</h2>
           <div className="space-y-4">
             {bookingStatusData.map((item, index) => (
               <div key={index} className="flex items-center justify-between">
@@ -365,8 +365,8 @@ const DashboardOverview = () => {
         </div>
 
         {/* Tour Package Performance */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Tour Package Performance</h2>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">Tour Package Performance</h2>
           <div className="space-y-3 max-h-64 overflow-y-auto">
             {tourPackageStats.length > 0 ? (
               tourPackageStats.map((pkg, index) => (
