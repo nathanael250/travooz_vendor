@@ -464,17 +464,50 @@ class ClientDiscoveryService {
       let query = `
         SELECT 
           tp.package_id,
+          tp.tour_business_id,
           tp.name,
+          tp.category,
           tp.short_description as description,
           tp.full_description,
-          tp.duration_value as duration,
-          tp.duration_type as duration_unit,
-          tp.pricing_type,
+          tp.whats_included,
+          tp.whats_not_included,
+          tp.guide_type,
+          tp.guide_language,
+          tp.food_included,
+          tp.drinks_included,
+          tp.show_dietary_restrictions,
+          tp.transportation_used,
+          tp.travel_to_different_city,
+          tp.pet_policy,
+          tp.pet_policy_details,
+          tp.know_before_you_go,
+          tp.emergency_contact,
+          tp.emergency_country_code,
+          tp.emergency_phone,
+          tp.voucher_information,
+          tp.option_reference_code,
           tp.max_group_size as max_participants,
-          tp.category,
-          tp.status,
+          tp.guide_materials,
+          tp.is_private_activity,
+          tp.skip_the_line,
+          tp.skip_the_line_type,
+          tp.wheelchair_accessible,
+          tp.duration_type as duration_unit,
+          tp.duration_value as duration,
+          tp.customer_arrival_type,
+          tp.pickup_type,
+          tp.pickup_timing,
+          tp.pickup_confirmation,
+          tp.pickup_time,
+          tp.pickup_description,
+          tp.drop_off_type,
+          tp.pickup_transportation,
+          tp.availability_type,
+          tp.pricing_type,
           tp.price_per_person,
-          tb.tour_business_id,
+          tp.status,
+          tp.created_at,
+          tp.updated_at,
           tb.tour_business_name as business_name,
           tb.location as business_location
         FROM tours_packages tp
@@ -551,17 +584,168 @@ class ClientDiscoveryService {
         console.log('Note: tour_package_images table check:', error.message);
       }
       
+      // Fetch all related data for each tour package
       for (const tour of tours) {
         try {
-          const images = await executeQuery(
-            `SELECT image_url as photo_url FROM tour_package_images WHERE package_id = ? ORDER BY display_order, is_primary DESC LIMIT 5`,
+          // Get images (try both tables)
+          let images = [];
+          try {
+            const tourImages = await executeQuery(
+              `SELECT photo_url FROM tours_package_photos WHERE package_id = ? ORDER BY display_order, is_primary DESC`,
+              [tour.package_id]
+            );
+            images = tourImages && tourImages.length > 0 ? tourImages.map(img => img.photo_url) : [];
+          } catch (error) {
+            // Try alternative table name
+            try {
+              const altImages = await executeQuery(
+                `SELECT image_url as photo_url FROM tour_package_images WHERE package_id = ? ORDER BY display_order, is_primary DESC`,
+                [tour.package_id]
+              );
+              images = altImages && altImages.length > 0 ? altImages.map(img => img.photo_url) : [];
+            } catch (err) {
+              console.log(`Note: Could not fetch images from either table for package ${tour.package_id}`);
+            }
+          }
+          tour.images = images;
+
+          // Get locations
+          const locations = await executeQuery(
+            `SELECT location_id, location_name, formatted_address, place_id, latitude, longitude, address_components, display_order 
+             FROM tours_package_locations WHERE package_id = ? ORDER BY display_order`,
             [tour.package_id]
           );
-          tour.images = images && images.length > 0 ? images.map(img => img.photo_url) : [];
-          console.log(`📸 Package ${tour.package_id}: Found ${tour.images.length} images`);
+          tour.locations = locations || [];
+
+          // Get tags
+          const tags = await executeQuery(
+            `SELECT tag_id, tag_name, display_order FROM tours_package_tags WHERE package_id = ? ORDER BY display_order`,
+            [tour.package_id]
+          );
+          tour.tags = tags ? tags.map(t => t.tag_name) : [];
+
+          // Get highlights
+          const highlights = await executeQuery(
+            `SELECT highlight_id, highlight_text, display_order FROM tours_package_highlights WHERE package_id = ? ORDER BY display_order`,
+            [tour.package_id]
+          );
+          tour.highlights = highlights ? highlights.map(h => h.highlight_text) : [];
+
+          // Get languages
+          const languages = await executeQuery(
+            `SELECT language_id, language_name FROM tours_package_languages WHERE package_id = ?`,
+            [tour.package_id]
+          );
+          tour.languages = languages ? languages.map(l => l.language_name) : [];
+
+          // Get transportation types
+          const transportationTypes = await executeQuery(
+            `SELECT transportation_id, transportation_type FROM tours_package_transportation_types WHERE package_id = ?`,
+            [tour.package_id]
+          );
+          tour.transportation_types = transportationTypes ? transportationTypes.map(t => t.transportation_type) : [];
+
+          // Get meals
+          const meals = await executeQuery(
+            `SELECT meal_id, meal_type, meal_format, display_order FROM tours_package_meals WHERE package_id = ? ORDER BY display_order`,
+            [tour.package_id]
+          );
+          tour.meals = meals || [];
+
+          // Get dietary restrictions
+          const dietaryRestrictions = await executeQuery(
+            `SELECT restriction_id, restriction_name FROM tours_package_dietary_restrictions WHERE package_id = ?`,
+            [tour.package_id]
+          );
+          tour.dietary_restrictions = dietaryRestrictions ? dietaryRestrictions.map(d => d.restriction_name) : [];
+
+          // Get not suitable for
+          const notSuitable = await executeQuery(
+            `SELECT not_suitable_id, restriction_name FROM tours_package_not_suitable WHERE package_id = ?`,
+            [tour.package_id]
+          );
+          tour.not_suitable_for = notSuitable ? notSuitable.map(n => n.restriction_name) : [];
+
+          // Get not allowed
+          const notAllowed = await executeQuery(
+            `SELECT not_allowed_id, item_name FROM tours_package_not_allowed WHERE package_id = ?`,
+            [tour.package_id]
+          );
+          tour.not_allowed = notAllowed ? notAllowed.map(n => n.item_name) : [];
+
+          // Get mandatory items
+          const mandatoryItems = await executeQuery(
+            `SELECT mandatory_item_id, item_name FROM tours_package_mandatory_items WHERE package_id = ?`,
+            [tour.package_id]
+          );
+          tour.mandatory_items = mandatoryItems ? mandatoryItems.map(m => m.item_name) : [];
+
+          // Get guide materials
+          const guideMaterials = await executeQuery(
+            `SELECT guide_material_id, material_type, language_name FROM tours_package_guide_materials WHERE package_id = ?`,
+            [tour.package_id]
+          );
+          tour.guide_materials = guideMaterials || [];
+
+          // Get schedules with pricing and capacity
+          const schedules = await executeQuery(
+            `SELECT schedule_id, schedule_name, start_date, has_end_date, end_date 
+             FROM tours_package_schedules WHERE package_id = ? ORDER BY start_date`,
+            [tour.package_id]
+          );
+          
+          if (schedules && schedules.length > 0) {
+            tour.schedules = [];
+            for (const schedule of schedules) {
+              // Get pricing tiers for this schedule
+              const pricingTiers = await executeQuery(
+                `SELECT tier_id, participant_range, min_participants, max_participants, customer_pays, 
+                 commission_percentage, price_per_participant, currency, display_order 
+                 FROM tours_package_pricing_tiers WHERE schedule_id = ? ORDER BY display_order`,
+                [schedule.schedule_id]
+              );
+
+              // Get capacity for this schedule
+              const capacity = await executeQuery(
+                `SELECT capacity_id, min_participants, max_participants, exceptions_share_capacity 
+                 FROM tours_package_capacity WHERE schedule_id = ? LIMIT 1`,
+                [schedule.schedule_id]
+              );
+
+              // Get weekly schedule
+              const weeklySchedule = await executeQuery(
+                `SELECT weekly_schedule_id, day_of_week, start_hour, start_minute, end_hour, end_minute, display_order 
+                 FROM tours_package_weekly_schedule WHERE schedule_id = ? ORDER BY display_order`,
+                [schedule.schedule_id]
+              );
+
+              tour.schedules.push({
+                ...schedule,
+                pricing_tiers: pricingTiers || [],
+                capacity: capacity && capacity.length > 0 ? capacity[0] : null,
+                weekly_schedule: weeklySchedule || []
+              });
+            }
+          } else {
+            tour.schedules = [];
+          }
+
         } catch (error) {
-          console.error(`❌ Error getting images for package ${tour.package_id}:`, error);
-          tour.images = [];
+          console.error(`❌ Error getting related data for package ${tour.package_id}:`, error);
+          // Set defaults if error occurs
+          if (!tour.images) tour.images = [];
+          if (!tour.locations) tour.locations = [];
+          if (!tour.tags) tour.tags = [];
+          if (!tour.highlights) tour.highlights = [];
+          if (!tour.languages) tour.languages = [];
+          if (!tour.transportation_types) tour.transportation_types = [];
+          if (!tour.meals) tour.meals = [];
+          if (!tour.dietary_restrictions) tour.dietary_restrictions = [];
+          if (!tour.not_suitable_for) tour.not_suitable_for = [];
+          if (!tour.not_allowed) tour.not_allowed = [];
+          if (!tour.mandatory_items) tour.mandatory_items = [];
+          if (!tour.guide_materials) tour.guide_materials = [];
+          if (!tour.schedules) tour.schedules = [];
         }
       }
 
