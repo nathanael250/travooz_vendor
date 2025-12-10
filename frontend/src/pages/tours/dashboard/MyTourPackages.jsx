@@ -146,9 +146,9 @@ const MyTourPackages = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Tour Packages</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">My Tour Packages</h1>
           <p className="text-sm text-gray-600 mt-1">Manage all your tour packages</p>
         </div>
         <button
@@ -175,7 +175,7 @@ const MyTourPackages = () => {
             }
             navigate(`/tours/dashboard/packages/create${businessId ? `?businessId=${businessId}` : ''}`);
           }}
-          className="flex items-center gap-2 px-4 py-2 bg-[#3CAF54] text-white rounded-lg hover:bg-[#2d8f42] transition-colors"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 bg-[#3CAF54] text-white rounded-lg hover:bg-[#2d8f42] transition-colors w-full sm:w-auto"
         >
           <Plus className="h-5 w-5" />
           <span>Create New Package</span>
@@ -223,97 +223,170 @@ const MyTourPackages = () => {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Package Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Duration
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Price
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredPackages.map((pkg) => {
-                  const packageId = pkg.id || pkg.package_id;
-                  const packageName = pkg.title || pkg.name || 'Unnamed Package';
-                  const category = pkg.category || 'N/A';
-                  const duration = pkg.duration_value ? `${pkg.duration_value} ${pkg.duration_type || 'hours'}` : 'N/A';
-                  // Check for price_per_person first (new simple pricing), then fallback to old pricing fields
-                  const priceValue = pkg.price_per_person || pkg.pricePerPerson || pkg.price || pkg.min_price;
-                  const price = priceValue 
-                    ? `${parseFloat(priceValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${pkg.currency || 'RWF'}`
-                    : 'Price not set';
+        <>
+          {/* Mobile: Card View */}
+          <div className="block md:hidden space-y-4">
+            {filteredPackages.map((pkg) => {
+              const packageId = pkg.id || pkg.package_id;
+              const packageName = pkg.title || pkg.name || 'Unnamed Package';
+              const category = pkg.category || 'N/A';
+              const duration = pkg.duration_value ? `${pkg.duration_value} ${pkg.duration_type || 'hours'}` : 'N/A';
+              const priceValue = pkg.price_per_person || pkg.pricePerPerson || pkg.price || pkg.min_price;
+              const price = priceValue 
+                ? `${parseFloat(priceValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${pkg.currency || 'RWF'}`
+                : 'Price not set';
+              
+              return (
+                <div key={packageId} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-semibold text-gray-900 truncate">{packageName}</h3>
+                      {pkg.short_description && (
+                        <p className="text-sm text-gray-500 mt-1 line-clamp-2">{pkg.short_description}</p>
+                      )}
+                    </div>
+                    {(pkg.status && pkg.status !== 'draft') && (
+                      <div className="ml-2 flex-shrink-0">
+                        {getStatusBadge(pkg.status)}
+                      </div>
+                    )}
+                  </div>
                   
-                  return (
-                    <tr key={packageId} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{packageName}</div>
-                        {pkg.short_description && (
-                          <div className="text-sm text-gray-500 truncate max-w-xs">
-                            {pkg.short_description}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{category}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{duration}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-semibold text-[#3CAF54]">{price}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {(pkg.status && pkg.status !== 'draft') && getStatusBadge(pkg.status)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => navigate(`/tours/dashboard/packages/${packageId}`)}
-                            className="p-2 text-gray-600 hover:text-[#3CAF54] hover:bg-gray-100 rounded-lg transition-colors"
-                            title="View"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => navigate(`/tours/dashboard/packages/create/${packageId}?businessId=${localStorage.getItem('tour_business_id') || ''}`)}
-                            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors"
-                            title="Edit"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(packageId)}
-                            className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">Category:</span>
+                      <span className="ml-2 text-gray-900 font-medium">{category}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Duration:</span>
+                      <span className="ml-2 text-gray-900 font-medium">{duration}</span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-gray-500">Price:</span>
+                      <span className="ml-2 text-[#3CAF54] font-semibold">{price}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-200">
+                    <button
+                      onClick={() => navigate(`/tours/dashboard/packages/${packageId}`)}
+                      className="p-2 text-gray-600 hover:text-[#3CAF54] hover:bg-gray-100 rounded-lg transition-colors"
+                      title="View"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => navigate(`/tours/dashboard/packages/create/${packageId}?businessId=${localStorage.getItem('tour_business_id') || ''}`)}
+                      className="p-2 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors"
+                      title="Edit"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(packageId)}
+                      className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
+
+          {/* Desktop: Table View */}
+          <div className="hidden md:block bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Package Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Category
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Duration
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Price
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredPackages.map((pkg) => {
+                    const packageId = pkg.id || pkg.package_id;
+                    const packageName = pkg.title || pkg.name || 'Unnamed Package';
+                    const category = pkg.category || 'N/A';
+                    const duration = pkg.duration_value ? `${pkg.duration_value} ${pkg.duration_type || 'hours'}` : 'N/A';
+                    const priceValue = pkg.price_per_person || pkg.pricePerPerson || pkg.price || pkg.min_price;
+                    const price = priceValue 
+                      ? `${parseFloat(priceValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${pkg.currency || 'RWF'}`
+                      : 'Price not set';
+                    
+                    return (
+                      <tr key={packageId} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{packageName}</div>
+                          {pkg.short_description && (
+                            <div className="text-sm text-gray-500 truncate max-w-xs">
+                              {pkg.short_description}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{category}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{duration}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-semibold text-[#3CAF54]">{price}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {(pkg.status && pkg.status !== 'draft') && getStatusBadge(pkg.status)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => navigate(`/tours/dashboard/packages/${packageId}`)}
+                              className="p-2 text-gray-600 hover:text-[#3CAF54] hover:bg-gray-100 rounded-lg transition-colors"
+                              title="View"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => navigate(`/tours/dashboard/packages/create/${packageId}?businessId=${localStorage.getItem('tour_business_id') || ''}`)}
+                              className="p-2 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors"
+                              title="Edit"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(packageId)}
+                              className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

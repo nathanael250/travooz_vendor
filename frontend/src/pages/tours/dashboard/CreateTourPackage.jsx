@@ -1158,6 +1158,7 @@ const CreateTourPackage = () => {
           return;
         }
         setCurrentSubStep(2);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       } else if (currentSubStep === 2) {
         if (!formData.shortDescription.trim()) {
           alert('Please enter a short description');
@@ -1173,15 +1174,18 @@ const CreateTourPackage = () => {
           return;
         }
         setCurrentSubStep(3);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       } else if (currentSubStep === 3) {
         if (formData.locations.length === 0) {
           alert('Please add at least one location');
           return;
         }
         setCurrentSubStep(4);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       } else if (currentSubStep === 4) {
         setCurrentStep(2);
         setCurrentSubStep(1);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       }
     } else if (currentStep === 2) {
       // Handle sub-steps within Step 2: Inclusions
@@ -1191,22 +1195,27 @@ const CreateTourPackage = () => {
           return;
         }
         setCurrentSubStep(2);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       } else if (currentSubStep === 2) {
         if (!formData.guideType) {
           alert('Please select a guide type');
           return;
         }
         setCurrentSubStep(3);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       } else if (currentSubStep === 3) {
         setCurrentSubStep(4);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       } else if (currentSubStep === 4) {
         setCurrentStep(3);
         setCurrentSubStep(1);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       }
     } else if (currentStep === 3) {
       // Step 3: Extra Information (no substeps)
       setCurrentStep(4);
       setCurrentSubStep(1);
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
     } else if (currentStep === 4) {
       // Step 4: Photos (no substeps)
       if (formData.photos.length < MIN_PHOTOS) {
@@ -1220,12 +1229,14 @@ const CreateTourPackage = () => {
       setCurrentStep(5);
       setCurrentSubStep(1);
       setOptionSubStep(1);
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
     } else if (currentStep === 5) {
       // Handle sub-steps within Step 5: Options
       if (currentSubStep === 1) {
         // Option setup
         setCurrentSubStep(2);
         setOptionSubStep(1);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       } else if (currentSubStep === 2) {
         // Meeting point or pickup
         if (!formData.customerArrivalType) {
@@ -1234,25 +1245,31 @@ const CreateTourPackage = () => {
         }
         setCurrentSubStep(3);
         setAvailabilitySubStep(1);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       } else if (currentSubStep === 3) {
         // Availability & Pricing - handle its own substeps
         if (availabilitySubStep === 1) {
           // Schedule
           setAvailabilitySubStep(2);
+          setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
         } else if (availabilitySubStep === 2) {
           // Pricing Categories
           setAvailabilitySubStep(3);
+          setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
         } else if (availabilitySubStep === 3) {
           // Capacity
           setAvailabilitySubStep(4);
+          setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
         } else if (availabilitySubStep === 4) {
           // Price - complete Availability & Pricing
           // Move to review step
           setCurrentStep(6);
+          setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
         }
       } else {
         // All steps complete - move to review
         setCurrentStep(6);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       }
     }
   };
@@ -1306,35 +1323,45 @@ const CreateTourPackage = () => {
         navigate('/tours/dashboard/packages');
       } else {
         setCurrentSubStep(currentSubStep - 1);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       }
     } else if (currentStep === 2) {
       if (currentSubStep === 1) {
         setCurrentStep(1);
         setCurrentSubStep(4); // Go back to last substep of Step 1
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       } else {
         setCurrentSubStep(currentSubStep - 1);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       }
     } else if (currentStep === 3) {
       setCurrentStep(2);
       setCurrentSubStep(4); // Go back to last substep of Step 2
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
     } else if (currentStep === 4) {
       setCurrentStep(3);
       setCurrentSubStep(1);
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
     } else if (currentStep === 5) {
       if (currentSubStep === 1) {
         setCurrentStep(4);
         setCurrentSubStep(1);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       } else if (currentSubStep === 2) {
         setCurrentSubStep(1);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       } else if (currentSubStep === 3) {
         // Availability & Pricing substeps
         if (availabilitySubStep === 1) {
           setCurrentSubStep(2);
+          setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
         } else {
           setAvailabilitySubStep(availabilitySubStep - 1);
+          setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
         }
       } else {
         setCurrentSubStep(currentSubStep - 1);
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       }
     }
   };
@@ -4544,7 +4571,6 @@ const CreateTourPackage = () => {
                         </div>
                       </div>
                     )}
-
                   </div>
 
                   {/* Navigation Buttons */}
