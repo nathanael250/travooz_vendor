@@ -201,7 +201,7 @@ export default function VendorLanding() {
                 className="hidden sm:block px-4 sm:px-6 py-2 rounded-lg text-white text-sm sm:text-base font-medium transition-all duration-300 hover:scale-105 hover:shadow-md active:scale-95"
                 style={{ backgroundColor: '#3CAF54' }}
               >
-                Get Started
+                Login
               </button>
               {/* Mobile Menu Button */}
               <button

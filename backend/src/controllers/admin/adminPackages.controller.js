@@ -12,8 +12,9 @@ class AdminPackagesController {
                 status: req.query.status || 'all',
                 search: req.query.search || '',
                 page: parseInt(req.query.page) || 1,
-                limit: parseInt(req.query.limit) || 10,
-                service_type: req.query.service_type || 'all'
+                limit: parseInt(req.query.limit) || 100,
+                service_type: req.query.service_type || 'all',
+                businessId: req.query.businessId ? parseInt(req.query.businessId, 10) : null
             };
 
             const result = await adminPackagesService.getPackages(filters);
@@ -30,7 +31,8 @@ class AdminPackagesController {
      */
     async getPackageStats(req, res) {
         try {
-            const stats = await adminPackagesService.getPackageStats();
+            const businessId = req.query.businessId ? parseInt(req.query.businessId, 10) : null;
+            const stats = await adminPackagesService.getPackageStats(businessId);
             return sendSuccess(res, stats, 'Package statistics retrieved successfully', 200);
         } catch (error) {
             console.error('Get package stats error:', error);

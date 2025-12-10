@@ -420,9 +420,9 @@ export default function ProveBusinessStep() {
                             {formData.professionalCertificate?.name || (isPDF(certificatePreview || formData.professionalCertificate) ? 'Professional Certificate (PDF)' : 'Professional Certificate')}
                           </p>
                           {formData.professionalCertificate?.size ? (
-                            <p className="text-xs text-gray-500">
-                              {(formData.professionalCertificate.size / 1024 / 1024).toFixed(2)} MB
-                            </p>
+                          <p className="text-xs text-gray-500">
+                            {(formData.professionalCertificate.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
                           ) : certificatePreview && (
                             <p className="text-xs text-gray-500">
                               {isPDF(certificatePreview) ? 'PDF document uploaded' : 'Previously uploaded'}
@@ -444,13 +444,13 @@ export default function ProveBusinessStep() {
                         >
                           Replace
                         </label>
-                        <button
-                          type="button"
-                          onClick={removeCertificate}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                        >
-                          <X className="h-5 w-5" />
-                        </button>
+                      <button
+                        type="button"
+                        onClick={removeCertificate}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
                       </div>
                     </div>
                   </div>

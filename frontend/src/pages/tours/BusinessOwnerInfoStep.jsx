@@ -27,7 +27,7 @@ export default function BusinessOwnerInfoStep() {
 
   // Get existing data from location state
   const existingBusinessOwnerInfo = location.state?.businessOwnerInfo || {};
-  
+
   const [formData, setFormData] = useState({
     firstName: existingBusinessOwnerInfo.firstName || '',
     lastName: existingBusinessOwnerInfo.lastName || '',

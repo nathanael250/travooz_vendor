@@ -123,22 +123,34 @@ const requestPasswordReset = async (req, res) => {
         // If user exists, send email
         if (result.resetToken && result.user) {
             try {
-                const isConnected = await EmailService.verifyConnection();
-                if (isConnected) {
-                    const resetUrl = `${process.env.FRONTEND_URL || 'https://vendor.travooz.rw'}/stays/reset-password?token=${result.resetToken}`;
-                    await EmailService.sendPasswordResetEmail({
-                        email: result.user.email,
-                        name: result.user.name || 'there',
-                        resetToken: result.resetToken,
-                        resetUrl: resetUrl
-                    });
+                console.log('📧 [Stays] Attempting to send password reset email to:', result.user.email);
+                const resetUrl = `${process.env.FRONTEND_URL || 'https://vendor.travooz.rw'}/stays/reset-password?token=${result.resetToken}`;
+                
+                // Try to send email directly (sendEmail handles connection internally)
+                const emailResult = await EmailService.sendPasswordResetEmail({
+                    email: result.user.email,
+                    name: result.user.name || 'there',
+                    resetToken: result.resetToken,
+                    resetUrl: resetUrl
+                });
+                
+                if (emailResult && emailResult.success) {
+                    console.log('✅ [Stays] Password reset email sent successfully to:', result.user.email);
                 } else {
-                    console.warn('SMTP not connected, password reset email not sent');
+                    console.warn('⚠️ [Stays] Password reset email may not have been sent to:', result.user.email);
                 }
             } catch (emailError) {
-                console.error('Error sending password reset email:', emailError);
-                // Don't fail the request if email fails
+                console.error('❌ [Stays] Error sending password reset email:', emailError);
+                console.error('❌ [Stays] Error details:', {
+                    message: emailError.message,
+                    code: emailError.code,
+                    command: emailError.command,
+                    stack: emailError.stack
+                });
+                // Don't fail the request if email fails (security best practice)
             }
+        } else {
+            console.log('ℹ️ [Stays] No user found or no reset token generated for email:', email);
         }
 
         // Always return success message (security best practice - don't reveal if email exists)

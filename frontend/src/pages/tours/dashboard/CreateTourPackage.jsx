@@ -1354,7 +1354,30 @@ const CreateTourPackage = () => {
           
           {/* Progress Indicator */}
           <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
+            {/* Mobile: Simple progress bar */}
+            <div className="block md:hidden mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium" style={{ color: '#1f6f31' }}>
+                  Step {currentStep} of 6
+                  {currentStep === 1 && ` - Basic Informations (Substep ${currentSubStep} of 4)`}
+                  {currentStep === 2 && ` - Inclusions (Substep ${currentSubStep} of 4)`}
+                  {currentStep === 5 && currentSubStep === 1 && ` - Options (Substep ${currentSubStep} of 3: Option setup)`}
+                  {currentStep === 5 && currentSubStep === 2 && ` - Options (Substep ${currentSubStep} of 3: Meeting point or pickup)`}
+                  {currentStep === 5 && currentSubStep === 3 && ` - Options (Substep ${currentSubStep} of 3: Availability & Pricing - Step ${availabilitySubStep} of 4)`}
+                  {currentStep === 6 && ` - Review & Submit`}
+                </span>
+                <span className="text-xs text-gray-500">{Math.round((currentStep / 6) * 100)}%</span>
+              </div>
+              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{ backgroundColor: '#3CAF54', width: `${(currentStep / 6) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Desktop: Show all steps */}
+            <div className="hidden md:flex items-center justify-center mb-4">
               <div className="flex items-center space-x-2">
                 {/* Step 1 - Clickable */}
                 <button
@@ -1417,7 +1440,7 @@ const CreateTourPackage = () => {
               </div>
             </div>
             <div className="flex items-center justify-center gap-4">
-              <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>
+              <p className="text-center text-sm font-medium hidden md:block" style={{ color: '#1f6f31' }}>
                 Step {currentStep} of 6
                 {currentStep === 1 && ` - Basic Informations (Substep ${currentSubStep} of 4)`}
                 {currentStep === 2 && ` - Inclusions (Substep ${currentSubStep} of 4)`}
@@ -1427,7 +1450,7 @@ const CreateTourPackage = () => {
                 {currentStep === 6 && ` - Review & Submit`}
               </p>
               {(isSaving || lastSaved) && (
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-gray-500 hidden md:inline">
                   {isSaving ? 'Saving...' : lastSaved ? `Saved ${new Date(lastSaved).toLocaleTimeString()}` : ''}
                 </span>
               )}
@@ -1884,27 +1907,27 @@ const CreateTourPackage = () => {
               )}
 
               {/* Navigation Buttons for Sub-steps */}
-              <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0 mt-8 pt-6 border-t border-gray-200">
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="flex items-center gap-2 px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   <span>Back</span>
                 </button>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={() => navigate('/tours/dashboard/packages')}
-                    className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto text-center"
                   >
                     Save and exit
                   </button>
                   <button
                     type="button"
                     onClick={handleNext}
-                    className="flex items-center gap-2 px-6 py-2 text-white rounded-lg transition-colors shadow-md"
+                    className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-2 text-white rounded-lg transition-colors shadow-md w-full sm:w-auto"
                     style={{ backgroundColor: '#3CAF54' }}
                     onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
                     onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
@@ -2443,27 +2466,27 @@ const CreateTourPackage = () => {
               )}
 
               {/* Navigation Buttons */}
-              <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0 mt-8 pt-6 border-t border-gray-200">
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="flex items-center gap-2 px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   <span>Back</span>
                 </button>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={() => navigate('/tours/dashboard/packages')}
-                    className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto text-center"
                   >
                     Save and exit
                   </button>
                   <button
                     type="button"
                     onClick={handleNext}
-                    className="flex items-center gap-2 px-6 py-2 text-white rounded-lg transition-colors shadow-md"
+                    className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-2 text-white rounded-lg transition-colors shadow-md w-full sm:w-auto"
                     style={{ backgroundColor: '#3CAF54' }}
                     onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
                     onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
@@ -2866,27 +2889,27 @@ const CreateTourPackage = () => {
               </div>
 
               {/* Navigation Buttons */}
-              <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0 mt-8 pt-6 border-t border-gray-200">
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="flex items-center gap-2 px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   <span>Back</span>
                 </button>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={() => navigate('/tours/dashboard/packages')}
-                    className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto text-center"
                   >
                     Save and exit
                   </button>
                   <button
                     type="button"
                     onClick={handleNext}
-                    className="flex items-center gap-2 px-6 py-2 text-white rounded-lg transition-colors shadow-md"
+                    className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-2 text-white rounded-lg transition-colors shadow-md w-full sm:w-auto"
                     style={{ backgroundColor: '#3CAF54' }}
                     onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
                     onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
@@ -3166,27 +3189,27 @@ const CreateTourPackage = () => {
               </div>
 
               {/* Navigation Buttons */}
-              <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0 mt-8 pt-6 border-t border-gray-200">
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="flex items-center gap-2 px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   <span>Back</span>
                 </button>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={() => navigate('/tours/dashboard/packages')}
-                    className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto text-center"
                   >
                     Save and exit
                   </button>
                   <button
                     type="button"
                     onClick={handleNext}
-                    className="flex items-center gap-2 px-6 py-2 text-white rounded-lg transition-colors shadow-md"
+                    className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-2 text-white rounded-lg transition-colors shadow-md w-full sm:w-auto"
                     style={{ backgroundColor: '#3CAF54' }}
                     onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
                     onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
@@ -3520,27 +3543,27 @@ const CreateTourPackage = () => {
                   </div>
 
                   {/* Navigation Buttons */}
-                  <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0 mt-8 pt-6 border-t border-gray-200">
                     <button
                       type="button"
                       onClick={handleBack}
-                      className="flex items-center gap-2 px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                      className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto"
                     >
                       <ArrowLeft className="h-4 w-4" />
                       <span>Back</span>
                     </button>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                       <button
                         type="button"
                         onClick={() => navigate('/tours/dashboard/packages')}
-                        className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                        className="px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto text-center"
                       >
                         Save and exit
                       </button>
                       <button
                         type="button"
                         onClick={handleNext}
-                        className="flex items-center gap-2 px-6 py-2 text-white rounded-lg transition-colors shadow-md"
+                        className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-2 text-white rounded-lg transition-colors shadow-md w-full sm:w-auto"
                         style={{ backgroundColor: '#3CAF54' }}
                         onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
                         onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
@@ -3813,27 +3836,27 @@ const CreateTourPackage = () => {
                   </div>
 
                   {/* Navigation Buttons */}
-                  <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0 mt-8 pt-6 border-t border-gray-200">
                     <button
                       type="button"
                       onClick={handleBack}
-                      className="flex items-center gap-2 px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                      className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto"
                     >
                       <ArrowLeft className="h-4 w-4" />
                       <span>Back</span>
                     </button>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                       <button
                         type="button"
                         onClick={() => navigate('/tours/dashboard/packages')}
-                        className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                        className="px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto text-center"
                       >
                         Save and exit
                       </button>
                       <button
                         type="button"
                         onClick={handleNext}
-                        className="flex items-center gap-2 px-6 py-2 text-white rounded-lg transition-colors shadow-md"
+                        className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-2 text-white rounded-lg transition-colors shadow-md w-full sm:w-auto"
                         style={{ backgroundColor: '#3CAF54' }}
                         onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
                         onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
@@ -4525,7 +4548,7 @@ const CreateTourPackage = () => {
                   </div>
 
                   {/* Navigation Buttons */}
-                  <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0 mt-8 pt-6 border-t border-gray-200">
                     <button
                       type="button"
                       onClick={() => {
@@ -4535,23 +4558,23 @@ const CreateTourPackage = () => {
                           setAvailabilitySubStep(availabilitySubStep - 1);
                         }
                       }}
-                      className="flex items-center gap-2 px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                      className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto"
                     >
                       <ArrowLeft className="h-4 w-4" />
                       <span>Back</span>
                     </button>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                       <button
                         type="button"
                         onClick={() => navigate('/tours/dashboard/packages')}
-                        className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                        className="px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto text-center"
                       >
                         Save and exit
                       </button>
                       <button
                         type="button"
                         onClick={handleNext}
-                        className="flex items-center gap-2 px-6 py-2 text-white rounded-lg transition-colors shadow-md"
+                        className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-2 text-white rounded-lg transition-colors shadow-md w-full sm:w-auto"
                         style={{ backgroundColor: '#3CAF54' }}
                         onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
                         onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}

@@ -101,19 +101,36 @@ class AdminPackagesService {
 
     /**
      * Get package statistics
+     * @param {number|null} businessId - Optional business ID to filter stats
      */
-    async getPackageStats() {
+    async getPackageStats(businessId = null) {
         try {
+            let whereClause = '';
+            let queryParams = [];
+
+            // Filter by business ID if provided
+            if (businessId) {
+                whereClause = 'WHERE tp.tour_business_id = ?';
+                queryParams.push(businessId);
+            }
+
             const stats = await executeQuery(
                 `SELECT 
-                    status,
+                    tp.status,
                     COUNT(*) as count
-                 FROM tours_packages
-                 GROUP BY status`
+                 FROM tours_packages tp
+                 ${whereClause}
+                 GROUP BY tp.status`,
+                queryParams
             );
 
+            const totalQuery = businessId
+                ? 'SELECT COUNT(*) as total FROM tours_packages tp WHERE tp.tour_business_id = ?'
+                : 'SELECT COUNT(*) as total FROM tours_packages tp';
+
             const total = await executeQuery(
-                'SELECT COUNT(*) as total FROM tours_packages'
+                totalQuery,
+                businessId ? [businessId] : []
             );
 
             const byStatus = stats.reduce((acc, stat) => {

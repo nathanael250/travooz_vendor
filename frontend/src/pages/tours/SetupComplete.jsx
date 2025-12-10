@@ -339,16 +339,16 @@ export default function SetupComplete() {
                   <ArrowRight className="h-5 w-5" />
                 </button>
               ) : isApproved ? (
-                <button
-                  onClick={handleGoToDashboard}
+            <button
+              onClick={handleGoToDashboard}
                   className="w-full text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
-                  style={{ backgroundColor: '#3CAF54' }}
+              style={{ backgroundColor: '#3CAF54' }}
                   onMouseEnter={(e) => (e.target.style.backgroundColor = '#2d8f42')}
                   onMouseLeave={(e) => (e.target.style.backgroundColor = '#3CAF54')}
-                >
+            >
                   <span>Go to Dashboard</span>
-                  <ArrowRight className="h-5 w-5" />
-                </button>
+              <ArrowRight className="h-5 w-5" />
+            </button>
               ) : null}
 
               {!isApproved && (

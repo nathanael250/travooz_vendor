@@ -454,9 +454,9 @@ export default function ProveIdentityStep() {
                             {formData.idCardPhoto?.name || (isPDF(idCardPreview || formData.idCardPhoto) ? 'ID Card (PDF)' : 'ID Card Photo')}
                           </p>
                           {formData.idCardPhoto?.size ? (
-                            <p className="text-xs text-gray-500">
-                              {(formData.idCardPhoto.size / 1024 / 1024).toFixed(2)} MB
-                            </p>
+                          <p className="text-xs text-gray-500">
+                            {(formData.idCardPhoto.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
                           ) : idCardPreview && (
                             <p className="text-xs text-gray-500">
                               {isPDF(idCardPreview) ? 'PDF document uploaded' : 'Previously uploaded'}
@@ -478,13 +478,13 @@ export default function ProveIdentityStep() {
                         >
                           Replace
                         </label>
-                        <button
-                          type="button"
-                          onClick={removeIdCard}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                        >
-                          <X className="h-5 w-5" />
-                        </button>
+                      <button
+                        type="button"
+                        onClick={removeIdCard}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
                       </div>
                     </div>
                   </div>

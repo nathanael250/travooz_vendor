@@ -247,7 +247,7 @@ class ClientBookingService {
         guests: totalGuests
       };
 
-      // Send confirmation email (non-blocking)
+      // Send confirmation email to customer (non-blocking)
       this.sendStayBookingConfirmationEmail({
         guest_name,
         guest_email,
@@ -262,6 +262,39 @@ class ClientBookingService {
         special_requests,
         nights
       });
+
+      // Get vendor email and send notification (non-blocking)
+      try {
+        const vendorInfo = await executeQuery(
+          `SELECT u.email as vendor_email, u.name as vendor_name 
+           FROM stays_properties p
+           LEFT JOIN stays_users u ON p.user_id = u.user_id
+           WHERE p.property_id = ? LIMIT 1`,
+          [property_id]
+        );
+
+        if (vendorInfo && vendorInfo.length > 0 && vendorInfo[0].vendor_email) {
+          this.sendStayBookingVendorNotification({
+            vendor_email: vendorInfo[0].vendor_email,
+            vendor_name: vendorInfo[0].vendor_name,
+            property_name: property.property_name,
+            room_name: room.room_name,
+            booking_reference: bookingReference,
+            check_in_date,
+            check_out_date,
+            total_amount: totalAmount,
+            number_of_adults,
+            number_of_children,
+            guest_name,
+            guest_email,
+            guest_phone,
+            special_requests,
+            nights
+          });
+        }
+      } catch (vendorEmailError) {
+        console.error('⚠️ Failed to send vendor notification for stay booking:', vendorEmailError.message);
+      }
 
       return bookingDetails;
     } catch (error) {
@@ -515,6 +548,7 @@ class ClientBookingService {
         payment_status: 'pending'
       };
 
+      // Send confirmation email to customer (non-blocking)
       this.sendTourBookingConfirmationEmail({
         customer_name,
         customer_email,
@@ -526,6 +560,34 @@ class ClientBookingService {
         total_amount: totalAmount,
         special_requests
       });
+
+      // Get vendor email and send notification (non-blocking)
+      try {
+        const vendorInfo = await executeQuery(
+          `SELECT email as vendor_email, CONCAT(first_name, ' ', last_name) as vendor_name 
+           FROM tours_business_owner_info 
+           WHERE tour_business_id = ? LIMIT 1`,
+          [tourBusinessId]
+        );
+
+        if (vendorInfo && vendorInfo.length > 0 && vendorInfo[0].vendor_email) {
+          this.sendTourBookingVendorNotification({
+            vendor_email: vendorInfo[0].vendor_email,
+            vendor_name: vendorInfo[0].vendor_name,
+            package_name: tour.name,
+            booking_reference: bookingReference,
+            tour_date,
+            number_of_participants,
+            total_amount: totalAmount,
+            customer_name,
+            customer_email,
+            customer_phone,
+            special_requests
+          });
+        }
+      } catch (vendorEmailError) {
+        console.error('⚠️ Failed to send vendor notification for tour booking:', vendorEmailError.message);
+      }
 
       return bookingDetails;
     } catch (error) {
@@ -630,6 +692,7 @@ class ClientBookingService {
         payment_status: 'pending'
       };
 
+      // Send confirmation email to customer (non-blocking)
       this.sendRestaurantReservationConfirmationEmail({
         customer_name,
         customer_email,
@@ -641,6 +704,46 @@ class ClientBookingService {
         booking_reference: bookingReference,
         special_requests
       });
+
+      // Get vendor email and send notification (non-blocking)
+      try {
+        const restaurantData = restaurant[0];
+        let vendorEmail = restaurantData?.email_address;
+        let vendorName = restaurantData?.name || restaurantData?.restaurant_name;
+
+        // If email_address is not available, try to get from restaurant_users table
+        if (!vendorEmail && restaurantData?.user_id) {
+          const vendorInfo = await executeQuery(
+            `SELECT email as vendor_email, name as vendor_name 
+             FROM restaurant_users 
+             WHERE user_id = ? LIMIT 1`,
+            [restaurantData.user_id]
+          );
+
+          if (vendorInfo && vendorInfo.length > 0) {
+            vendorEmail = vendorInfo[0].vendor_email;
+            vendorName = vendorInfo[0].vendor_name || vendorName;
+          }
+        }
+
+        if (vendorEmail) {
+          this.sendRestaurantReservationVendorNotification({
+            vendor_email: vendorEmail,
+            vendor_name: vendorName,
+            restaurant_name: restaurantData?.restaurant_name || restaurantData?.name,
+            reservation_date,
+            reservation_time,
+            number_of_guests,
+            booking_reference: bookingReference,
+            customer_name,
+            customer_email,
+            customer_phone,
+            special_requests
+          });
+        }
+      } catch (vendorEmailError) {
+        console.error('⚠️ Failed to send vendor notification for restaurant reservation:', vendorEmailError.message);
+      }
 
       return reservationDetails;
     } catch (error) {
@@ -781,6 +884,7 @@ class ClientBookingService {
         payment_status: 'pending'
       };
 
+      // Send confirmation email to customer (non-blocking)
       this.sendCarRentalBookingConfirmationEmail({
         customer_name,
         customer_email,
@@ -795,6 +899,39 @@ class ClientBookingService {
         days,
         special_requests: specialRequestsText
       });
+
+      // Get vendor email and send notification (non-blocking)
+      try {
+        const vendorInfo = await executeQuery(
+          `SELECT u.email as vendor_email, u.name as vendor_name 
+           FROM cars c
+           JOIN car_rental_businesses crb ON c.vendor_id = crb.car_rental_business_id
+           JOIN car_rental_users u ON crb.user_id = u.user_id
+           WHERE c.car_id = ? LIMIT 1`,
+          [car_id]
+        );
+
+        if (vendorInfo && vendorInfo.length > 0 && vendorInfo[0].vendor_email) {
+          this.sendCarRentalBookingVendorNotification({
+            vendor_email: vendorInfo[0].vendor_email,
+            vendor_name: vendorInfo[0].vendor_name,
+            car_name: carData.name || carData.model || carData.make,
+            booking_reference: bookingReference,
+            pickup_date,
+            return_date,
+            pickup_location,
+            return_location,
+            total_amount: totalAmount,
+            days,
+            customer_name,
+            customer_email,
+            customer_phone,
+            special_requests: specialRequestsText
+          });
+        }
+      } catch (vendorEmailError) {
+        console.error('⚠️ Failed to send vendor notification for car rental booking:', vendorEmailError.message);
+      }
 
       return bookingDetails;
     } catch (error) {
@@ -1081,6 +1218,359 @@ Travooz Team`;
       await EmailService.sendEmail({ to: customer_email, subject, html, text });
     } catch (error) {
       console.error('⚠️ Failed to send car rental booking confirmation email:', error.message);
+    }
+  }
+
+  /**
+   * Send stay booking notification email to vendor
+   */
+  async sendStayBookingVendorNotification(details) {
+    if (!details?.vendor_email) {
+      console.warn('⚠️ Vendor email not provided for stay booking notification');
+      return;
+    }
+
+    try {
+      const {
+        vendor_email,
+        vendor_name,
+        property_name,
+        room_name,
+        booking_reference,
+        check_in_date,
+        check_out_date,
+        total_amount,
+        number_of_adults,
+        number_of_children,
+        guest_name,
+        guest_email,
+        guest_phone,
+        special_requests,
+        nights
+      } = details;
+
+      const subject = `New Booking Received - ${property_name || 'Your Property'} (Ref ${booking_reference})`;
+      const html = `
+        <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+          <h2 style="color: #16a34a;">New Booking Alert!</h2>
+          <p>Hello ${vendor_name || 'Property Owner'},</p>
+          <p>You have received a new booking for <strong>${property_name || 'your property'}</strong>${room_name ? ` (Room: ${room_name})` : ''}.</p>
+          <p><strong>Booking Details:</strong></p>
+          <ul>
+            <li><strong>Booking Reference:</strong> ${booking_reference}</li>
+            <li><strong>Check-in:</strong> ${check_in_date}</li>
+            <li><strong>Check-out:</strong> ${check_out_date}</li>
+            <li><strong>Nights:</strong> ${nights}</li>
+            <li><strong>Guests:</strong> ${number_of_adults} adults${number_of_children ? `, ${number_of_children} children` : ''}</li>
+            <li><strong>Total Amount:</strong> ${Number(total_amount || 0).toLocaleString()} RWF</li>
+          </ul>
+          <p><strong>Guest Information:</strong></p>
+          <ul>
+            <li><strong>Name:</strong> ${guest_name || 'N/A'}</li>
+            <li><strong>Email:</strong> ${guest_email || 'N/A'}</li>
+            <li><strong>Phone:</strong> ${guest_phone || 'N/A'}</li>
+          </ul>
+          ${special_requests ? `<p><strong>Special requests:</strong> ${special_requests}</p>` : ''}
+          <p>Please log in to your dashboard to manage this booking.</p>
+          <p>Best regards,<br/>The Travooz Team</p>
+        </div>
+      `;
+
+      const text = `
+New Booking Alert!
+
+Hello ${vendor_name || 'Property Owner'},
+
+You have received a new booking for ${property_name || 'your property'}${room_name ? ` (Room: ${room_name})` : ''}.
+
+Booking Reference: ${booking_reference}
+Check-in: ${check_in_date}
+Check-out: ${check_out_date}
+Nights: ${nights}
+Guests: ${number_of_adults} adults${number_of_children ? `, ${number_of_children} children` : ''}
+Total Amount: ${total_amount} RWF
+
+Guest Information:
+Name: ${guest_name || 'N/A'}
+Email: ${guest_email || 'N/A'}
+Phone: ${guest_phone || 'N/A'}
+
+${special_requests ? `Special requests: ${special_requests}` : ''}
+
+Please log in to your dashboard to manage this booking.
+
+Travooz Team
+      `;
+
+      await EmailService.sendEmail({
+        to: vendor_email,
+        subject,
+        html,
+        text
+      });
+      console.log(`✅ Stay booking vendor notification sent to ${vendor_email}`);
+    } catch (error) {
+      console.error('⚠️ Failed to send stay booking vendor notification:', error.message);
+    }
+  }
+
+  /**
+   * Send tour booking notification email to vendor
+   */
+  async sendTourBookingVendorNotification(details) {
+    if (!details?.vendor_email) {
+      console.warn('⚠️ Vendor email not provided for tour booking notification');
+      return;
+    }
+
+    try {
+      const {
+        vendor_email,
+        vendor_name,
+        package_name,
+        booking_reference,
+        tour_date,
+        number_of_participants,
+        total_amount,
+        customer_name,
+        customer_email,
+        customer_phone,
+        special_requests
+      } = details;
+
+      const subject = `New Tour Booking Received - ${package_name || 'Your Tour'} (Ref ${booking_reference})`;
+      const html = `
+        <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+          <h2 style="color: #16a34a;">New Booking Alert!</h2>
+          <p>Hello ${vendor_name || 'Tour Operator'},</p>
+          <p>You have received a new booking for <strong>${package_name || 'your tour'}</strong>.</p>
+          <p><strong>Booking Details:</strong></p>
+          <ul>
+            <li><strong>Booking Reference:</strong> ${booking_reference}</li>
+            <li><strong>Tour Date:</strong> ${tour_date}</li>
+            <li><strong>Participants:</strong> ${number_of_participants}</li>
+            <li><strong>Total Amount:</strong> ${Number(total_amount || 0).toLocaleString()} RWF</li>
+          </ul>
+          <p><strong>Customer Information:</strong></p>
+          <ul>
+            <li><strong>Name:</strong> ${customer_name || 'N/A'}</li>
+            <li><strong>Email:</strong> ${customer_email || 'N/A'}</li>
+            <li><strong>Phone:</strong> ${customer_phone || 'N/A'}</li>
+          </ul>
+          ${special_requests ? `<p><strong>Special requests:</strong> ${special_requests}</p>` : ''}
+          <p>Please log in to your dashboard to manage this booking.</p>
+          <p>Best regards,<br/>The Travooz Team</p>
+        </div>
+      `;
+
+      const text = `
+New Booking Alert!
+
+Hello ${vendor_name || 'Tour Operator'},
+
+You have received a new booking for ${package_name || 'your tour'}.
+
+Booking Reference: ${booking_reference}
+Tour Date: ${tour_date}
+Participants: ${number_of_participants}
+Total Amount: ${total_amount} RWF
+
+Customer Information:
+Name: ${customer_name || 'N/A'}
+Email: ${customer_email || 'N/A'}
+Phone: ${customer_phone || 'N/A'}
+
+${special_requests ? `Special requests: ${special_requests}` : ''}
+
+Please log in to your dashboard to manage this booking.
+
+Travooz Team
+      `;
+
+      await EmailService.sendEmail({
+        to: vendor_email,
+        subject,
+        html,
+        text
+      });
+      console.log(`✅ Tour booking vendor notification sent to ${vendor_email}`);
+    } catch (error) {
+      console.error('⚠️ Failed to send tour booking vendor notification:', error.message);
+    }
+  }
+
+  /**
+   * Send restaurant reservation notification email to vendor
+   */
+  async sendRestaurantReservationVendorNotification(details) {
+    if (!details?.vendor_email) {
+      console.warn('⚠️ Vendor email not provided for restaurant reservation notification');
+      return;
+    }
+
+    try {
+      const {
+        vendor_email,
+        vendor_name,
+        restaurant_name,
+        reservation_date,
+        reservation_time,
+        number_of_guests,
+        booking_reference,
+        customer_name,
+        customer_email,
+        customer_phone,
+        special_requests
+      } = details;
+
+      const subject = `New Reservation Received - ${restaurant_name || 'Your Restaurant'} (Ref ${booking_reference})`;
+      const html = `
+        <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+          <h2 style="color: #16a34a;">New Reservation Alert!</h2>
+          <p>Hello ${vendor_name || 'Restaurant Owner'},</p>
+          <p>You have received a new reservation for <strong>${restaurant_name || 'your restaurant'}</strong>.</p>
+          <p><strong>Reservation Details:</strong></p>
+          <ul>
+            <li><strong>Booking Reference:</strong> ${booking_reference}</li>
+            <li><strong>Date:</strong> ${reservation_date}</li>
+            <li><strong>Time:</strong> ${reservation_time}</li>
+            <li><strong>Guests:</strong> ${number_of_guests}</li>
+          </ul>
+          <p><strong>Customer Information:</strong></p>
+          <ul>
+            <li><strong>Name:</strong> ${customer_name || 'N/A'}</li>
+            <li><strong>Email:</strong> ${customer_email || 'N/A'}</li>
+            <li><strong>Phone:</strong> ${customer_phone || 'N/A'}</li>
+          </ul>
+          ${special_requests ? `<p><strong>Special requests:</strong> ${special_requests}</p>` : ''}
+          <p>Please log in to your dashboard to manage this reservation.</p>
+          <p>Best regards,<br/>The Travooz Team</p>
+        </div>
+      `;
+
+      const text = `
+New Reservation Alert!
+
+Hello ${vendor_name || 'Restaurant Owner'},
+
+You have received a new reservation for ${restaurant_name || 'your restaurant'}.
+
+Booking Reference: ${booking_reference}
+Date: ${reservation_date}
+Time: ${reservation_time}
+Guests: ${number_of_guests}
+
+Customer Information:
+Name: ${customer_name || 'N/A'}
+Email: ${customer_email || 'N/A'}
+Phone: ${customer_phone || 'N/A'}
+
+${special_requests ? `Special requests: ${special_requests}` : ''}
+
+Please log in to your dashboard to manage this reservation.
+
+Travooz Team
+      `;
+
+      await EmailService.sendEmail({
+        to: vendor_email,
+        subject,
+        html,
+        text
+      });
+      console.log(`✅ Restaurant reservation vendor notification sent to ${vendor_email}`);
+    } catch (error) {
+      console.error('⚠️ Failed to send restaurant reservation vendor notification:', error.message);
+    }
+  }
+
+  /**
+   * Send car rental booking notification email to vendor
+   */
+  async sendCarRentalBookingVendorNotification(details) {
+    if (!details?.vendor_email) {
+      console.warn('⚠️ Vendor email not provided for car rental booking notification');
+      return;
+    }
+
+    try {
+      const {
+        vendor_email,
+        vendor_name,
+        car_name,
+        booking_reference,
+        pickup_date,
+        return_date,
+        pickup_location,
+        return_location,
+        total_amount,
+        days,
+        customer_name,
+        customer_email,
+        customer_phone,
+        special_requests
+      } = details;
+
+      const subject = `New Car Rental Booking Received (Ref ${booking_reference})`;
+      const html = `
+        <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+          <h2 style="color: #16a34a;">New Booking Alert!</h2>
+          <p>Hello ${vendor_name || 'Car Rental Owner'},</p>
+          <p>You have received a new car rental booking${car_name ? ` for <strong>${car_name}</strong>` : ''}.</p>
+          <p><strong>Booking Details:</strong></p>
+          <ul>
+            <li><strong>Booking Reference:</strong> ${booking_reference}</li>
+            <li><strong>Pickup:</strong> ${pickup_date} ${pickup_location ? `at ${pickup_location}` : ''}</li>
+            <li><strong>Return:</strong> ${return_date} ${return_location ? `at ${return_location}` : ''}</li>
+            <li><strong>Duration:</strong> ${days} days</li>
+            <li><strong>Total Amount:</strong> ${Number(total_amount || 0).toLocaleString()} RWF</li>
+          </ul>
+          <p><strong>Customer Information:</strong></p>
+          <ul>
+            <li><strong>Name:</strong> ${customer_name || 'N/A'}</li>
+            <li><strong>Email:</strong> ${customer_email || 'N/A'}</li>
+            <li><strong>Phone:</strong> ${customer_phone || 'N/A'}</li>
+          </ul>
+          ${special_requests ? `<p><strong>Notes:</strong> ${special_requests}</p>` : ''}
+          <p>Please log in to your dashboard to manage this booking.</p>
+          <p>Best regards,<br/>The Travooz Team</p>
+        </div>
+      `;
+
+      const text = `
+New Booking Alert!
+
+Hello ${vendor_name || 'Car Rental Owner'},
+
+You have received a new car rental booking${car_name ? ` for ${car_name}` : ''}.
+
+Booking Reference: ${booking_reference}
+Pickup: ${pickup_date} ${pickup_location ? `at ${pickup_location}` : ''}
+Return: ${return_date} ${return_location ? `at ${return_location}` : ''}
+Duration: ${days} days
+Total Amount: ${total_amount} RWF
+
+Customer Information:
+Name: ${customer_name || 'N/A'}
+Email: ${customer_email || 'N/A'}
+Phone: ${customer_phone || 'N/A'}
+
+${special_requests ? `Notes: ${special_requests}` : ''}
+
+Please log in to your dashboard to manage this booking.
+
+Travooz Team
+      `;
+
+      await EmailService.sendEmail({
+        to: vendor_email,
+        subject,
+        html,
+        text
+      });
+      console.log(`✅ Car rental booking vendor notification sent to ${vendor_email}`);
+    } catch (error) {
+      console.error('⚠️ Failed to send car rental booking vendor notification:', error.message);
     }
   }
 }

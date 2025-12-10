@@ -139,9 +139,14 @@ class AdminService {
     }
   }
 
-  async getPackageStats() {
+  async getPackageStats(params = {}) {
     try {
-      const response = await apiClient.get('/admin/packages/stats');
+      const queryParams = new URLSearchParams();
+      if (params.businessId) {
+        queryParams.append('businessId', params.businessId);
+      }
+      const query = queryParams.toString() ? `?${queryParams.toString()}` : '';
+      const response = await apiClient.get(`/admin/packages/stats${query}`);
       return response.data;
     } catch (error) {
       console.error('Error fetching package stats:', error);

@@ -359,7 +359,7 @@ export default function ListYourTour() {
       }, 100);
       return;
     }
-    
+
     if (!window.google || !window.google.maps || !window.google.maps.places) {
       console.warn('Google Maps Places API not loaded yet');
       return;
@@ -371,47 +371,47 @@ export default function ListYourTour() {
     }
 
     try {
-      const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
-        types: ['establishment', 'geocode'], // Allow both places and addresses
-        fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components']
-      });
+    const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
+      types: ['establishment', 'geocode'], // Allow both places and addresses
+      fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components']
+    });
 
-      autocompleteRef.current = autocomplete;
+    autocompleteRef.current = autocomplete;
 
-      if (!suggestionsServiceRef.current) {
-        suggestionsServiceRef.current = new window.google.maps.places.AutocompleteService();
+    if (!suggestionsServiceRef.current) {
+      suggestionsServiceRef.current = new window.google.maps.places.AutocompleteService();
+    }
+
+    if (!placesServiceRef.current) {
+      placesServiceRef.current = new window.google.maps.places.PlacesService(document.createElement('div'));
+    }
+
+    // Listen for place selection
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
+      
+      if (!place.geometry) {
+        setError('Please select a valid location from the suggestions');
+        return;
       }
 
-      if (!placesServiceRef.current) {
-        placesServiceRef.current = new window.google.maps.places.PlacesService(document.createElement('div'));
-      }
+      // Store location data
+      const locationInfo = {
+        name: place.name || place.formatted_address,
+        formatted_address: place.formatted_address,
+        place_id: place.place_id,
+        lat: place.geometry.location.lat(),
+        lng: place.geometry.location.lng(),
+        address_components: place.address_components
+      };
 
-      // Listen for place selection
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-        
-        if (!place.geometry) {
-          setError('Please select a valid location from the suggestions');
-          return;
-        }
-
-        // Store location data
-        const locationInfo = {
-          name: place.name || place.formatted_address,
-          formatted_address: place.formatted_address,
-          place_id: place.place_id,
-          lat: place.geometry.location.lat(),
-          lng: place.geometry.location.lng(),
-          address_components: place.address_components
-        };
-
-        setLocationData(locationInfo);
-        setLocation(place.name || place.formatted_address);
-        setError('');
-        setSuggestions([]);
-        setShowSuggestions(false);
-        setSuggestionError('');
-      });
+      setLocationData(locationInfo);
+      setLocation(place.name || place.formatted_address);
+      setError('');
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setSuggestionError('');
+    });
     } catch (error) {
       console.error('Error initializing Google Places Autocomplete:', error);
       setError('Failed to initialize location autocomplete. Please refresh the page.');
@@ -750,7 +750,24 @@ export default function ListYourTour() {
         <div className="max-w-2xl w-full mx-auto">
         {/* Progress Indicator */}
         <div className="mb-8">
-          <div className="flex items-center justify-center mb-4">
+          {/* Mobile: Simple progress bar */}
+          <div className="block md:hidden mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium" style={{ color: '#1f6f31' }}>
+                Step 1 of 3
+              </span>
+              <span className="text-xs text-gray-500">33%</span>
+            </div>
+            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div 
+                className="h-full rounded-full transition-all duration-300"
+                style={{ backgroundColor: '#3CAF54', width: '33%' }}
+              ></div>
+            </div>
+          </div>
+
+          {/* Desktop: Show all steps */}
+          <div className="hidden md:flex items-center justify-center mb-4">
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
                 1
@@ -765,7 +782,7 @@ export default function ListYourTour() {
               </div>
             </div>
           </div>
-          <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Step 1 of 3</p>
+          <p className="text-center text-sm font-medium hidden md:block" style={{ color: '#1f6f31' }}>Step 1 of 3</p>
         </div>
 
         {/* Main Content */}
