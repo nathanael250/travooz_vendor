@@ -192,18 +192,18 @@ class RestaurantSetupProgressService {
             const previousStep = targetStep - 1;
             const previousStepColumn = previousStep === 3 ? 'step_1_3_complete' : `step_${previousStep}_complete`;
             
-            const [result] = await executeQuery(
+            const result = await executeQuery(
                 `SELECT ${previousStepColumn} as is_complete 
                  FROM restaurant_setup_progress 
                  WHERE restaurant_id = ? AND user_id = ?`,
                 [restaurantId, userId]
             );
 
-            if (result.length === 0) {
+            if (!result || result.length === 0) {
                 return { allowed: false, reason: 'Progress not found' };
             }
 
-            const isPreviousComplete = result[0].is_complete === 1;
+            const isPreviousComplete = result[0]?.is_complete === 1;
             
             if (!isPreviousComplete) {
                 return { 
