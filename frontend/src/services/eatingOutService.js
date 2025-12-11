@@ -327,4 +327,16 @@ export const restaurantSetupService = {
       throw error.response?.data || error;
     }
   },
+
+  /**
+   * Get restaurant by ID (includes images)
+   */
+  async getRestaurant(restaurantId) {
+    try {
+      const response = await apiClient.get(`/eating-out/${restaurantId}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
 };

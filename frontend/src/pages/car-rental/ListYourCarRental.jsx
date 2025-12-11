@@ -66,6 +66,82 @@ export default function ListYourCarRental() {
   const [mapError, setMapError] = useState('');
   const [isGeocoding, setIsGeocoding] = useState(false);
 
+  // Helper function to create coordinate label
+  const createCoordinateLabel = (lat, lng) => `Pinned near (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+
+  // Helper function to apply location selection (consistent with tour form)
+  const applyLocationSelection = (lat, lng, formattedAddress, placeId = `manual_${lat}_${lng}`, extraFields = {}) => {
+    const label = formattedAddress?.trim() || createCoordinateLabel(lat, lng);
+    const locationInfo = {
+      name: label,
+      formatted_address: label,
+      place_id: placeId,
+      lat,
+      lng,
+      ...extraFields
+    };
+
+    setSelectedMapLocation(locationInfo);
+    setLocation(label);
+    setLocationData(locationInfo);
+    setError('');
+  };
+
+  // Fallback address lookup using OpenStreetMap
+  const fetchFallbackAddress = async (lat, lng) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`
+      );
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (fallbackError) {
+      console.error('Fallback geocoding error:', fallbackError);
+      return null;
+    }
+  };
+
+  const handleFallbackAddressLookup = async (lat, lng, placeId) => {
+    setIsGeocoding(true);
+    const fallbackData = await fetchFallbackAddress(lat, lng);
+    setIsGeocoding(false);
+
+    if (fallbackData?.display_name) {
+      const components = fallbackData.address
+        ? Object.entries(fallbackData.address).map(([key, value]) => ({
+            long_name: value,
+            short_name: value,
+            types: [key]
+          }))
+        : [];
+
+      applyLocationSelection(lat, lng, fallbackData.display_name, placeId, {
+        fallback_provider: 'nominatim',
+        address_components: components
+      });
+      setMapError('Using OpenStreetMap to describe this pinned location.');
+    } else {
+      setMapError('Address lookup failed. Saving precise coordinates only.');
+    }
+  };
+
+  const getGeocodeErrorMessage = (status) => {
+    switch (status) {
+      case 'ZERO_RESULTS':
+        return 'No address found for this location. Using coordinates instead.';
+      case 'OVER_QUERY_LIMIT':
+        return 'Geocoding service temporarily unavailable. Using coordinates instead.';
+      case 'REQUEST_DENIED':
+        return 'Geocoding request denied. Using coordinates instead.';
+      case 'INVALID_REQUEST':
+        return 'We could not understand this map request. Using coordinates instead.';
+      case 'UNKNOWN_ERROR':
+        return 'Geocoding service returned an unknown error. Using coordinates instead.';
+      default:
+        return `Geocoding failed (${status}). Using coordinates instead.`;
+    }
+  };
+
   // Enable scrolling for this page
   useEffect(() => {
     document.body.classList.add('auth-page');
@@ -199,7 +275,31 @@ export default function ListYourCarRental() {
     // Default center location - Kigali, Rwanda
     const defaultCenter = { lat: -1.9441, lng: 30.0619 };
     
-    createMap(defaultCenter);
+    // Try geolocation first, then create map
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const userLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+          createMap(userLocation);
+        },
+        (error) => {
+          console.log('Geolocation error:', error);
+          // Fallback to default location
+          createMap(defaultCenter);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 5000,
+          maximumAge: 0
+        }
+      );
+    } else {
+      // Browser doesn't support geolocation
+      createMap(defaultCenter);
+    }
 
     function createMap(center) {
       const map = new window.google.maps.Map(mapRef.current, {
@@ -231,55 +331,30 @@ export default function ListYourCarRental() {
 
         markerRef.current = marker;
 
-        // Update selected location immediately with coordinates
-        const fallbackAddress = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-        const initialLocationInfo = {
-          name: fallbackAddress,
-          formatted_address: fallbackAddress,
-          place_id: `manual_${lat}_${lng}`,
-          lat: lat,
-          lng: lng,
-          address_components: []
-        };
-        setSelectedMapLocation({ ...initialLocationInfo, lat, lng });
-        setLocation(fallbackAddress);
-        setLocationData(initialLocationInfo);
+        const placeId = `manual_${lat}_${lng}`;
+        applyLocationSelection(lat, lng, null, placeId, { address_components: [] });
         setMapError(''); // Clear any previous errors
         setIsGeocoding(true);
 
         // Reverse geocode to get address
         try {
           const geocoder = new window.google.maps.Geocoder();
-          geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+          geocoder.geocode({ location: { lat, lng } }, async (results, status) => {
             setIsGeocoding(false);
             
             if (status === 'OK' && results && results[0]) {
               const place = results[0];
-              const locationInfo = {
-                name: place.formatted_address,
-                formatted_address: place.formatted_address,
-                place_id: place.place_id || `manual_${lat}_${lng}`,
-                lat: lat,
-                lng: lng,
-                address_components: place.address_components || []
-              };
-              setSelectedMapLocation({ ...locationInfo, lat, lng });
-              // Automatically fill the address field with the formatted address
-              setLocation(place.formatted_address);
-              setLocationData(locationInfo);
-              setError('');
+              applyLocationSelection(
+                lat,
+                lng,
+                place.formatted_address,
+                place.place_id || placeId,
+                { address_components: place.address_components || [] }
+              );
               setMapError('');
             } else {
-              // If geocoding fails, keep the coordinates we already set
-              if (status === 'ZERO_RESULTS') {
-                setMapError('No address found for this location. Using coordinates instead.');
-              } else if (status === 'OVER_QUERY_LIMIT') {
-                setMapError('Geocoding service temporarily unavailable. Using coordinates instead.');
-              } else if (status === 'REQUEST_DENIED') {
-                setMapError('Geocoding request denied. Using coordinates instead.');
-              } else {
-                setMapError(`Geocoding failed (${status}). Using coordinates instead.`);
-              }
+              setMapError(getGeocodeErrorMessage(status));
+              await handleFallbackAddressLookup(lat, lng, placeId);
             }
           });
         } catch (error) {
@@ -294,45 +369,29 @@ export default function ListYourCarRental() {
           const newLng = e.latLng.lng();
           
           // Immediately update with coordinates
-          const fallbackAddress = `${newLat.toFixed(6)}, ${newLng.toFixed(6)}`;
-          const initialLocationInfo = {
-            name: fallbackAddress,
-            formatted_address: fallbackAddress,
-            place_id: `manual_${newLat}_${newLng}`,
-            lat: newLat,
-            lng: newLng,
-            address_components: []
-          };
-          setSelectedMapLocation({ ...initialLocationInfo, lat: newLat, lng: newLng });
-          setLocation(fallbackAddress);
-          setLocationData(initialLocationInfo);
+          const newPlaceId = `manual_${newLat}_${newLng}`;
+          applyLocationSelection(newLat, newLng, null, newPlaceId, { address_components: [] });
           setIsGeocoding(true);
 
           // Reverse geocode new position
           try {
             const geocoder = new window.google.maps.Geocoder();
-            geocoder.geocode({ location: { lat: newLat, lng: newLng } }, (results, status) => {
+            geocoder.geocode({ location: { lat: newLat, lng: newLng } }, async (results, status) => {
               setIsGeocoding(false);
               
               if (status === 'OK' && results && results[0]) {
                 const place = results[0];
-                const locationInfo = {
-                  name: place.formatted_address,
-                  formatted_address: place.formatted_address,
-                  place_id: place.place_id || `manual_${newLat}_${newLng}`,
-                  lat: newLat,
-                  lng: newLng,
-                  address_components: place.address_components || []
-                };
-                setSelectedMapLocation({ ...locationInfo, lat: newLat, lng: newLng });
-                // Automatically update the address field when marker is dragged
-                setLocation(place.formatted_address);
-                setLocationData(locationInfo);
-                setError('');
+                applyLocationSelection(
+                  newLat,
+                  newLng,
+                  place.formatted_address,
+                  place.place_id || newPlaceId,
+                  { address_components: place.address_components || [] }
+                );
                 setMapError('');
               } else {
-                // If geocoding fails, keep the coordinates we already set
-                setMapError('Address lookup failed. Using coordinates.');
+                setMapError(getGeocodeErrorMessage(status));
+                await handleFallbackAddressLookup(newLat, newLng, newPlaceId);
               }
             });
           } catch (error) {

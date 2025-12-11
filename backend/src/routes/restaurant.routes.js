@@ -688,18 +688,26 @@ router.post('/tax-legal', authenticateToken, upload.fields([
       restaurantId,
       taxIdentificationNumber,
       registeredBusinessName,
-      businessLicenseNumber,
       taxType,
       vatTaxRate,
       pricesVatInclusive
     } = req.body;
-    const userId = req.user.id;
+    const userId = req.user.id || req.user.userId || req.user.user_id;
     const files = req.files;
 
     if (!restaurantId) {
       return res.status(400).json({ 
         success: false,
         message: 'Restaurant ID is required' 
+      });
+    }
+
+    // Check step access (Step 8: Tax & Legal)
+    const accessCheck = await restaurantSetupProgressService.canAccessStep(restaurantId, userId, 8);
+    if (!accessCheck.allowed) {
+      return res.status(403).json({
+        success: false,
+        message: accessCheck.reason || 'Cannot access this step. Please complete previous steps first.'
       });
     }
 
@@ -728,7 +736,6 @@ router.post('/tax-legal', authenticateToken, upload.fields([
         `UPDATE restaurant_tax_legal SET
          tax_identification_number = ?,
          registered_business_name = ?,
-         business_license_number = ?,
          tax_type = ?,
          vat_tax_rate = ?,
          prices_vat_inclusive = ?
@@ -736,7 +743,6 @@ router.post('/tax-legal', authenticateToken, upload.fields([
         [
           taxIdentificationNumber,
           registeredBusinessName,
-          businessLicenseNumber,
           taxType,
           vatTaxRate || null,
           pricesVatInclusive || null,
@@ -747,14 +753,13 @@ router.post('/tax-legal', authenticateToken, upload.fields([
       // Create new record
       await pool.execute(
         `INSERT INTO restaurant_tax_legal 
-         (id, restaurant_id, tax_identification_number, registered_business_name, business_license_number, tax_type, vat_tax_rate, prices_vat_inclusive)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, restaurant_id, tax_identification_number, registered_business_name, tax_type, vat_tax_rate, prices_vat_inclusive)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           uuidv4(),
           restaurantId,
           taxIdentificationNumber,
           registeredBusinessName,
-          businessLicenseNumber,
           taxType,
           vatTaxRate || null,
           pricesVatInclusive || null
@@ -808,7 +813,6 @@ router.post('/tax-legal', authenticateToken, upload.fields([
       const stepData = {
         taxIdentificationNumber,
         registeredBusinessName,
-        businessLicenseNumber,
         taxType,
         vatTaxRate: vatTaxRate || null,
         pricesVatInclusive: pricesVatInclusive || null,

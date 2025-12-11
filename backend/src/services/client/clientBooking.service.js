@@ -629,15 +629,27 @@ class ClientBookingService {
         throw new Error('Restaurant not found or not available');
       }
 
-      // Check availability using restaurant_capacity_bookings
-      const existingReservations = await executeQuery(
-        `SELECT COUNT(*) as count FROM restaurant_capacity_bookings rcb
-         JOIN bookings b ON rcb.booking_id = b.booking_id
-         WHERE rcb.eating_out_id = ? AND DATE(rcb.reservation_start) = ? 
-         AND TIME(rcb.reservation_start) = ? 
-         AND b.status IN ('pending', 'confirmed')`,
-        [restaurant_id, reservation_date, reservation_time]
-      );
+      // Check availability using restaurant_capacity_bookings (if table exists)
+      let existingReservations = [{ count: 0 }];
+      try {
+        const tableCheck = await executeQuery(
+          `SELECT COUNT(*) as count FROM information_schema.tables 
+           WHERE table_schema = DATABASE() 
+           AND table_name = 'restaurant_capacity_bookings'`
+        );
+        if (tableCheck && tableCheck[0] && tableCheck[0].count > 0) {
+          existingReservations = await executeQuery(
+            `SELECT COUNT(*) as count FROM restaurant_capacity_bookings rcb
+             JOIN bookings b ON rcb.booking_id = b.booking_id
+             WHERE rcb.eating_out_id = ? AND DATE(rcb.reservation_start) = ? 
+             AND TIME(rcb.reservation_start) = ? 
+             AND b.status IN ('pending', 'confirmed')`,
+            [restaurant_id, reservation_date, reservation_time]
+          );
+        }
+      } catch (err) {
+        console.log('Note: restaurant_capacity_bookings table does not exist, skipping availability check');
+      }
 
       // For now, we'll allow reservations (can add table capacity check later)
       const totalAmount = 0; // Table reservations are usually free, deposit can be added
@@ -656,16 +668,29 @@ class ClientBookingService {
 
       const bookingId = bookingResult.insertId;
 
-      // Create restaurant reservation using restaurant_capacity_bookings
-      const reservationStart = `${reservation_date} ${reservation_time}:00`;
-      const reservationEnd = new Date(new Date(reservationStart).getTime() + 2 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
-      
-      await executeQuery(
-        `INSERT INTO restaurant_capacity_bookings (
-          booking_id, eating_out_id, reservation_start, reservation_end, guests
-        ) VALUES (?, ?, ?, ?, ?)`,
-        [bookingId, restaurant_id, reservationStart, reservationEnd, number_of_guests]
-      );
+      // Create restaurant reservation using restaurant_capacity_bookings (if table exists)
+      try {
+        const tableCheck = await executeQuery(
+          `SELECT COUNT(*) as count FROM information_schema.tables 
+           WHERE table_schema = DATABASE() 
+           AND table_name = 'restaurant_capacity_bookings'`
+        );
+        if (tableCheck && tableCheck[0] && tableCheck[0].count > 0) {
+          const reservationStart = `${reservation_date} ${reservation_time}:00`;
+          const reservationEnd = new Date(new Date(reservationStart).getTime() + 2 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+          
+          await executeQuery(
+            `INSERT INTO restaurant_capacity_bookings (
+              booking_id, eating_out_id, reservation_start, reservation_end, guests
+            ) VALUES (?, ?, ?, ?, ?)`,
+            [bookingId, restaurant_id, reservationStart, reservationEnd, number_of_guests]
+          );
+        } else {
+          console.log('Note: restaurant_capacity_bookings table does not exist, skipping reservation creation');
+        }
+      } catch (err) {
+        console.log('Note: Could not create restaurant capacity booking:', err.message);
+      }
 
       // Ensure payment_transactions table exists
       await this.ensurePaymentTransactionsTable();
@@ -757,24 +782,32 @@ class ClientBookingService {
    */
   async createCarRentalBooking(bookingData) {
     try {
-      const {
-        car_id,
-        pickup_date,
-        return_date,
-        pickup_location,
-        return_location,
-        customer_name,
-        customer_email,
-        customer_phone,
-        driver_license_number,
-        special_requests,
-        payment_method = 'card'
-      } = bookingData;
+      // Handle both old and new structure for backward compatibility
+      const customer = bookingData.customer || {};
+      const rental = bookingData.rental || {};
+      
+      const car_id = bookingData.car_id;
+      const driver_option = bookingData.driver_option || 'self-drive';
+      const pickup_date = rental.pickup_date || bookingData.pickup_date;
+      const pickup_time = rental.pickup_time || bookingData.pickup_time || '09:00';
+      const return_date = rental.return_date || bookingData.return_date;
+      const return_time = rental.return_time || bookingData.return_time || '17:00';
+      const pickup_location = rental.pickup_location || bookingData.pickup_location;
+      const dropoff_location = rental.dropoff_location || bookingData.dropoff_location || bookingData.return_location;
+      const return_location = dropoff_location; // Alias for consistency
+      
+      const customer_first_name = customer.first_name || customer.firstName || bookingData.customer_name;
+      const customer_name = customer_first_name; // Alias for email functions
+      const customer_email = customer.email || bookingData.customer_email;
+      const customer_phone = customer.phone || bookingData.customer_phone;
+      
+      const special_requests = bookingData.special_requests;
+      const payment_method = bookingData.payment_method || 'card';
 
       // Validate required fields
       if (!car_id || !pickup_date || !return_date || 
-          !customer_name || !customer_email || !customer_phone) {
-        throw new Error('Missing required booking fields');
+          !customer_first_name || !customer_phone) {
+        throw new Error('Missing required booking fields: car_id, rental.pickup_date, rental.return_date, customer.first_name, customer.phone');
       }
 
       // Get car details
@@ -789,22 +822,133 @@ class ClientBookingService {
 
       const carData = car[0];
 
-      // Check availability
-      // Note: car_rental_bookings uses booking_status (not status) and dropoff_date (not return_date)
-      // Convert dates to DATETIME format for comparison if needed
-      const pickupDateTime = pickup_date.includes(' ') ? pickup_date : `${pickup_date} 00:00:00`;
-      const returnDateTime = return_date.includes(' ') ? return_date : `${return_date} 23:59:59`;
+      // Check availability - handle both old and new table structures
+      // Calculate date/time strings first (needed for error messages)
+      const pickupDateTime = pickup_date.includes(' ') ? pickup_date : `${pickup_date} ${pickup_time}:00`;
+      const returnDateTime = return_date.includes(' ') ? return_date : `${return_date} ${return_time}:00`;
       
-      // Check for overlapping bookings: existing booking overlaps if it starts before requested end AND ends after requested start
-      const existingBookings = await executeQuery(
-        `SELECT COUNT(*) as count FROM car_rental_bookings 
-         WHERE car_id = ? AND booking_status IN ('pending', 'confirmed', 'in_progress')
-         AND pickup_date < ? AND dropoff_date > ?`,
-        [car_id, returnDateTime, pickupDateTime]
-      );
+      let existingBookings;
+      try {
+        // Check if table has new structure columns
+        const tableCheck = await executeQuery(
+          `SELECT COLUMN_NAME FROM information_schema.columns 
+           WHERE table_schema = DATABASE() 
+           AND table_name = 'car_rental_bookings'
+           AND COLUMN_NAME IN ('pickup_time', 'return_time', 'return_date')`
+        );
+        const hasNewStructure = tableCheck && tableCheck.some(col => col.COLUMN_NAME === 'pickup_time');
+        const hasReturnDate = tableCheck && tableCheck.some(col => col.COLUMN_NAME === 'return_date');
+        
+        if (hasNewStructure && hasReturnDate) {
+          // New structure with separate date and time columns
+          existingBookings = await executeQuery(
+            `SELECT COUNT(*) as count FROM car_rental_bookings 
+             WHERE car_id = ? AND booking_status IN ('pending', 'confirmed', 'in_progress')
+             AND CONCAT(pickup_date, ' ', COALESCE(pickup_time, '00:00:00')) < ? 
+             AND CONCAT(return_date, ' ', COALESCE(return_time, '23:59:59')) > ?`,
+            [car_id, returnDateTime, pickupDateTime]
+          );
+        } else {
+          // Old structure - pickup_date and dropoff_date are DATETIME
+          // Allow bookings that end exactly when another starts, or start exactly when another ends
+          existingBookings = await executeQuery(
+            `SELECT COUNT(*) as count FROM car_rental_bookings 
+             WHERE car_id = ? AND booking_status IN ('pending', 'confirmed', 'in_progress')
+             AND pickup_date < ? AND dropoff_date > ?`,
+            [car_id, returnDateTime, pickupDateTime]
+          );
+        }
+      } catch (err) {
+        console.error('Error checking car availability:', err);
+        // Fallback to old structure query
+        existingBookings = await executeQuery(
+          `SELECT COUNT(*) as count FROM car_rental_bookings 
+           WHERE car_id = ? AND booking_status IN ('pending', 'confirmed', 'in_progress')
+           AND pickup_date < ? AND dropoff_date > ?`,
+          [car_id, returnDateTime, pickupDateTime]
+        );
+      }
 
       if (existingBookings[0].count > 0) {
-        throw new Error('Car not available for selected dates');
+        // Get details of conflicting bookings for better error message
+        let conflictingBookings = [];
+        try {
+          const tableCheck = await executeQuery(
+            `SELECT COLUMN_NAME FROM information_schema.columns 
+             WHERE table_schema = DATABASE() 
+             AND table_name = 'car_rental_bookings'
+             AND COLUMN_NAME IN ('pickup_time', 'return_time', 'return_date')`
+          );
+          const hasNewStructure = tableCheck && tableCheck.some(col => col.COLUMN_NAME === 'pickup_time');
+          const hasReturnDate = tableCheck && tableCheck.some(col => col.COLUMN_NAME === 'return_date');
+          
+          if (hasNewStructure && hasReturnDate) {
+            conflictingBookings = await executeQuery(
+              `SELECT booking_id, 
+               CONCAT(pickup_date, ' ', COALESCE(pickup_time, '00:00:00')) as pickup_datetime,
+               CONCAT(return_date, ' ', COALESCE(return_time, '23:59:59')) as return_datetime,
+               booking_status
+               FROM car_rental_bookings 
+               WHERE car_id = ? AND booking_status IN ('pending', 'confirmed', 'in_progress')
+               AND CONCAT(pickup_date, ' ', COALESCE(pickup_time, '00:00:00')) < ? 
+               AND CONCAT(return_date, ' ', COALESCE(return_time, '23:59:59')) > ?`,
+              [car_id, returnDateTime, pickupDateTime]
+            );
+          } else {
+            conflictingBookings = await executeQuery(
+              `SELECT booking_id, pickup_date as pickup_datetime, dropoff_date as return_datetime, booking_status
+               FROM car_rental_bookings 
+               WHERE car_id = ? AND booking_status IN ('pending', 'confirmed', 'in_progress')
+               AND pickup_date < ? AND dropoff_date > ?`,
+              [car_id, returnDateTime, pickupDateTime]
+            );
+          }
+        } catch (err) {
+          console.error('Error fetching conflicting bookings:', err);
+        }
+        
+        const conflictDetails = conflictingBookings.length > 0 
+          ? ` Conflicting booking(s): ${conflictingBookings.map(b => {
+              // Format dates nicely
+              const pickup = new Date(b.pickup_datetime);
+              const returnDate = new Date(b.return_datetime);
+              const pickupFormatted = pickup.toLocaleString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              });
+              const returnFormatted = returnDate.toLocaleString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              });
+              return `#${b.booking_id} (${pickupFormatted} to ${returnFormatted}, status: ${b.booking_status})`;
+            }).join('; ')}`
+          : '';
+        
+        // Format requested dates nicely
+        const requestedPickup = new Date(pickupDateTime);
+        const requestedReturn = new Date(returnDateTime);
+        const requestedPickupFormatted = requestedPickup.toLocaleString('en-US', { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric', 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
+        const requestedReturnFormatted = requestedReturn.toLocaleString('en-US', { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric', 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
+        
+        throw new Error(`Car not available for selected dates (${requestedPickupFormatted} to ${requestedReturnFormatted}).${conflictDetails}`);
       }
 
       // Calculate number of days
@@ -838,30 +982,61 @@ class ClientBookingService {
       // Ensure payment_transactions table exists
       await this.ensurePaymentTransactionsTable();
 
-      // Create car rental booking
-      // Note: car_rental_bookings uses dropoff_date (not return_date) and booking_status (not status)
-      // Convert return_date to dropoff_date and set pickup/dropoff as DATETIME
-      // Reuse pickupDateTime and returnDateTime but adjust times for booking (10:00 for pickup, 18:00 for dropoff)
-      const bookingPickupDateTime = pickup_date.includes(' ') ? pickup_date : `${pickup_date} 10:00:00`;
-      const bookingDropoffDateTime = return_date.includes(' ') ? return_date : `${return_date} 18:00:00`;
-      
-      // Store driver_license_number in special_requests if provided (column doesn't exist in table)
-      let specialRequestsText = special_requests || '';
-      if (driver_license_number) {
-        const licenseInfo = `Driver License: ${driver_license_number}`;
-        specialRequestsText = special_requests ? `${special_requests}\n${licenseInfo}` : licenseInfo;
+      // Create car rental booking - check table structure first
+      let insertQuery, insertParams;
+      try {
+        const tableCheck = await executeQuery(
+          `SELECT COLUMN_NAME FROM information_schema.columns 
+           WHERE table_schema = DATABASE() 
+           AND table_name = 'car_rental_bookings'
+           AND COLUMN_NAME IN ('return_date', 'pickup_time', 'return_time', 'driver_option', 'customer_first_name')`
+        );
+        const hasNewStructure = tableCheck && tableCheck.length > 0;
+        
+        if (hasNewStructure) {
+          // New structure
+          insertQuery = `INSERT INTO car_rental_bookings (
+            booking_id, car_id, vendor_id, customer_first_name, customer_email, customer_phone,
+            pickup_date, pickup_time, return_date, return_time,
+            pickup_location, dropoff_location, driver_option,
+            total_amount, deposit_amount, booking_status, payment_status, special_requests
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+          insertParams = [
+            bookingId, car_id, carData.vendor_id, customer_first_name, customer_email || null, customer_phone,
+            pickup_date, pickup_time, return_date, return_time,
+            pickup_location || null, dropoff_location || null, driver_option,
+            totalAmount, securityDeposit, 'pending', 'pending', special_requests || null
+          ];
+        } else {
+          // Old structure - combine date and time into DATETIME for pickup_date and dropoff_date
+          const pickupDateTime = pickup_date.includes(' ') ? pickup_date : `${pickup_date} ${pickup_time}:00`;
+          const dropoffDateTime = return_date.includes(' ') ? return_date : `${return_date} ${return_time}:00`;
+          
+          // Store driver_option and times in special_requests if needed
+          let specialRequestsText = special_requests || '';
+          if (driver_option && driver_option !== 'self-drive') {
+            specialRequestsText = specialRequestsText ? `${specialRequestsText}\nDriver Option: ${driver_option}` : `Driver Option: ${driver_option}`;
+          }
+          
+          insertQuery = `INSERT INTO car_rental_bookings (
+            booking_id, car_id, vendor_id, customer_name, customer_email, customer_phone,
+            pickup_date, dropoff_date,
+            pickup_location, dropoff_location,
+            total_amount, deposit_amount, booking_status, payment_status, special_requests
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+          insertParams = [
+            bookingId, car_id, carData.vendor_id, customer_first_name, customer_email || null, customer_phone,
+            pickupDateTime, dropoffDateTime,
+            pickup_location || null, dropoff_location || null,
+            totalAmount, securityDeposit, 'pending', 'pending', specialRequestsText
+          ];
+        }
+        
+        await executeQuery(insertQuery, insertParams);
+      } catch (err) {
+        console.error('Error creating car rental booking:', err);
+        throw err;
       }
-      
-      await executeQuery(
-        `INSERT INTO car_rental_bookings (
-          booking_id, car_id, vendor_id, pickup_date, dropoff_date,
-          pickup_location, dropoff_location, customer_name, customer_email, 
-          customer_phone, total_amount, deposit_amount, booking_status, payment_status, special_requests
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [bookingId, car_id, carData.vendor_id, bookingPickupDateTime, bookingDropoffDateTime,
-         pickup_location, return_location, customer_name, customer_email, 
-         customer_phone, totalAmount, securityDeposit, 'pending', 'pending', specialRequestsText]
-      );
 
       // Ensure payment_transactions table exists
       await this.ensurePaymentTransactionsTable();
@@ -886,7 +1061,7 @@ class ClientBookingService {
 
       // Send confirmation email to customer (non-blocking)
       this.sendCarRentalBookingConfirmationEmail({
-        customer_name,
+        customer_name: customer_first_name,
         customer_email,
         customer_phone,
         car_name: carData.name || carData.model || carData.make,
@@ -923,7 +1098,7 @@ class ClientBookingService {
             return_location,
             total_amount: totalAmount,
             days,
-            customer_name,
+            customer_name: customer_first_name,
             customer_email,
             customer_phone,
             special_requests: specialRequestsText
@@ -945,8 +1120,78 @@ class ClientBookingService {
    */
   async getBookingByReference(bookingReference) {
     try {
-      const bookings = await executeQuery(
-        `SELECT 
+      // Check if restaurant_capacity_bookings table exists
+      let restaurantJoin = '';
+      try {
+        const tableCheck = await executeQuery(
+          `SELECT COUNT(*) as count FROM information_schema.tables 
+           WHERE table_schema = DATABASE() 
+           AND table_name = 'restaurant_capacity_bookings'`
+        );
+        if (tableCheck && tableCheck[0] && tableCheck[0].count > 0) {
+          restaurantJoin = `LEFT JOIN restaurant_capacity_bookings rcb ON b.booking_id = rcb.booking_id`;
+        }
+      } catch (err) {
+        // Table doesn't exist, skip the join
+        console.log('Note: restaurant_capacity_bookings table does not exist, skipping join');
+      }
+
+      // Build query dynamically based on table existence
+      const restaurantFields = restaurantJoin 
+        ? 'rcb.reservation_start, rcb.reservation_end, rcb.guests as restaurant_guests,'
+        : 'NULL as reservation_start, NULL as reservation_end, NULL as restaurant_guests,';
+      
+      // Check if car_rental_bookings has new structure (return_date, pickup_time, etc.)
+      let carRentalFields = '';
+      try {
+        const carTableCheck = await executeQuery(
+          `SELECT COLUMN_NAME FROM information_schema.columns 
+           WHERE table_schema = DATABASE() 
+           AND table_name = 'car_rental_bookings'
+           AND COLUMN_NAME IN ('return_date', 'pickup_time', 'return_time', 'driver_option', 'customer_first_name')`
+        );
+        const hasNewStructure = carTableCheck && carTableCheck.length > 0;
+        
+        if (hasNewStructure) {
+          // New structure with return_date, pickup_time, return_time, driver_option
+          carRentalFields = `crb.pickup_date, 
+          crb.return_date, 
+          crb.pickup_time,
+          crb.return_time,
+          crb.pickup_location, 
+          crb.dropoff_location,
+          crb.driver_option,
+          crb.customer_first_name as car_customer_name,
+          crb.customer_email as car_customer_email,
+          crb.customer_phone as car_customer_phone`;
+        } else {
+          // Old structure with dropoff_date, customer_name
+          carRentalFields = `crb.pickup_date, 
+          crb.dropoff_date as return_date, 
+          NULL as pickup_time,
+          NULL as return_time,
+          crb.pickup_location, 
+          crb.dropoff_location,
+          'self-drive' as driver_option,
+          crb.customer_name as car_customer_name,
+          crb.customer_email as car_customer_email,
+          crb.customer_phone as car_customer_phone`;
+        }
+      } catch (err) {
+        // Fallback to old structure
+        carRentalFields = `crb.pickup_date, 
+          crb.dropoff_date as return_date, 
+          NULL as pickup_time,
+          NULL as return_time,
+          crb.pickup_location, 
+          crb.dropoff_location,
+          'self-drive' as driver_option,
+          crb.customer_name as car_customer_name,
+          crb.customer_email as car_customer_email,
+          crb.customer_phone as car_customer_phone`;
+      }
+      
+      const query = `SELECT 
           b.*,
           sb.property_id as stay_property_id,
           sb.room_id as stay_room_id,
@@ -956,21 +1201,16 @@ class ClientBookingService {
           tb.tour_date, 
           tb.number_of_participants, 
           tb.customer_name as tour_customer_name,
-          rcb.reservation_start, 
-          rcb.reservation_end, 
-          rcb.guests as restaurant_guests,
-          crb.pickup_date, 
-          crb.dropoff_date as return_date, 
-          crb.pickup_location, 
-          crb.dropoff_location as return_location
+          ${restaurantFields}
+          ${carRentalFields}
          FROM bookings b
          LEFT JOIN stays_bookings sb ON b.booking_id = sb.booking_id
          LEFT JOIN tours_bookings tb ON b.booking_id = tb.booking_id
-         LEFT JOIN restaurant_capacity_bookings rcb ON b.booking_id = rcb.booking_id
+         ${restaurantJoin || ''}
          LEFT JOIN car_rental_bookings crb ON b.booking_id = crb.booking_id
-         WHERE b.booking_reference = ?`,
-        [bookingReference]
-      );
+         WHERE b.booking_reference = ?`;
+
+      const bookings = await executeQuery(query, [bookingReference]);
 
       if (!bookings || bookings.length === 0) {
         return null;
