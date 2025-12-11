@@ -123,10 +123,41 @@ router.post('/listing', async (req, res) => {
       locationData
     } = req.body;
 
+    // Validate required fields
+    if (!email) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Email is required to create a restaurant account' 
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Password is required to create a restaurant account' 
+      });
+    }
+
+    if (!firstName || !lastName) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'First name and last name are required' 
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Please provide a valid email address' 
+      });
+    }
+
     const normalizedUserPhone = formatUserPhone(userPhone, countryCode);
     const normalizedRestaurantPhone = cleanBusinessPhone(restaurantPhone);
 
-    // If user is already logged in, use their ID
+    // If user is already logged in, verify they're authenticated
     let userId = null;
     try {
       const token = req.headers.authorization?.replace('Bearer ', '');
@@ -134,14 +165,24 @@ router.post('/listing', async (req, res) => {
         const jwt = await import('jsonwebtoken');
         const decoded = jwt.default.verify(token, process.env.JWT_SECRET || 'your-secret-key');
         userId = decoded.id;
+        
+        // Verify user exists in restaurant_users
+        const [userCheck] = await pool.execute(
+          'SELECT user_id FROM restaurant_users WHERE user_id = ?',
+          [userId]
+        );
+        if (userCheck.length === 0) {
+          userId = null; // User not in restaurant_users, will create new account
+        }
       }
     } catch (authError) {
       // Token invalid or missing - will create new user
+      userId = null;
     }
 
     // Create user account if not already logged in
     let userCreated = false;
-    if (!userId && email && password) {
+    if (!userId) {
       // First check if user exists in restaurant_users (new system)
       const [existingRestaurantUsers] = await pool.execute(
         'SELECT user_id, email, name FROM restaurant_users WHERE email = ?',
@@ -149,43 +190,43 @@ router.post('/listing', async (req, res) => {
       );
 
       if (existingRestaurantUsers.length > 0) {
-        // User exists in restaurant_users - use their INT user_id
-        userId = existingRestaurantUsers[0].user_id.toString();
-      } else {
-        // Check profiles table for backward compatibility
-        const [existingProfiles] = await pool.execute(
-          'SELECT id FROM profiles WHERE email = ?',
-          [email]
-        );
-
-        if (existingProfiles.length > 0) {
-          // User exists in profiles - use their UUID
-          userId = existingProfiles[0].id;
-        } else {
-          // Create new user in restaurant_users table (new system)
-          const bcrypt = await import('bcryptjs');
-          const hashedPassword = await bcrypt.default.hash(password, 10);
-          const fullName = [firstName || '', lastName || ''].filter(Boolean).join(' ').trim() || email.split('@')[0];
-
-          // Insert into restaurant_users table (INT user_id, AUTO_INCREMENT)
-          const [result] = await pool.execute(
-            `INSERT INTO restaurant_users (email, password_hash, name, phone, role, is_active)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [email, hashedPassword, fullName, normalizedUserPhone, 'vendor', 1]
-          );
-          
-          // Get the AUTO_INCREMENT user_id
-          userId = result.insertId.toString();
-          userCreated = true;
-        }
+        // User exists - they need to login instead
+        return res.status(400).json({ 
+          success: false,
+          message: 'An account with this email already exists. Please login to continue.' 
+        });
       }
-    }
 
-    if (!userId) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'User ID is required. Please provide user account information or login.' 
-      });
+      // Check profiles table for backward compatibility
+      const [existingProfiles] = await pool.execute(
+        'SELECT id FROM profiles WHERE email = ?',
+        [email]
+      );
+
+      if (existingProfiles.length > 0) {
+        // User exists in profiles - they need to login
+        return res.status(400).json({ 
+          success: false,
+          message: 'An account with this email already exists. Please login to continue.' 
+        });
+      }
+
+      // Create new user in restaurant_users table (new system)
+      const bcrypt = await import('bcryptjs');
+      const hashedPassword = await bcrypt.default.hash(password, 10);
+      const fullName = [firstName || '', lastName || ''].filter(Boolean).join(' ').trim() || email.split('@')[0];
+
+      // Insert into restaurant_users table (INT user_id, AUTO_INCREMENT)
+      // Set email_verified to 0 (false) - requires verification
+      const [result] = await pool.execute(
+        `INSERT INTO restaurant_users (email, password_hash, name, phone, role, is_active, email_verified)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [email, hashedPassword, fullName, normalizedUserPhone, 'vendor', 1, 0]
+      );
+      
+      // Get the AUTO_INCREMENT user_id
+      userId = result.insertId.toString();
+      userCreated = true;
     }
 
     if (!restaurantName) {

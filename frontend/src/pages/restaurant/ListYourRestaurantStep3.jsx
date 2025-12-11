@@ -297,8 +297,9 @@ export default function ListYourRestaurantStep3() {
 
       toast.success('Account and restaurant listing created successfully!');
       
-      // Navigate to business details step
-      navigate('/restaurant/setup/business-details', {
+      // Navigate to email verification (after Step 1-3 completion)
+      // Email verification code will be sent automatically when user reaches the verification page
+      navigate('/restaurant/setup/email-verification', {
         state: {
           location: location.state?.location || '',
           locationData: locationData,

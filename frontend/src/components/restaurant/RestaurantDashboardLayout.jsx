@@ -33,6 +33,9 @@ const RestaurantDashboardLayout = () => {
       
       if (!userData || !token) {
         console.log('No user data or token found, redirecting to restaurant login');
+        // Clear any stale data
+        localStorage.removeItem('restaurant_id');
+        localStorage.removeItem('restaurant_setup_progress');
         // Explicitly navigate to restaurant login, not stays login
         const targetPath = '/restaurant/login';
         console.log('Redirecting to:', targetPath);
@@ -42,6 +45,24 @@ const RestaurantDashboardLayout = () => {
 
       try {
         const parsedUser = JSON.parse(userData);
+        
+        // Verify token is still valid by checking with backend
+        try {
+          const apiClient = (await import('../../services/apiClient')).default;
+          const response = await apiClient.get('/eating-out/vendor/my');
+          // If this succeeds, user is authenticated
+        } catch (authError) {
+          // Token invalid or expired
+          console.log('Token validation failed, clearing session');
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('restaurant_id');
+          localStorage.removeItem('restaurant_setup_progress');
+          navigate('/restaurant/login', { replace: true });
+          return;
+        }
+        
         setUser(parsedUser);
 
         // Check for incomplete setup progress
