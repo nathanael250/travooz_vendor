@@ -15,6 +15,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { restaurantSetupService } from '../../services/eatingOutService';
 
 const RestaurantDashboardLayout = () => {
   const navigate = useNavigate();
@@ -25,7 +26,7 @@ const RestaurantDashboardLayout = () => {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    // Check authentication
+    // Check authentication and setup progress
     const checkAuth = async () => {
       const userData = localStorage.getItem('user');
       const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
@@ -42,6 +43,59 @@ const RestaurantDashboardLayout = () => {
       try {
         const parsedUser = JSON.parse(userData);
         setUser(parsedUser);
+
+        // Check for incomplete setup progress
+        try {
+          const progress = await restaurantSetupService.getSetupProgressByUser();
+          if (progress && progress.restaurant_id) {
+            // Check if setup is incomplete (not all steps complete)
+            const allStepsComplete = 
+              progress.step_1_3_complete &&
+              progress.step_4_complete &&
+              progress.step_5_complete &&
+              progress.step_6_complete &&
+              progress.step_7_complete &&
+              progress.step_8_complete &&
+              progress.step_9_complete &&
+              progress.step_10_complete &&
+              progress.step_11_complete;
+
+            if (!allStepsComplete && location.pathname !== '/restaurant/setup/complete') {
+              // Redirect to the appropriate step based on current_step
+              const stepRoutes = {
+                4: '/restaurant/setup/business-details',
+                5: '/restaurant/setup/media',
+                6: '/restaurant/setup/payments-pricing',
+                7: '/restaurant/setup/capacity',
+                8: '/restaurant/setup/tax-legal',
+                9: '/restaurant/setup/menu',
+                10: '/restaurant/setup/review',
+                11: '/restaurant/setup/agreement'
+              };
+
+              const targetRoute = stepRoutes[progress.current_step] || '/restaurant/setup/business-details';
+              
+              // Store progress data in localStorage for restoration
+              localStorage.setItem('restaurant_setup_progress', JSON.stringify(progress));
+              localStorage.setItem('restaurant_id', progress.restaurant_id);
+
+              // Only redirect if not already on a setup page
+              if (!location.pathname.startsWith('/restaurant/setup/')) {
+                toast.info('Continuing your restaurant setup...');
+                navigate(targetRoute, { 
+                  replace: true,
+                  state: { 
+                    progress,
+                    restaurantId: progress.restaurant_id 
+                  }
+                });
+              }
+            }
+          }
+        } catch (progressError) {
+          // If progress check fails, continue normally (might be a new user)
+          console.log('No incomplete setup found or error checking progress:', progressError);
+        }
       } catch (error) {
         console.error('Error checking auth:', error);
         console.log('Invalid user data, redirecting to restaurant login');

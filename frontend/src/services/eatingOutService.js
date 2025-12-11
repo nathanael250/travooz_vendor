@@ -283,4 +283,48 @@ export const restaurantSetupService = {
       throw error.response?.data || error;
     }
   },
+
+  /**
+   * Get setup progress for a restaurant
+   */
+  async getSetupProgress(restaurantId) {
+    try {
+      const response = await apiClient.get(`/eating-out/setup/progress/${restaurantId}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Get setup progress by user ID (for login check)
+   */
+  async getSetupProgressByUser() {
+    try {
+      const response = await apiClient.get('/eating-out/setup/progress');
+      return response.data.data || null;
+    } catch (error) {
+      // If no progress found, return null (not an error)
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Save step data
+   */
+  async saveStepData(restaurantId, stepNumber, stepData) {
+    try {
+      const response = await apiClient.post('/eating-out/setup/save-step', {
+        restaurantId,
+        stepNumber,
+        stepData,
+      });
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
 };

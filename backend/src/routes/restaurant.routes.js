@@ -2,6 +2,7 @@ const express = require('express');
 const { pool } = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
 const { authenticateToken } = require('../middlewares/auth.middleware');
+const restaurantSetupProgressService = require('../services/restaurant/restaurantSetupProgress.service');
 const restaurantAuthController = require('../controllers/restaurant/restaurantAuth.controller');
 const multer = require('multer');
 const path = require('path');
@@ -253,6 +254,38 @@ router.post('/listing', async (req, res) => {
       );
     }
 
+    // Initialize setup progress after Step 1-3 completion
+    try {
+      const stepData = {
+        step_1: {
+          location: location || null,
+          locationData: locationData || null
+        },
+        step_2: {
+          restaurantName,
+          restaurantType,
+          restaurantTypeName,
+          subcategoryId,
+          description,
+          phone: restaurantPhone,
+          currency
+        },
+        step_3: {
+          firstName,
+          lastName,
+          email,
+          phone: userPhone,
+          countryCode
+        }
+      };
+      
+      await restaurantSetupProgressService.initializeProgress(restaurantId, userId, stepData);
+      console.log('✅ Restaurant setup progress initialized');
+    } catch (progressError) {
+      console.error('⚠️ Failed to initialize setup progress:', progressError);
+      // Don't fail the request if progress initialization fails
+    }
+
     res.status(201).json({
       success: true,
       message: 'Restaurant listing created successfully',
@@ -303,12 +336,21 @@ router.post('/business-details', authenticateToken, async (req, res) => {
       closingTime,
       shortDescription
     } = req.body;
-    const userId = req.user.id;
+    const userId = req.user.id || req.user.userId || req.user.user_id;
 
     if (!restaurantId) {
       return res.status(400).json({ 
         success: false,
         message: 'Restaurant ID is required' 
+      });
+    }
+
+    // Check step access (Step 4: Business Details)
+    const accessCheck = await restaurantSetupProgressService.canAccessStep(restaurantId, userId, 4);
+    if (!accessCheck.allowed) {
+      return res.status(403).json({
+        success: false,
+        message: accessCheck.reason || 'Cannot access this step. Please complete previous steps first.'
       });
     }
 
@@ -353,6 +395,21 @@ router.post('/business-details', authenticateToken, async (req, res) => {
         userId
       ]
     );
+
+    // Save step progress
+    const stepData = {
+      restaurantName,
+      businessRegistrationNumber,
+      contactNumber,
+      emailAddress,
+      website,
+      socialMediaLinks,
+      is24Hours,
+      openingTime,
+      closingTime,
+      shortDescription
+    };
+    await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 4, true, stepData);
 
     res.json({
       success: true,
@@ -1018,6 +1075,118 @@ router.get('/status/:restaurantId', authenticateToken, async (req, res) => {
       success: false,
       message: 'Failed to get setup status',
       error: error.message 
+    });
+  }
+});
+
+/**
+ * Get setup progress for a restaurant
+ * GET /api/v1/eating-out/setup/progress/:restaurantId
+ */
+router.get('/progress/:restaurantId', authenticateToken, async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const userId = req.user.id || req.user.userId || req.user.user_id;
+
+    const progress = await restaurantSetupProgressService.getProgress(restaurantId, userId);
+
+    if (!progress) {
+      return res.status(404).json({
+        success: false,
+        message: 'Setup progress not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: progress
+    });
+  } catch (error) {
+    console.error('Error getting setup progress:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get setup progress',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Get setup progress by user ID (for login check)
+ * GET /api/v1/eating-out/setup/progress
+ */
+router.get('/progress', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id || req.user.userId || req.user.user_id;
+
+    const progress = await restaurantSetupProgressService.getProgressByUserId(userId);
+
+    if (!progress) {
+      return res.json({
+        success: true,
+        data: null,
+        message: 'No incomplete setup found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: progress
+    });
+  } catch (error) {
+    console.error('Error getting setup progress:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get setup progress',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Save step data
+ * POST /api/v1/eating-out/setup/save-step
+ */
+router.post('/save-step', authenticateToken, async (req, res) => {
+  try {
+    const { restaurantId, stepNumber, stepData } = req.body;
+    const userId = req.user.id || req.user.userId || req.user.user_id;
+
+    if (!restaurantId || !stepNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'restaurantId and stepNumber are required'
+      });
+    }
+
+    // Check if user can access this step
+    const accessCheck = await restaurantSetupProgressService.canAccessStep(restaurantId, userId, stepNumber);
+    if (!accessCheck.allowed) {
+      return res.status(403).json({
+        success: false,
+        message: accessCheck.reason || 'Cannot access this step'
+      });
+    }
+
+    // Update progress (mark as complete if stepData is provided)
+    await restaurantSetupProgressService.updateStepProgress(
+      restaurantId,
+      userId,
+      stepNumber,
+      true, // Mark as complete when saving
+      stepData
+    );
+
+    res.json({
+      success: true,
+      message: 'Step data saved successfully'
+    });
+  } catch (error) {
+    console.error('Error saving step data:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to save step data',
+      error: error.message
     });
   }
 });
