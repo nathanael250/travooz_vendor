@@ -4,29 +4,30 @@ const toursCommissionService = require('./toursCommission.service');
 
 class ToursPackageService {
     /**
-     * Ensure tour_package_images table exists
+     * Ensure tours_package_photos table exists
      */
     async ensureTourPackageImagesTable() {
         try {
             await executeQuery(`
-                CREATE TABLE IF NOT EXISTS tour_package_images (
-                    image_id INT AUTO_INCREMENT PRIMARY KEY,
+                CREATE TABLE IF NOT EXISTS tours_package_photos (
+                    photo_id INT AUTO_INCREMENT PRIMARY KEY,
                     package_id INT NOT NULL,
-                    image_url VARCHAR(500) NOT NULL,
-                    image_name VARCHAR(255) DEFAULT NULL,
-                    image_size INT DEFAULT NULL,
-                    image_type VARCHAR(100) DEFAULT NULL,
+                    photo_url LONGTEXT NOT NULL,
+                    photo_name VARCHAR(255) DEFAULT NULL,
+                    photo_size INT DEFAULT NULL,
+                    photo_type VARCHAR(100) DEFAULT NULL,
                     display_order INT DEFAULT 0,
-                    is_primary TINYINT(1) DEFAULT 0,
+                    is_primary TINYINT(1) DEFAULT '0',
                     created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (package_id) REFERENCES tours_packages(package_id) ON DELETE CASCADE,
                     INDEX idx_package_id (package_id),
                     INDEX idx_display_order (display_order),
-                    FOREIGN KEY (package_id) REFERENCES tours_packages(package_id) ON DELETE CASCADE
+                    INDEX idx_is_primary (is_primary)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             `);
-            console.log('✅ tour_package_images table ensured');
+            console.log('✅ tours_package_photos table ensured');
         } catch (error) {
-            console.error('❌ Error ensuring tour_package_images table:', error);
+            console.error('❌ Error ensuring tours_package_photos table:', error);
             // Don't throw - table might already exist with different structure
         }
     }
@@ -588,7 +589,7 @@ class ToursPackageService {
         // Ensure table exists
         await this.ensureTourPackageImagesTable();
         
-        await executeQuery('DELETE FROM tour_package_images WHERE package_id = ?', [packageId]);
+        await executeQuery('DELETE FROM tours_package_photos WHERE package_id = ?', [packageId]);
         if (photos && photos.length > 0) {
             let savedCount = 0;
             for (let i = 0; i < photos.length; i++) {
@@ -641,8 +642,8 @@ class ToursPackageService {
                      photoUrl.startsWith('uploads/'))) {
                     try {
                         await executeQuery(
-                            `INSERT INTO tour_package_images 
-                            (package_id, image_url, image_name, image_size, image_type, display_order, is_primary)
+                            `INSERT INTO tours_package_photos 
+                            (package_id, photo_url, photo_name, photo_size, photo_type, display_order, is_primary)
                             VALUES (?, ?, ?, ?, ?, ?, ?)`,
                             [
                                 packageId,
@@ -675,16 +676,16 @@ class ToursPackageService {
         
         const results = await executeQuery(
             `SELECT 
-                image_id as photo_id,
+                photo_id,
                 package_id,
-                image_url as photo_url,
-                image_name as photo_name,
-                image_size as photo_size,
-                image_type as photo_type,
+                photo_url,
+                photo_name,
+                photo_size,
+                photo_type,
                 display_order,
                 is_primary,
                 created_at
-             FROM tour_package_images WHERE package_id = ? ORDER BY display_order`,
+             FROM tours_package_photos WHERE package_id = ? ORDER BY display_order, is_primary DESC`,
             [packageId]
         );
         return results;

@@ -2,23 +2,25 @@ const { executeQuery } = require('../../../config/database');
 
 class BookingsService {
     /**
-     * Ensure bookings table exists
+     * Ensure bookings table exists with updated structure
      */
     async ensureBookingsTable() {
         try {
             await executeQuery(`
                 CREATE TABLE IF NOT EXISTS car_rental_bookings (
                     booking_id INT AUTO_INCREMENT PRIMARY KEY,
-                    car_id INT NOT NULL,
-                    driver_id INT,
+                    car_id VARCHAR(50) NOT NULL,
                     vendor_id INT NOT NULL,
-                    customer_name VARCHAR(255) NOT NULL,
+                    customer_first_name VARCHAR(255) NOT NULL,
                     customer_email VARCHAR(255),
                     customer_phone VARCHAR(50) NOT NULL,
-                    pickup_date DATETIME NOT NULL,
-                    dropoff_date DATETIME NOT NULL,
+                    pickup_date DATE NOT NULL,
+                    pickup_time TIME NOT NULL,
+                    return_date DATE NOT NULL,
+                    return_time TIME NOT NULL,
                     pickup_location VARCHAR(255),
                     dropoff_location VARCHAR(255),
+                    driver_option ENUM('self-drive', 'with-driver') DEFAULT 'self-drive',
                     total_amount DECIMAL(10,2) NOT NULL,
                     deposit_amount DECIMAL(10,2) DEFAULT 0.00,
                     payment_status ENUM('pending', 'paid', 'partial', 'refunded') DEFAULT 'pending',
@@ -28,7 +30,6 @@ class BookingsService {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     INDEX idx_car_id (car_id),
-                    INDEX idx_driver_id (driver_id),
                     INDEX idx_vendor_id (vendor_id),
                     INDEX idx_booking_status (booking_status),
                     INDEX idx_pickup_date (pickup_date)
@@ -51,13 +52,11 @@ class BookingsService {
             let query = `
                 SELECT 
                     cb.*,
-                    cb.dropoff_date as return_date,
+                    cb.return_date,
                     cb.booking_status as status,
-                    c.brand as car_brand, c.model as car_model, c.license_plate as car_license_plate,
-                    d.name as driver_name, d.phone as driver_phone
+                    c.brand as car_brand, c.model as car_model, c.license_plate as car_license_plate
                 FROM car_rental_bookings cb
                 LEFT JOIN cars c ON cb.car_id = c.car_id
-                LEFT JOIN drivers d ON cb.driver_id = d.driver_id
                 WHERE cb.vendor_id = ?
             `;
             const params = [vendorId];
@@ -107,11 +106,9 @@ class BookingsService {
             const bookings = await executeQuery(
                 `SELECT 
                     cb.*,
-                    c.brand, c.model, c.license_plate, c.daily_rate,
-                    d.name as driver_name, d.phone as driver_phone
+                    c.brand, c.model, c.license_plate, c.daily_rate
                  FROM car_rental_bookings cb
                  LEFT JOIN cars c ON cb.car_id = c.car_id
-                 LEFT JOIN drivers d ON cb.driver_id = d.driver_id
                  WHERE cb.booking_id = ?`,
                 [bookingId]
             );
@@ -124,54 +121,65 @@ class BookingsService {
 
     /**
      * Create a new booking
+     * Accepts structure: { customer: { first_name, phone, email }, car_id, rental: { pickup_date, pickup_time, return_date, return_time, pickup_location, dropoff_location }, driver_option }
      * @param {object} bookingData 
      */
     async createBooking(bookingData) {
         try {
             await this.ensureBookingsTable();
-            const {
-                car_id,
-                driver_id,
-                vendor_id,
-                customer_name,
-                customer_email,
-                customer_phone,
-                pickup_date,
-                dropoff_date,
-                pickup_location,
-                dropoff_location,
-                total_amount,
-                deposit_amount = 0.00,
-                payment_status = 'pending',
-                booking_status = 'pending',
-                special_requests,
-                notes
-            } = bookingData;
+            
+            // Extract data from new structure
+            const customer = bookingData.customer || {};
+            const rental = bookingData.rental || {};
+            const car_id = bookingData.car_id;
+            const driver_option = bookingData.driver_option || 'self-drive';
+            
+            // Get vendor_id from car (if needed) or from bookingData
+            const vendor_id = bookingData.vendor_id || null;
+            
+            // Combine date and time for pickup and return
+            const pickup_datetime = rental.pickup_date && rental.pickup_time 
+                ? `${rental.pickup_date} ${rental.pickup_time}:00`
+                : null;
+            const return_datetime = rental.return_date && rental.return_time
+                ? `${rental.return_date} ${rental.return_time}:00`
+                : null;
+
+            // Calculate total amount if not provided (optional - can be calculated based on car rates)
+            const total_amount = bookingData.total_amount || 0.00;
+            const deposit_amount = bookingData.deposit_amount || 0.00;
+            const payment_status = bookingData.payment_status || 'pending';
+            const booking_status = bookingData.booking_status || 'pending';
+            const special_requests = bookingData.special_requests || null;
+            const notes = bookingData.notes || null;
 
             const result = await executeQuery(
                 `INSERT INTO car_rental_bookings (
-                    car_id, driver_id, vendor_id, customer_name, customer_email, customer_phone,
-                    pickup_date, dropoff_date, pickup_location, dropoff_location,
+                    car_id, vendor_id, customer_first_name, customer_email, customer_phone,
+                    pickup_date, pickup_time, return_date, return_time,
+                    pickup_location, dropoff_location, driver_option,
                     total_amount, deposit_amount, payment_status, booking_status,
                     special_requests, notes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     car_id,
-                    driver_id || null,
                     vendor_id,
-                    customer_name,
-                    customer_email || null,
-                    customer_phone,
-                    pickup_date,
-                    dropoff_date,
-                    pickup_location || null,
-                    dropoff_location || null,
+                    customer.first_name || customer.firstName || '',
+                    customer.email || '',
+                    customer.phone || '',
+                    rental.pickup_date || null,
+                    rental.pickup_time || null,
+                    rental.return_date || null,
+                    rental.return_time || null,
+                    rental.pickup_location || null,
+                    rental.dropoff_location || null,
+                    driver_option,
                     total_amount,
                     deposit_amount,
                     payment_status,
                     booking_status,
-                    special_requests || null,
-                    notes || null
+                    special_requests,
+                    notes
                 ]
             );
 
@@ -191,42 +199,86 @@ class BookingsService {
     async updateBooking(bookingId, bookingData) {
         try {
             await this.ensureBookingsTable();
-            const {
-                car_id,
-                driver_id,
-                customer_name,
-                customer_email,
-                customer_phone,
-                pickup_date,
-                dropoff_date,
-                pickup_location,
-                dropoff_location,
-                total_amount,
-                deposit_amount,
-                payment_status,
-                booking_status,
-                special_requests,
-                notes
-            } = bookingData;
-
+            
+            // Handle both old and new structure
+            const customer = bookingData.customer || {};
+            const rental = bookingData.rental || {};
+            
             const updateFields = [];
             const updateValues = [];
 
-            if (car_id !== undefined) { updateFields.push('car_id = ?'); updateValues.push(car_id); }
-            if (driver_id !== undefined) { updateFields.push('driver_id = ?'); updateValues.push(driver_id); }
-            if (customer_name !== undefined) { updateFields.push('customer_name = ?'); updateValues.push(customer_name); }
-            if (customer_email !== undefined) { updateFields.push('customer_email = ?'); updateValues.push(customer_email); }
-            if (customer_phone !== undefined) { updateFields.push('customer_phone = ?'); updateValues.push(customer_phone); }
-            if (pickup_date !== undefined) { updateFields.push('pickup_date = ?'); updateValues.push(pickup_date); }
-            if (dropoff_date !== undefined) { updateFields.push('dropoff_date = ?'); updateValues.push(dropoff_date); }
-            if (pickup_location !== undefined) { updateFields.push('pickup_location = ?'); updateValues.push(pickup_location); }
-            if (dropoff_location !== undefined) { updateFields.push('dropoff_location = ?'); updateValues.push(dropoff_location); }
-            if (total_amount !== undefined) { updateFields.push('total_amount = ?'); updateValues.push(total_amount); }
-            if (deposit_amount !== undefined) { updateFields.push('deposit_amount = ?'); updateValues.push(deposit_amount); }
-            if (payment_status !== undefined) { updateFields.push('payment_status = ?'); updateValues.push(payment_status); }
-            if (booking_status !== undefined) { updateFields.push('booking_status = ?'); updateValues.push(booking_status); }
-            if (special_requests !== undefined) { updateFields.push('special_requests = ?'); updateValues.push(special_requests); }
-            if (notes !== undefined) { updateFields.push('notes = ?'); updateValues.push(notes); }
+            if (bookingData.car_id !== undefined) { 
+                updateFields.push('car_id = ?'); 
+                updateValues.push(bookingData.car_id); 
+            }
+            if (bookingData.vendor_id !== undefined) { 
+                updateFields.push('vendor_id = ?'); 
+                updateValues.push(bookingData.vendor_id); 
+            }
+            if (customer.first_name !== undefined || customer.firstName !== undefined) { 
+                updateFields.push('customer_first_name = ?'); 
+                updateValues.push(customer.first_name || customer.firstName); 
+            }
+            if (customer.email !== undefined) { 
+                updateFields.push('customer_email = ?'); 
+                updateValues.push(customer.email); 
+            }
+            if (customer.phone !== undefined) { 
+                updateFields.push('customer_phone = ?'); 
+                updateValues.push(customer.phone); 
+            }
+            if (rental.pickup_date !== undefined) { 
+                updateFields.push('pickup_date = ?'); 
+                updateValues.push(rental.pickup_date); 
+            }
+            if (rental.pickup_time !== undefined) { 
+                updateFields.push('pickup_time = ?'); 
+                updateValues.push(rental.pickup_time); 
+            }
+            if (rental.return_date !== undefined) { 
+                updateFields.push('return_date = ?'); 
+                updateValues.push(rental.return_date); 
+            }
+            if (rental.return_time !== undefined) { 
+                updateFields.push('return_time = ?'); 
+                updateValues.push(rental.return_time); 
+            }
+            if (rental.pickup_location !== undefined) { 
+                updateFields.push('pickup_location = ?'); 
+                updateValues.push(rental.pickup_location); 
+            }
+            if (rental.dropoff_location !== undefined) { 
+                updateFields.push('dropoff_location = ?'); 
+                updateValues.push(rental.dropoff_location); 
+            }
+            if (bookingData.driver_option !== undefined) { 
+                updateFields.push('driver_option = ?'); 
+                updateValues.push(bookingData.driver_option); 
+            }
+            if (bookingData.total_amount !== undefined) { 
+                updateFields.push('total_amount = ?'); 
+                updateValues.push(bookingData.total_amount); 
+            }
+            if (bookingData.deposit_amount !== undefined) { 
+                updateFields.push('deposit_amount = ?'); 
+                updateValues.push(bookingData.deposit_amount); 
+            }
+            if (bookingData.payment_status !== undefined) { 
+                updateFields.push('payment_status = ?'); 
+                updateValues.push(bookingData.payment_status); 
+            }
+            if (bookingData.booking_status !== undefined) { 
+                updateFields.push('booking_status = ?'); 
+                updateValues.push(bookingData.booking_status); 
+            }
+            if (bookingData.special_requests !== undefined) { 
+                updateFields.push('special_requests = ?'); 
+                updateValues.push(bookingData.special_requests); 
+            }
+            if (bookingData.notes !== undefined) { 
+                updateFields.push('notes = ?'); 
+                updateValues.push(bookingData.notes); 
+            }
 
             if (updateFields.length === 0) {
                 return await this.getBookingById(bookingId);
@@ -294,4 +346,3 @@ class BookingsService {
 }
 
 module.exports = new BookingsService();
-

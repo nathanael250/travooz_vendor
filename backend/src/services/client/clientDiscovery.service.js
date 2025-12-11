@@ -565,38 +565,57 @@ class ClientDiscoveryService {
       // First ensure the table exists
       try {
         await executeQuery(`
-          CREATE TABLE IF NOT EXISTS tour_package_images (
-            image_id INT AUTO_INCREMENT PRIMARY KEY,
+          CREATE TABLE IF NOT EXISTS tours_package_photos (
+            photo_id INT AUTO_INCREMENT PRIMARY KEY,
             package_id INT NOT NULL,
-            image_url VARCHAR(500) NOT NULL,
-            image_name VARCHAR(255) DEFAULT NULL,
-            image_size INT DEFAULT NULL,
-            image_type VARCHAR(100) DEFAULT NULL,
+            photo_url LONGTEXT NOT NULL,
+            photo_name VARCHAR(255) DEFAULT NULL,
+            photo_size INT DEFAULT NULL,
+            photo_type VARCHAR(100) DEFAULT NULL,
             display_order INT DEFAULT 0,
-            is_primary TINYINT(1) DEFAULT 0,
+            is_primary TINYINT(1) DEFAULT '0',
             created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (package_id) REFERENCES tours_packages(package_id) ON DELETE CASCADE,
             INDEX idx_package_id (package_id),
-            INDEX idx_display_order (display_order)
+            INDEX idx_display_order (display_order),
+            INDEX idx_is_primary (is_primary)
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `);
       } catch (error) {
         // Table might already exist, ignore error
-        console.log('Note: tour_package_images table check:', error.message);
+        console.log('Note: tours_package_photos table check:', error.message);
       }
       
       // Fetch all related data for each tour package
       for (const tour of tours) {
         try {
-          // Get images (try both tables)
+          // Get images (try both tables - new table first, then fallback to old table)
           let images = [];
           try {
+            // Try new table first
             const tourImages = await executeQuery(
               `SELECT photo_url FROM tours_package_photos WHERE package_id = ? ORDER BY display_order, is_primary DESC`,
-            [tour.package_id]
-          );
+              [tour.package_id]
+            );
             images = tourImages && tourImages.length > 0 ? tourImages.map(img => img.photo_url) : [];
-        } catch (error) {
-            // Try alternative table name
+            
+            // If no images found in new table, try old table
+            if (images.length === 0) {
+              try {
+                const altImages = await executeQuery(
+                  `SELECT image_url as photo_url FROM tour_package_images WHERE package_id = ? ORDER BY display_order, is_primary DESC`,
+                  [tour.package_id]
+                );
+                images = altImages && altImages.length > 0 ? altImages.map(img => img.photo_url) : [];
+                if (images.length > 0) {
+                  console.log(`📸 Package ${tour.package_id}: Found ${images.length} images in old table (tour_package_images) - consider migrating to tours_package_photos`);
+                }
+              } catch (err) {
+                // Old table might not exist, that's okay
+              }
+            }
+          } catch (error) {
+            // If new table query fails, try old table
             try {
               const altImages = await executeQuery(
                 `SELECT image_url as photo_url FROM tour_package_images WHERE package_id = ? ORDER BY display_order, is_primary DESC`,
@@ -604,7 +623,7 @@ class ClientDiscoveryService {
               );
               images = altImages && altImages.length > 0 ? altImages.map(img => img.photo_url) : [];
             } catch (err) {
-              console.log(`Note: Could not fetch images from either table for package ${tour.package_id}`);
+              console.error(`❌ Package ${tour.package_id}: Could not fetch images from either table:`, err.message);
             }
           }
           tour.images = images;
@@ -778,30 +797,49 @@ class ClientDiscoveryService {
       // Get images - ensure table exists first
       try {
         await executeQuery(`
-          CREATE TABLE IF NOT EXISTS tour_package_images (
-            image_id INT AUTO_INCREMENT PRIMARY KEY,
+          CREATE TABLE IF NOT EXISTS tours_package_photos (
+            photo_id INT AUTO_INCREMENT PRIMARY KEY,
             package_id INT NOT NULL,
-            image_url VARCHAR(500) NOT NULL,
-            image_name VARCHAR(255) DEFAULT NULL,
-            image_size INT DEFAULT NULL,
-            image_type VARCHAR(100) DEFAULT NULL,
+            photo_url LONGTEXT NOT NULL,
+            photo_name VARCHAR(255) DEFAULT NULL,
+            photo_size INT DEFAULT NULL,
+            photo_type VARCHAR(100) DEFAULT NULL,
             display_order INT DEFAULT 0,
-            is_primary TINYINT(1) DEFAULT 0,
+            is_primary TINYINT(1) DEFAULT '0',
             created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (package_id) REFERENCES tours_packages(package_id) ON DELETE CASCADE,
             INDEX idx_package_id (package_id),
-            INDEX idx_display_order (display_order)
+            INDEX idx_display_order (display_order),
+            INDEX idx_is_primary (is_primary)
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `);
       } catch (error) {
         // Table might already exist, ignore error
-        console.log('Note: tour_package_images table check:', error.message);
+        console.log('Note: tours_package_photos table check:', error.message);
       }
       
-      const images = await executeQuery(
-        `SELECT image_url as photo_url FROM tour_package_images WHERE package_id = ? ORDER BY display_order, is_primary DESC`,
-        [tourId]
-      );
-      tour.images = images && images.length > 0 ? images.map(img => img.photo_url) : [];
+      // Try to get images from tours_package_photos first, fallback to tour_package_images for backward compatibility
+      let images = [];
+      try {
+        const tourImages = await executeQuery(
+          `SELECT photo_url FROM tours_package_photos WHERE package_id = ? ORDER BY display_order, is_primary DESC`,
+          [tourId]
+        );
+        images = tourImages && tourImages.length > 0 ? tourImages.map(img => img.photo_url) : [];
+      } catch (error) {
+        // Fallback to old table name for backward compatibility
+        try {
+          const altImages = await executeQuery(
+            `SELECT image_url as photo_url FROM tour_package_images WHERE package_id = ? ORDER BY display_order, is_primary DESC`,
+            [tourId]
+          );
+          images = altImages && altImages.length > 0 ? altImages.map(img => img.photo_url) : [];
+        } catch (err) {
+          console.log(`Note: Could not fetch images from either table for package ${tourId}:`, err.message);
+        }
+      }
+      
+      tour.images = images;
       console.log(`📸 Package ${tourId}: Found ${tour.images.length} images`);
 
       return tour;

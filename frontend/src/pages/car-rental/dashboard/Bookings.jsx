@@ -31,7 +31,7 @@ const Bookings = () => {
 
   const filteredBookings = bookings.filter(booking => {
     const matchesSearch = 
-      booking.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (booking.customer_first_name || booking.customer_name)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.customer_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.customer_phone?.toLowerCase().includes(searchTerm.toLowerCase());
     
@@ -123,7 +123,7 @@ const Bookings = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm">
-                        <div className="font-medium text-gray-900">{booking.customer_name}</div>
+                        <div className="font-medium text-gray-900">{booking.customer_first_name || booking.customer_name}</div>
                         <div className="text-gray-500">{booking.customer_email}</div>
                         <div className="text-gray-500">{booking.customer_phone}</div>
                       </div>
