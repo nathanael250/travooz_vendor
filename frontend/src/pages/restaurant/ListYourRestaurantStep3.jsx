@@ -272,9 +272,19 @@ export default function ListYourRestaurantStep3() {
       const token = result.token || result.data?.token;
       const userCreated = result.userCreated || result.data?.userCreated;
 
+      // Validate required data before proceeding
+      if (!userId) {
+        throw new Error('User ID not received from server. Please try again.');
+      }
+
+      if (!restaurantId) {
+        throw new Error('Restaurant ID not received from server. Please try again.');
+      }
+
       // Store token if user was created
       if (token) {
         localStorage.setItem('token', token);
+        localStorage.setItem('auth_token', token);
       }
 
       // Store user data in localStorage if user was created
@@ -297,19 +307,21 @@ export default function ListYourRestaurantStep3() {
 
       toast.success('Account and restaurant listing created successfully!');
       
-      // Navigate to email verification (after Step 1-3 completion)
-      // Email verification code will be sent automatically when user reaches the verification page
-      navigate('/restaurant/setup/email-verification', {
-        state: {
-          location: location.state?.location || '',
-          locationData: locationData,
-          step2Data: step2Data,
-          userId: userId,
-          email: formData.email,
-          userName: `${formData.firstName} ${formData.lastName}`.trim() || formData.email.split('@')[0],
-          restaurantId: restaurantId
-        }
-      });
+      // Small delay to ensure state is ready, then navigate to email verification
+      setTimeout(() => {
+        navigate('/restaurant/setup/email-verification', {
+          replace: true,
+          state: {
+            location: location.state?.location || '',
+            locationData: locationData,
+            step2Data: step2Data,
+            userId: userId,
+            email: formData.email,
+            userName: `${formData.firstName} ${formData.lastName}`.trim() || formData.email.split('@')[0],
+            restaurantId: restaurantId
+          }
+        });
+      }, 100);
 
       // ACTUAL API CALL - Uncomment when backend is ready
       // // Register as vendor

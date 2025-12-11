@@ -17,6 +17,7 @@ import ClientAccount from './pages/client/ClientAccount';
 import ListYourRestaurant from './pages/restaurant/ListYourRestaurant';
 import ListYourRestaurantStep2 from './pages/restaurant/ListYourRestaurantStep2';
 import ListYourRestaurantStep3 from './pages/restaurant/ListYourRestaurantStep3';
+import RestaurantEmailVerification from './pages/restaurant/EmailVerification';
 import BusinessDetailsStep from './pages/restaurant/BusinessDetailsStep';
 import MediaStep from './pages/restaurant/MediaStep';
 import PaymentsPricingStep from './pages/restaurant/PaymentsPricingStep';
@@ -176,6 +177,9 @@ function App() {
           <Route path="/restaurant/list-your-restaurant" element={<ListYourRestaurant />} />
           <Route path="/restaurant/list-your-restaurant/step-2" element={<ListYourRestaurantStep2 />} />
           <Route path="/restaurant/list-your-restaurant/step-3" element={<ListYourRestaurantStep3 />} />
+          
+          {/* Restaurant Email Verification */}
+          <Route path="/restaurant/setup/email-verification" element={<RestaurantEmailVerification />} />
           
           {/* Restaurant Setup Flow */}
           <Route path="/restaurant/setup/business-details" element={<BusinessDetailsStep />} />
