@@ -189,8 +189,8 @@ const CarRentalDashboardLayout = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header */}
-        <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-4">
+        <header className="bg-white border-b border-gray-200 px-2 sm:px-6 py-2 sm:py-4 flex items-center justify-between gap-1 sm:gap-2 min-w-0 overflow-hidden shadow-sm">
+          <div className="flex items-center gap-1 sm:gap-4 min-w-0 flex-1">
             <button
               onClick={() => {
                 if (!isMobile) {
@@ -200,24 +200,29 @@ const CarRentalDashboardLayout = () => {
                   setSidebarOpen(!sidebarOpen);
                 }
               }}
-              className="p-2 hover:bg-gray-100 rounded-lg"
+              className="p-1 sm:p-2 hover:bg-gray-100 rounded-lg flex-shrink-0"
               title={!isMobile ? (sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar') : 'Toggle sidebar'}
             >
-              <Menu className="h-5 w-5 text-gray-700" />
+              <Menu className="h-4 w-4 sm:h-5 sm:w-5 text-gray-700" />
             </button>
-            <div className="flex items-center gap-2">
-              <Car className="h-6 w-6" style={{ color: '#3CAF54' }} />
-              <span className="text-lg font-semibold text-gray-900">{t('car.dashboard.title')}</span>
+            <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1 overflow-hidden">
+              <Car className="h-4 w-4 sm:h-6 sm:w-6 flex-shrink-0 hidden sm:block" style={{ color: '#3CAF54' }} />
+              <span className="text-[11px] sm:text-lg font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis min-w-0">
+                <span className="sm:hidden">Dashboard</span>
+                <span className="hidden sm:inline">{t('car.dashboard.title')}</span>
+              </span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Bell className="h-5 w-5 cursor-pointer text-gray-600" />
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">0</span>
+          <div className="flex items-center gap-1 sm:gap-4 flex-shrink-0">
+            <div className="relative flex-shrink-0">
+              <Bell className="h-4 w-4 sm:h-5 sm:w-5 cursor-pointer text-gray-600" />
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-3.5 w-3.5 sm:h-5 sm:w-5 flex items-center justify-center text-[8px] sm:text-xs">0</span>
             </div>
-            <LanguageSelector compact={true} />
-            <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center cursor-pointer">
-              <UserIcon className="h-5 w-5 text-gray-600" />
+            <div className="flex-shrink-0">
+              <LanguageSelector compact={true} />
+            </div>
+            <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-gray-200 flex items-center justify-center cursor-pointer flex-shrink-0">
+              <UserIcon className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-gray-600" />
             </div>
           </div>
         </header>

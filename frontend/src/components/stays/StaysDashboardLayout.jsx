@@ -197,8 +197,8 @@ const StaysDashboardLayout = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header */}
-        <header className="bg-gray-800 text-white px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <header className="bg-gray-800 text-white px-2 sm:px-6 py-2 sm:py-4 flex items-center justify-between gap-1 sm:gap-2 min-w-0 overflow-hidden">
+          <div className="flex items-center gap-1 sm:gap-4 min-w-0 flex-1">
             <button
               onClick={() => {
                 if (!isMobile) {
@@ -208,36 +208,38 @@ const StaysDashboardLayout = () => {
                   setSidebarOpen(!sidebarOpen);
                 }
               }}
-              className="p-2 hover:bg-gray-700 rounded-lg"
+              className="p-1 sm:p-2 hover:bg-gray-700 rounded-lg flex-shrink-0"
               title={!isMobile ? (sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar') : 'Toggle sidebar'}
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
             {currentProperty && currentProperty.property_name ? (
-              <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-                <Home className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6 flex-shrink-0" style={{ color: '#3CAF54' }} />
-                <span className="text-sm sm:text-base md:text-lg font-semibold truncate">{currentProperty.property_name}</span>
+              <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1 overflow-hidden">
+                <Home className="h-4 w-4 sm:h-6 sm:w-6 flex-shrink-0 hidden sm:block" style={{ color: '#3CAF54' }} />
+                <span className="text-xs sm:text-lg font-semibold whitespace-nowrap overflow-hidden text-ellipsis min-w-0">{currentProperty.property_name}</span>
               </div>
             ) : properties.length > 0 && properties[0].property_name ? (
-              <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-                <Home className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6 flex-shrink-0" style={{ color: '#3CAF54' }} />
-                <span className="text-sm sm:text-base md:text-lg font-semibold truncate">{properties[0].property_name}</span>
+              <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1 overflow-hidden">
+                <Home className="h-4 w-4 sm:h-6 sm:w-6 flex-shrink-0 hidden sm:block" style={{ color: '#3CAF54' }} />
+                <span className="text-xs sm:text-lg font-semibold whitespace-nowrap overflow-hidden text-ellipsis min-w-0">{properties[0].property_name}</span>
               </div>
             ) : (
-              <div className="flex items-center gap-1 sm:gap-2">
-                <Home className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6 flex-shrink-0" style={{ color: '#3CAF54' }} />
-                <span className="text-sm sm:text-base md:text-lg font-semibold">{t('stays.nav.myProperty')}</span>
+              <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1 overflow-hidden">
+                <Home className="h-4 w-4 sm:h-6 sm:w-6 flex-shrink-0 hidden sm:block" style={{ color: '#3CAF54' }} />
+                <span className="text-xs sm:text-lg font-semibold whitespace-nowrap overflow-hidden text-ellipsis min-w-0">{t('stays.nav.myProperty')}</span>
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2 sm:gap-3 md:gap-4 flex-shrink-0">
-            <div className="relative">
+          <div className="flex items-center gap-1 sm:gap-4 flex-shrink-0">
+            <div className="relative flex-shrink-0">
               <Bell className="h-4 w-4 sm:h-5 sm:w-5 cursor-pointer" />
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] sm:text-xs rounded-full h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center">3</span>
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-3.5 w-3.5 sm:h-5 sm:w-5 flex items-center justify-center text-[8px] sm:text-xs">3</span>
             </div>
-            <LanguageSelector compact={true} isDark={true} />
-            <div className="h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 rounded-full bg-gray-600 flex items-center justify-center cursor-pointer flex-shrink-0">
-              <User className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5" />
+            <div className="flex-shrink-0">
+              <LanguageSelector compact={true} isDark={true} />
+            </div>
+            <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-gray-600 flex items-center justify-center cursor-pointer flex-shrink-0">
+              <User className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
             </div>
           </div>
         </header>
