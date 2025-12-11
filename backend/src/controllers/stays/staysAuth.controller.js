@@ -124,15 +124,15 @@ const requestPasswordReset = async (req, res) => {
         if (result.resetToken && result.user) {
             try {
                 console.log('📧 [Stays] Attempting to send password reset email to:', result.user.email);
-                const resetUrl = `${process.env.FRONTEND_URL || 'https://vendor.travooz.rw'}/stays/reset-password?token=${result.resetToken}`;
+                    const resetUrl = `${process.env.FRONTEND_URL || 'https://vendor.travooz.rw'}/stays/reset-password?token=${result.resetToken}`;
                 
                 // Try to send email directly (sendEmail handles connection internally)
                 const emailResult = await EmailService.sendPasswordResetEmail({
-                    email: result.user.email,
-                    name: result.user.name || 'there',
-                    resetToken: result.resetToken,
-                    resetUrl: resetUrl
-                });
+                        email: result.user.email,
+                        name: result.user.name || 'there',
+                        resetToken: result.resetToken,
+                        resetUrl: resetUrl
+                    });
                 
                 if (emailResult && emailResult.success) {
                     console.log('✅ [Stays] Password reset email sent successfully to:', result.user.email);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Users } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
@@ -10,13 +10,34 @@ export default function CapacityStep() {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const restaurantId = location.state?.restaurantId;
+  // Get restaurantId from multiple sources
+  const restaurantIdFromState = location.state?.restaurantId;
+  const restaurantIdFromStorage = localStorage.getItem('restaurant_id');
+  const progressFromStorage = localStorage.getItem('restaurant_setup_progress');
+  
+  let restaurantId = restaurantIdFromState || restaurantIdFromStorage;
+  if (!restaurantId && progressFromStorage) {
+    try {
+      const progress = JSON.parse(progressFromStorage);
+      restaurantId = progress.restaurant_id;
+    } catch (e) {
+      console.error('Error parsing progress from storage:', e);
+    }
+  }
+
+  // Store restaurantId in localStorage
+  useEffect(() => {
+    if (restaurantId) {
+      localStorage.setItem('restaurant_id', restaurantId);
+    }
+  }, [restaurantId]);
+
   const userId = location.state?.userId;
   const email = location.state?.email;
   const userName = location.state?.userName;
 
   // Enable scrolling for this page
-  React.useEffect(() => {
+  useEffect(() => {
     document.body.classList.add('auth-page');
     return () => {
       document.body.classList.remove('auth-page');
@@ -24,13 +45,42 @@ export default function CapacityStep() {
   }, []);
 
   const [formData, setFormData] = useState({
-    capacity: '',
-    availableSeats: ''
+    capacity: location.state?.capacity || '',
+    availableSeats: location.state?.availableSeats || ''
   });
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [isLoadingProgress, setIsLoadingProgress] = useState(false);
+
+  // Load saved progress data when component mounts
+  useEffect(() => {
+    const loadSavedProgress = async () => {
+      if (!restaurantId) return;
+
+      setIsLoadingProgress(true);
+      try {
+        const progress = await restaurantSetupService.getSetupProgress(restaurantId);
+        
+        if (progress && progress.step_data && progress.step_data.step_7) {
+          const savedStep7Data = progress.step_data.step_7;
+          
+          setFormData(prev => ({
+            ...prev,
+            capacity: savedStep7Data.capacity?.toString() || prev.capacity,
+            availableSeats: savedStep7Data.availableSeats?.toString() || prev.availableSeats
+          }));
+        }
+      } catch (error) {
+        console.log('No saved progress found or error loading:', error);
+      } finally {
+        setIsLoadingProgress(false);
+      }
+    };
+
+    loadSavedProgress();
+  }, [restaurantId]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -112,7 +162,8 @@ export default function CapacityStep() {
         state: {
           ...location.state,
           capacity: formData.capacity,
-          availableSeats: formData.availableSeats
+          availableSeats: formData.availableSeats,
+          restaurantId
         }
       });
     } catch (error) {
@@ -129,8 +180,11 @@ export default function CapacityStep() {
   };
 
   const handleBack = () => {
-    navigate('/restaurant/setup/payments-pricing', {
-      state: location.state
+    navigate('/restaurant/setup/media', {
+      state: {
+        ...location.state,
+        restaurantId: restaurantId // Pass restaurantId when going back
+      }
     });
   };
 
@@ -160,6 +214,10 @@ export default function CapacityStep() {
                 </div>
                 <div className="w-8 sm:w-16 h-0.5 sm:h-1 flex-shrink-0" style={{ backgroundColor: '#3CAF54' }}></div>
                 <div className="w-6 h-6 sm:w-8 sm:h-8 text-white rounded-full flex items-center justify-center text-[10px] sm:text-sm font-semibold shadow-md flex-shrink-0" style={{ backgroundColor: '#3CAF54' }}>
+                  4
+                </div>
+                <div className="w-8 sm:w-16 h-0.5 sm:h-1 flex-shrink-0" style={{ backgroundColor: '#bbf7d0' }}></div>
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-sm font-semibold flex-shrink-0" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
                   5
                 </div>
                 <div className="w-8 sm:w-16 h-0.5 sm:h-1 flex-shrink-0" style={{ backgroundColor: '#bbf7d0' }}></div>
@@ -170,13 +228,9 @@ export default function CapacityStep() {
                 <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-sm font-semibold flex-shrink-0" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
                   7
                 </div>
-                <div className="w-8 sm:w-16 h-0.5 sm:h-1 flex-shrink-0" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-sm font-semibold flex-shrink-0" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  8
-                </div>
               </div>
             </div>
-            <p className="text-center text-xs sm:text-sm font-medium" style={{ color: '#1f6f31' }}>Setup Step 5 of 8</p>
+            <p className="text-center text-xs sm:text-sm font-medium" style={{ color: '#1f6f31' }}>Setup Step 4 of 7</p>
           </div>
 
           {/* Main Content */}
@@ -191,6 +245,20 @@ export default function CapacityStep() {
             <p className="text-gray-600 mb-8">
               Configure your restaurant's seating capacity. This information helps customers book tables for dine-in.
             </p>
+
+            {isLoadingProgress && (
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-600">Loading your saved progress...</p>
+              </div>
+            )}
+
+            {!restaurantId && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">
+                  Restaurant ID is missing. Please go back to the previous step and complete the account creation process.
+                </p>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Total Capacity */}

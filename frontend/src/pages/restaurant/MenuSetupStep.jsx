@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Utensils, Plus, X, Edit2, Trash2, Upload, Image as ImageIcon, Clock, DollarSign, Package, ChefHat } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import { restaurantSetupService } from '../../services/eatingOutService';
+import apiClient from '../../services/apiClient';
 
 export default function MenuSetupStep() {
   const navigate = useNavigate();
@@ -19,8 +20,30 @@ export default function MenuSetupStep() {
   const email = location.state?.email;
   const userName = location.state?.userName;
 
+  // Get restaurantId from multiple sources
+  const restaurantIdFromState = location.state?.restaurantId;
+  const restaurantIdFromStorage = localStorage.getItem('restaurant_id');
+  const progressFromStorage = localStorage.getItem('restaurant_setup_progress');
+  
+  let restaurantId = restaurantIdFromState || restaurantIdFromStorage;
+  if (!restaurantId && progressFromStorage) {
+    try {
+      const progress = JSON.parse(progressFromStorage);
+      restaurantId = progress.restaurant_id;
+    } catch (e) {
+      console.error('Error parsing progress from storage:', e);
+    }
+  }
+
+  // Store restaurantId in localStorage
+  useEffect(() => {
+    if (restaurantId) {
+      localStorage.setItem('restaurant_id', restaurantId);
+    }
+  }, [restaurantId]);
+
   // Enable scrolling for this page
-  React.useEffect(() => {
+  useEffect(() => {
     document.body.classList.add('auth-page');
     return () => {
       document.body.classList.remove('auth-page');
@@ -69,7 +92,122 @@ export default function MenuSetupStep() {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [isLoadingProgress, setIsLoadingProgress] = useState(false);
   const photoInputRef = useRef(null);
+
+  // Load saved progress data when component mounts
+  useEffect(() => {
+    const loadSavedProgress = async () => {
+      if (!restaurantId) return;
+
+      setIsLoadingProgress(true);
+      try {
+        console.log('📋 Loading menu data for restaurant:', restaurantId);
+        
+        // Fetch categories and menu items separately
+        // Note: We don't filter by available=true because we want to show all items during setup
+        const [categoriesRes, menuItemsRes] = await Promise.all([
+          apiClient.get(`/menu-items/categories?restaurant_id=${restaurantId}`).catch((err) => {
+            console.error('❌ Error fetching categories:', err);
+            console.error('Error response:', err.response?.data);
+            return { data: { data: [] } };
+          }),
+          apiClient.get(`/menu-items?restaurant_id=${restaurantId}`).catch((err) => {
+            console.error('❌ Error fetching menu items:', err);
+            console.error('Error response:', err.response?.data);
+            return { data: { data: [] } };
+          })
+        ]);
+
+        const categoriesData = categoriesRes.data?.data || categoriesRes.data || [];
+        const menuItemsData = menuItemsRes.data?.data || menuItemsRes.data || [];
+
+        console.log('📋 Raw categories response:', categoriesRes.data);
+        console.log('📋 Raw menu items response:', menuItemsRes.data);
+        console.log('📋 Loaded categories:', categoriesData);
+        console.log('📋 Loaded menu items:', menuItemsData);
+        console.log('📋 Categories count:', categoriesData.length);
+        console.log('📋 Menu items count:', menuItemsData.length);
+
+        // Load categories
+        if (categoriesData && categoriesData.length > 0) {
+          const categoryNames = categoriesData.map(cat => cat.name || cat);
+          setCategories(categoryNames);
+        }
+        
+        // Load menu items with proper image URLs
+        if (menuItemsData && menuItemsData.length > 0) {
+          const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+          const baseUrl = apiBaseUrl.replace('/api/v1', '');
+          
+          const items = menuItemsData.map(item => {
+            console.log('📋 Processing menu item:', item);
+            
+            // Get image URL - backend returns images array
+            let imageUrl = null;
+            let photoPreview = null;
+            
+            if (item.images && Array.isArray(item.images) && item.images.length > 0) {
+              // Get first image from images array
+              imageUrl = item.images[0].image_url || item.images[0].url || null;
+            } else if (item.image_url) {
+              // Fallback to direct image_url field
+              imageUrl = item.image_url;
+            } else if (item.photo) {
+              // Fallback to photo field
+              imageUrl = item.photo;
+            }
+            
+            // Construct full URL if it's a relative path
+            if (imageUrl) {
+              photoPreview = imageUrl.startsWith('http') 
+                ? imageUrl 
+                : `${baseUrl}${imageUrl}`;
+            }
+
+            // Addons - backend already returns as array
+            const addOns = Array.isArray(item.addOns) ? item.addOns : [];
+
+            // Customizations - backend already returns as array
+            const customizations = Array.isArray(item.customizations) ? item.customizations : [];
+
+            // Category - backend returns as 'category' field (name) or category_id
+            const category = item.category || item.category_name || '';
+
+            const processedItem = {
+              name: item.name || '',
+              description: item.description || '',
+              category: category,
+              price: parseFloat(item.price) || 0,
+              discount: parseFloat(item.discount) || 0,
+              availability: item.availability || (item.available === 1 || item.available === true ? 'available' : 'out_of_stock'),
+              preparationTime: item.preparation_time || item.preparationTime || '',
+              portionSize: item.portion_size || item.portionSize || '',
+              photo: imageUrl, // Keep original URL for reference
+              photoPreview: photoPreview, // Full URL for display
+              addOns: addOns,
+              customizations: customizations
+            };
+            
+            console.log('📋 Processed item:', processedItem);
+            return processedItem;
+          });
+          
+          console.log('📋 All processed menu items:', items);
+          setMenuItems(items);
+        } else {
+          console.log('📋 No menu items found in response');
+        }
+      } catch (error) {
+        console.error('❌ Error loading saved menu:', error);
+        console.error('Error details:', error.response?.data || error.message);
+      } finally {
+        setIsLoadingProgress(false);
+      }
+    };
+
+    loadSavedProgress();
+  }, [restaurantId]);
 
   const portionSizes = [
     { value: '', label: '-- Select Portion Size (Optional) --' },
@@ -324,9 +462,8 @@ export default function MenuSetupStep() {
       return;
     }
 
-    const restaurantId = location.state?.restaurantId;
     if (!restaurantId) {
-      setSubmitError('Restaurant ID is missing. Please go back and try again.');
+      setSubmitError('Restaurant ID is missing. Please go back to the previous step and try again.');
       return;
     }
 
@@ -359,7 +496,16 @@ export default function MenuSetupStep() {
       navigate('/restaurant/setup/review', {
         state: {
           ...location.state,
+          locationData,
+          step2Data,
+          businessDetails,
+          media,
+          paymentsPricing,
+          taxLegal,
           menuSetup: { categories, menuItems },
+          userId,
+          email,
+          userName,
           restaurantId
         }
       });
@@ -374,16 +520,8 @@ export default function MenuSetupStep() {
   const handleBack = () => {
     navigate('/restaurant/setup/tax-legal', {
       state: {
-        location: location.state?.location || '',
-        locationData: locationData,
-        step2Data: step2Data,
-        businessDetails: businessDetails,
-        media: media,
-        paymentsPricing: paymentsPricing,
-        taxLegal: taxLegal,
-        userId,
-        email,
-        userName
+        ...location.state,
+        restaurantId: restaurantId // Pass restaurantId when going back
       }
     });
   };
@@ -430,7 +568,7 @@ export default function MenuSetupStep() {
                 </div>
               </div>
             </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Setup Step 7 of 8</p>
+            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Setup Step 6 of 7</p>
           </div>
 
           {/* Main Content */}
@@ -445,6 +583,26 @@ export default function MenuSetupStep() {
             <p className="text-gray-600 mb-8">
               Create your restaurant menu by adding categories and menu items. You can add add-ons and customization options for each item.
             </p>
+
+            {isLoadingProgress && (
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-600">Loading your saved menu...</p>
+              </div>
+            )}
+
+            {!restaurantId && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">
+                  Restaurant ID is missing. Please go back to the previous step and complete the account creation process.
+                </p>
+              </div>
+            )}
+
+            {submitError && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">{submitError}</p>
+              </div>
+            )}
 
             {/* Tabs */}
             <div className="flex gap-2 mb-6 border-b">

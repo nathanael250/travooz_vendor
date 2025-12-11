@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, Edit, Building2, Camera, DollarSign, FileText, UtensilsCrossed, Percent } from 'lucide-react';
+import { ArrowRight, Edit, Building2, Camera, FileText, UtensilsCrossed, Percent } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 
@@ -20,7 +20,6 @@ export default function ReviewRestaurantStep() {
   const step2Data = location.state?.step2Data || {};
   const businessDetails = location.state?.businessDetails || {};
   const media = location.state?.media || {};
-  const paymentsPricing = location.state?.paymentsPricing || {};
   const taxLegal = location.state?.taxLegal || {};
   const menuSetup = location.state?.menuSetup || {};
   const userId = location.state?.userId;
@@ -31,7 +30,6 @@ export default function ReviewRestaurantStep() {
     const routes = {
       'business-details': '/restaurant/setup/business-details',
       'media': '/restaurant/setup/media',
-      'payments-pricing': '/restaurant/setup/payments-pricing',
       'tax-legal': '/restaurant/setup/tax-legal',
       'menu': '/restaurant/setup/menu'
     };
@@ -51,12 +49,6 @@ export default function ReviewRestaurantStep() {
     });
   };
 
-  const priceRangeLabels = {
-    'budget': 'Budget (Under $10)',
-    'moderate': 'Moderate ($10 - $25)',
-    'upscale': 'Upscale ($25 - $50)',
-    'fine-dining': 'Fine Dining ($50+)'
-  };
 
   const taxTypeLabels = {
     'vat': 'VAT (Value Added Tax)',
@@ -108,7 +100,7 @@ export default function ReviewRestaurantStep() {
                 </div>
               </div>
             </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Setup Step 7 of 8</p>
+            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Setup Step 7 of 7</p>
           </div>
 
           {/* Header */}
@@ -174,28 +166,6 @@ export default function ReviewRestaurantStep() {
             <div className="space-y-2 text-sm text-gray-600">
               <p><span className="font-medium text-gray-900">Logo:</span> {media.logo ? 'Uploaded' : 'Not uploaded'}</p>
               <p><span className="font-medium text-gray-900">Gallery Images:</span> {media.galleryImages?.length || 0} image(s)</p>
-            </div>
-          </div>
-
-          {/* Payments & Pricing Section */}
-          <div className="bg-white rounded-lg shadow-xl p-6 border mb-4" style={{ borderColor: '#dcfce7' }}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <DollarSign className="h-5 w-5 text-[#3CAF54]" />
-                <h2 className="text-xl font-semibold text-gray-900">Payments & Pricing</h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleEdit('payments-pricing')}
-                className="flex items-center gap-2 px-4 py-2 text-[#3CAF54] hover:bg-[#f0fdf4] rounded-lg transition-colors font-medium"
-              >
-                <Edit className="h-4 w-4" />
-                <span>Edit</span>
-              </button>
-            </div>
-            
-            <div className="space-y-2 text-sm text-gray-600">
-              <p><span className="font-medium text-gray-900">Average Price Range:</span> {priceRangeLabels[paymentsPricing.averagePriceRange] || 'Not set'}</p>
             </div>
           </div>
 

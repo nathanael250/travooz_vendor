@@ -219,7 +219,7 @@ const CarRentalDashboardLayout = () => {
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-3.5 w-3.5 sm:h-5 sm:w-5 flex items-center justify-center text-[8px] sm:text-xs">0</span>
             </div>
             <div className="flex-shrink-0">
-              <LanguageSelector compact={true} />
+            <LanguageSelector compact={true} />
             </div>
             <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-gray-200 flex items-center justify-center cursor-pointer flex-shrink-0">
               <UserIcon className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-gray-600" />

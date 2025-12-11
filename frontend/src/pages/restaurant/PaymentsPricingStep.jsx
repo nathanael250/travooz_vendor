@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, CreditCard, DollarSign } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
@@ -17,8 +17,30 @@ export default function PaymentsPricingStep() {
   const email = location.state?.email;
   const userName = location.state?.userName;
 
+  // Get restaurantId from multiple sources
+  const restaurantIdFromState = location.state?.restaurantId;
+  const restaurantIdFromStorage = localStorage.getItem('restaurant_id');
+  const progressFromStorage = localStorage.getItem('restaurant_setup_progress');
+  
+  let restaurantId = restaurantIdFromState || restaurantIdFromStorage;
+  if (!restaurantId && progressFromStorage) {
+    try {
+      const progress = JSON.parse(progressFromStorage);
+      restaurantId = progress.restaurant_id;
+    } catch (e) {
+      console.error('Error parsing progress from storage:', e);
+    }
+  }
+
+  // Store restaurantId in localStorage
+  useEffect(() => {
+    if (restaurantId) {
+      localStorage.setItem('restaurant_id', restaurantId);
+    }
+  }, [restaurantId]);
+
   // Enable scrolling for this page
-  React.useEffect(() => {
+  useEffect(() => {
     document.body.classList.add('auth-page');
     return () => {
       document.body.classList.remove('auth-page');
@@ -26,12 +48,40 @@ export default function PaymentsPricingStep() {
   }, []);
 
   const [formData, setFormData] = useState({
-    averagePriceRange: ''
+    averagePriceRange: location.state?.paymentsPricing?.averagePriceRange || ''
   });
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [isLoadingProgress, setIsLoadingProgress] = useState(false);
+
+  // Load saved progress data when component mounts
+  useEffect(() => {
+    const loadSavedProgress = async () => {
+      if (!restaurantId) return;
+
+      setIsLoadingProgress(true);
+      try {
+        const progress = await restaurantSetupService.getSetupProgress(restaurantId);
+        
+        if (progress && progress.step_data && progress.step_data.step_6) {
+          const savedStep6Data = progress.step_data.step_6;
+          
+          setFormData(prev => ({
+            ...prev,
+            averagePriceRange: savedStep6Data.averagePriceRange || prev.averagePriceRange
+          }));
+        }
+      } catch (error) {
+        console.log('No saved progress found or error loading:', error);
+      } finally {
+        setIsLoadingProgress(false);
+      }
+    };
+
+    loadSavedProgress();
+  }, [restaurantId]);
 
   const priceRanges = [
     { value: '', label: '-- Select Price Range --' },
@@ -72,9 +122,8 @@ export default function PaymentsPricingStep() {
       return;
     }
 
-    const restaurantId = location.state?.restaurantId;
     if (!restaurantId) {
-      setSubmitError('Restaurant ID is missing. Please go back and try again.');
+      setSubmitError('Restaurant ID is missing. Please go back to the previous step and try again.');
       return;
     }
 
@@ -89,7 +138,14 @@ export default function PaymentsPricingStep() {
       navigate('/restaurant/setup/capacity', {
         state: {
           ...location.state,
+          locationData,
+          step2Data,
+          businessDetails,
+          media,
           paymentsPricing: formData,
+          userId,
+          email,
+          userName,
           restaurantId
         }
       });
@@ -111,7 +167,8 @@ export default function PaymentsPricingStep() {
         media: media,
         userId,
         email,
-        userName
+        userName,
+        restaurantId: restaurantId // Pass restaurantId when going back
       }
     });
   };
@@ -173,6 +230,20 @@ export default function PaymentsPricingStep() {
             <p className="text-gray-600 mb-8">
               Set your pricing information for customers.
             </p>
+
+            {isLoadingProgress && (
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-600">Loading your saved progress...</p>
+              </div>
+            )}
+
+            {!restaurantId && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">
+                  Restaurant ID is missing. Please go back to the previous step and complete the account creation process.
+                </p>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Average Price Range */}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Building2, FileText, Phone, Mail, Globe, Clock, FileEdit } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
@@ -15,8 +15,31 @@ export default function BusinessDetailsStep() {
   const email = location.state?.email;
   const userName = location.state?.userName;
 
+  // Get restaurantId from state, localStorage, or progress
+  const restaurantIdFromState = location.state?.restaurantId;
+  const restaurantIdFromStorage = localStorage.getItem('restaurant_id');
+  const progressFromStorage = localStorage.getItem('restaurant_setup_progress');
+  
+  // Determine restaurantId - prioritize state, then storage, then progress
+  let restaurantId = restaurantIdFromState || restaurantIdFromStorage;
+  if (!restaurantId && progressFromStorage) {
+    try {
+      const progress = JSON.parse(progressFromStorage);
+      restaurantId = progress.restaurant_id;
+    } catch (e) {
+      console.error('Error parsing progress from storage:', e);
+    }
+  }
+
+  // Store restaurantId in localStorage if we have it
+  useEffect(() => {
+    if (restaurantId) {
+      localStorage.setItem('restaurant_id', restaurantId);
+    }
+  }, [restaurantId]);
+
   // Enable scrolling for this page
-  React.useEffect(() => {
+  useEffect(() => {
     document.body.classList.add('auth-page');
     return () => {
       document.body.classList.remove('auth-page');
@@ -39,6 +62,46 @@ export default function BusinessDetailsStep() {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [isLoadingProgress, setIsLoadingProgress] = useState(false);
+
+  // Load saved progress data when component mounts
+  useEffect(() => {
+    const loadSavedProgress = async () => {
+      if (!restaurantId) return;
+
+      setIsLoadingProgress(true);
+      try {
+        // Try to get progress from API
+        const progress = await restaurantSetupService.getSetupProgress(restaurantId);
+        
+        if (progress && progress.step_data && progress.step_data.step_4) {
+          const savedStep4Data = progress.step_data.step_4;
+          
+          // Restore form data from saved progress
+          setFormData(prev => ({
+            ...prev,
+            restaurantName: savedStep4Data.restaurantName || prev.restaurantName,
+            businessRegistrationNumber: savedStep4Data.businessRegistrationNumber || prev.businessRegistrationNumber,
+            contactNumber: savedStep4Data.contactNumber || prev.contactNumber,
+            emailAddress: savedStep4Data.emailAddress || prev.emailAddress,
+            website: savedStep4Data.website || prev.website,
+            socialMediaLinks: savedStep4Data.socialMediaLinks || prev.socialMediaLinks,
+            is24Hours: savedStep4Data.is24Hours || prev.is24Hours,
+            openingTime: savedStep4Data.openingTime || prev.openingTime,
+            closingTime: savedStep4Data.closingTime || prev.closingTime,
+            shortDescription: savedStep4Data.shortDescription || prev.shortDescription,
+          }));
+        }
+      } catch (error) {
+        console.log('No saved progress found or error loading:', error);
+        // Not an error - user might be filling this step for the first time
+      } finally {
+        setIsLoadingProgress(false);
+      }
+    };
+
+    loadSavedProgress();
+  }, [restaurantId]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -81,9 +144,9 @@ export default function BusinessDetailsStep() {
       return;
     }
 
-    const restaurantId = location.state?.restaurantId;
+    // Use the restaurantId we determined earlier
     if (!restaurantId) {
-      setSubmitError('Restaurant ID is missing. Please go back and try again.');
+      setSubmitError('Restaurant ID is missing. Please go back to the previous step and try again.');
       return;
     }
 
@@ -98,6 +161,11 @@ export default function BusinessDetailsStep() {
       navigate('/restaurant/setup/media', {
         state: {
           ...location.state,
+          locationData,
+          step2Data,
+          userId,
+          email,
+          userName,
           businessDetails: formData,
           restaurantId
         }
@@ -115,7 +183,11 @@ export default function BusinessDetailsStep() {
       state: {
         location: location.state?.location || '',
         locationData: locationData,
-        step2Data: step2Data
+        step2Data: step2Data,
+        restaurantId: restaurantId, // Pass restaurantId when going back
+        userId: userId,
+        email: email,
+        userName: userName
       }
     });
   };
@@ -173,6 +245,20 @@ export default function BusinessDetailsStep() {
             <p className="text-gray-600 mb-8">
               Please provide your restaurant's business information.
             </p>
+
+            {isLoadingProgress && (
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-600">Loading your saved progress...</p>
+              </div>
+            )}
+
+            {!restaurantId && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">
+                  Restaurant ID is missing. Please go back to the previous step and complete the account creation process.
+                </p>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Restaurant Name */}
@@ -272,44 +358,6 @@ export default function BusinessDetailsStep() {
                   {errors.emailAddress && (
                     <p className="mt-1 text-sm text-red-600">{errors.emailAddress}</p>
                   )}
-                </div>
-              </div>
-
-              {/* Website and Social Media */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="website" className="block text-sm font-medium text-gray-700 mb-2">
-                    Website
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Globe className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                      type="url"
-                      id="website"
-                      name="website"
-                      value={formData.website}
-                      onChange={handleChange}
-                      placeholder="https://www.example.com"
-                      className="w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="socialMediaLinks" className="block text-sm font-medium text-gray-700 mb-2">
-                    Social Media Links
-                  </label>
-                  <input
-                    type="text"
-                    id="socialMediaLinks"
-                    name="socialMediaLinks"
-                    value={formData.socialMediaLinks}
-                    onChange={handleChange}
-                    placeholder="Facebook, Instagram, Twitter links"
-                    className="w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
-                  />
                 </div>
               </div>
 

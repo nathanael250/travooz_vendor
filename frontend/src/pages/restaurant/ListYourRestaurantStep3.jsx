@@ -170,6 +170,11 @@ export default function ListYourRestaurantStep3() {
 
         const restaurantId = result.restaurantId || result.data?.restaurantId;
 
+        // Store restaurantId in localStorage for persistence
+        if (restaurantId) {
+          localStorage.setItem('restaurant_id', restaurantId);
+        }
+
         // Navigate to business details step
         navigate('/restaurant/setup/business-details', {
           state: {
@@ -283,6 +288,11 @@ export default function ListYourRestaurantStep3() {
         };
         localStorage.setItem('user', JSON.stringify(userData));
         setUser(userData);
+      }
+
+      // Store restaurantId in localStorage for persistence
+      if (restaurantId) {
+        localStorage.setItem('restaurant_id', restaurantId);
       }
 
       toast.success('Account and restaurant listing created successfully!');

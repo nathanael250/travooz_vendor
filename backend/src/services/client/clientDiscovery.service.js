@@ -592,10 +592,10 @@ class ClientDiscoveryService {
           try {
             const tourImages = await executeQuery(
               `SELECT photo_url FROM tours_package_photos WHERE package_id = ? ORDER BY display_order, is_primary DESC`,
-              [tour.package_id]
-            );
+            [tour.package_id]
+          );
             images = tourImages && tourImages.length > 0 ? tourImages.map(img => img.photo_url) : [];
-          } catch (error) {
+        } catch (error) {
             // Try alternative table name
             try {
               const altImages = await executeQuery(

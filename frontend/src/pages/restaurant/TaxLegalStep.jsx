@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, FileText, Building2, Percent, Upload, X } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
@@ -18,8 +18,30 @@ export default function TaxLegalStep() {
   const email = location.state?.email;
   const userName = location.state?.userName;
 
+  // Get restaurantId from multiple sources
+  const restaurantIdFromState = location.state?.restaurantId;
+  const restaurantIdFromStorage = localStorage.getItem('restaurant_id');
+  const progressFromStorage = localStorage.getItem('restaurant_setup_progress');
+  
+  let restaurantId = restaurantIdFromState || restaurantIdFromStorage;
+  if (!restaurantId && progressFromStorage) {
+    try {
+      const progress = JSON.parse(progressFromStorage);
+      restaurantId = progress.restaurant_id;
+    } catch (e) {
+      console.error('Error parsing progress from storage:', e);
+    }
+  }
+
+  // Store restaurantId in localStorage
+  useEffect(() => {
+    if (restaurantId) {
+      localStorage.setItem('restaurant_id', restaurantId);
+    }
+  }, [restaurantId]);
+
   // Enable scrolling for this page
-  React.useEffect(() => {
+  useEffect(() => {
     document.body.classList.add('auth-page');
     return () => {
       document.body.classList.remove('auth-page');
@@ -29,7 +51,6 @@ export default function TaxLegalStep() {
   const [formData, setFormData] = useState({
     taxIdentificationNumber: '',
     registeredBusinessName: '',
-    businessLicenseNumber: '',
     businessLicenseFile: null,
     businessLicensePreview: null,
     taxRegistrationCertificateFile: null,
@@ -42,6 +63,38 @@ export default function TaxLegalStep() {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [isLoadingProgress, setIsLoadingProgress] = useState(false);
+
+  // Load saved progress data when component mounts
+  useEffect(() => {
+    const loadSavedProgress = async () => {
+      if (!restaurantId) return;
+
+      setIsLoadingProgress(true);
+      try {
+        const progress = await restaurantSetupService.getSetupProgress(restaurantId);
+        
+        if (progress && progress.step_data && progress.step_data.step_8) {
+          const savedStep8Data = progress.step_data.step_8;
+          
+          setFormData(prev => ({
+            ...prev,
+            taxIdentificationNumber: savedStep8Data.taxIdentificationNumber || prev.taxIdentificationNumber,
+            registeredBusinessName: savedStep8Data.registeredBusinessName || prev.registeredBusinessName,
+            vatTaxRate: savedStep8Data.vatTaxRate || prev.vatTaxRate,
+            pricesVatInclusive: savedStep8Data.pricesVatInclusive || prev.pricesVatInclusive,
+            taxType: savedStep8Data.taxType || prev.taxType
+          }));
+        }
+      } catch (error) {
+        console.log('No saved progress found or error loading:', error);
+      } finally {
+        setIsLoadingProgress(false);
+      }
+    };
+
+    loadSavedProgress();
+  }, [restaurantId]);
 
   const businessLicenseInputRef = useRef(null);
   const taxCertificateInputRef = useRef(null);
@@ -49,7 +102,6 @@ export default function TaxLegalStep() {
   const taxTypes = [
     { value: '', label: '-- Select Tax Type --' },
     { value: 'vat', label: 'VAT (Value Added Tax)' },
-    { value: 'gst', label: 'GST (Goods and Services Tax)' },
     { value: 'none', label: 'None' }
   ];
 
@@ -150,10 +202,6 @@ export default function TaxLegalStep() {
       newErrors.registeredBusinessName = 'Registered business name is required';
     }
     
-    if (!formData.businessLicenseNumber.trim()) {
-      newErrors.businessLicenseNumber = 'Business license number is required';
-    }
-    
     if (!formData.businessLicenseFile) {
       newErrors.businessLicenseFile = 'Please upload business license';
     }
@@ -181,9 +229,8 @@ export default function TaxLegalStep() {
       return;
     }
 
-    const restaurantId = location.state?.restaurantId;
     if (!restaurantId) {
-      setSubmitError('Restaurant ID is missing. Please go back and try again.');
+      setSubmitError('Restaurant ID is missing. Please go back to the previous step and try again.');
       return;
     }
 
@@ -198,7 +245,15 @@ export default function TaxLegalStep() {
       navigate('/restaurant/setup/menu', {
         state: {
           ...location.state,
+          locationData,
+          step2Data,
+          businessDetails,
+          media,
+          paymentsPricing,
           taxLegal: formData,
+          userId,
+          email,
+          userName,
           restaurantId
         }
       });
@@ -211,17 +266,10 @@ export default function TaxLegalStep() {
   };
 
   const handleBack = () => {
-    navigate('/restaurant/setup/payments-pricing', {
+    navigate('/restaurant/setup/capacity', {
       state: {
-        location: location.state?.location || '',
-        locationData: locationData,
-        step2Data: step2Data,
-        businessDetails: businessDetails,
-        media: media,
-        paymentsPricing: paymentsPricing,
-        userId,
-        email,
-        userName
+        ...location.state,
+        restaurantId: restaurantId // Pass restaurantId when going back
       }
     });
   };
@@ -268,7 +316,7 @@ export default function TaxLegalStep() {
                 </div>
               </div>
             </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Setup Step 6 of 8</p>
+            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Setup Step 5 of 7</p>
           </div>
 
           {/* Main Content */}
@@ -283,6 +331,20 @@ export default function TaxLegalStep() {
             <p className="text-gray-600 mb-8">
               Please provide your restaurant's tax and legal documentation for verification.
             </p>
+
+            {isLoadingProgress && (
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-600">Loading your saved progress...</p>
+              </div>
+            )}
+
+            {!restaurantId && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">
+                  Restaurant ID is missing. Please go back to the previous step and complete the account creation process.
+                </p>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Tax Information Section */}
@@ -431,27 +493,6 @@ export default function TaxLegalStep() {
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">Business License</h2>
                 
                 <div className="space-y-4">
-                  {/* Business License Number */}
-                  <div>
-                    <label htmlFor="businessLicenseNumber" className="block text-sm font-medium text-gray-700 mb-2">
-                      Business License Number *
-                    </label>
-                    <input
-                      type="text"
-                      id="businessLicenseNumber"
-                      name="businessLicenseNumber"
-                      value={formData.businessLicenseNumber}
-                      onChange={handleChange}
-                      placeholder="Enter business license number"
-                      className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
-                        errors.businessLicenseNumber ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
-                      }`}
-                    />
-                    {errors.businessLicenseNumber && (
-                      <p className="mt-1 text-sm text-red-600">{errors.businessLicenseNumber}</p>
-                    )}
-                  </div>
-
                   {/* Business License Upload */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">

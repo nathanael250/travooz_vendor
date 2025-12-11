@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Upload, X, Image as ImageIcon, Camera } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
@@ -16,8 +16,30 @@ export default function MediaStep() {
   const email = location.state?.email;
   const userName = location.state?.userName;
 
+  // Get restaurantId from multiple sources
+  const restaurantIdFromState = location.state?.restaurantId;
+  const restaurantIdFromStorage = localStorage.getItem('restaurant_id');
+  const progressFromStorage = localStorage.getItem('restaurant_setup_progress');
+  
+  let restaurantId = restaurantIdFromState || restaurantIdFromStorage;
+  if (!restaurantId && progressFromStorage) {
+    try {
+      const progress = JSON.parse(progressFromStorage);
+      restaurantId = progress.restaurant_id;
+    } catch (e) {
+      console.error('Error parsing progress from storage:', e);
+    }
+  }
+
+  // Store restaurantId in localStorage
+  useEffect(() => {
+    if (restaurantId) {
+      localStorage.setItem('restaurant_id', restaurantId);
+    }
+  }, [restaurantId]);
+
   // Enable scrolling for this page
-  React.useEffect(() => {
+  useEffect(() => {
     document.body.classList.add('auth-page');
     return () => {
       document.body.classList.remove('auth-page');
@@ -34,6 +56,84 @@ export default function MediaStep() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [isLoadingProgress, setIsLoadingProgress] = useState(false);
+
+  // Load saved images from restaurant (if already uploaded)
+  useEffect(() => {
+    const loadSavedMedia = async () => {
+      if (!restaurantId) return;
+
+      setIsLoadingProgress(true);
+      try {
+        // Get restaurant data which includes images
+        const restaurant = await restaurantSetupService.getRestaurant(restaurantId);
+        
+        console.log('📸 Loaded restaurant data:', restaurant);
+        console.log('📸 Restaurant images:', restaurant?.images);
+        
+        if (restaurant && restaurant.images && Array.isArray(restaurant.images)) {
+          // Handle both possible image structures: {image_url} or {url}
+          // Separate logo from gallery images
+          // Logo: image_type = 'logo' OR is_primary = 1
+          // Gallery: image_type = 'gallery' OR (not logo and not primary)
+          const logoImage = restaurant.images.find(img => 
+            img.image_type === 'logo' || 
+            img.is_primary === 1 || 
+            img.is_primary === true ||
+            (img.entity_type === 'logo')
+          );
+          
+          const galleryImagesList = restaurant.images.filter(img => 
+            (img.image_type === 'gallery') || 
+            (img.image_type !== 'logo' && 
+             img.is_primary !== 1 && 
+             img.is_primary !== true &&
+             img.entity_type !== 'logo')
+          );
+
+          console.log('📸 Logo image found:', logoImage);
+          console.log('📸 Gallery images found:', galleryImagesList);
+
+          // Get image URL - try both image_url and url fields
+          if (logoImage) {
+            const logoUrl = logoImage.image_url || logoImage.url || logoImage.imageUrl;
+            if (logoUrl) {
+              // Construct full URL if it's a relative path
+              const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+              const fullUrl = logoUrl.startsWith('http') 
+                ? logoUrl 
+                : `${apiBaseUrl.replace('/api/v1', '')}${logoUrl}`;
+              console.log('📸 Setting logo preview:', fullUrl);
+              setLogoPreview(fullUrl);
+            }
+          }
+
+          if (galleryImagesList.length > 0) {
+            const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+            const previews = galleryImagesList
+              .map(img => img.image_url || img.url || img.imageUrl)
+              .filter(Boolean)
+              .map(url => {
+                if (url.startsWith('http')) {
+                  return url;
+                }
+                // Remove /api/v1 from base URL for image paths
+                return `${apiBaseUrl.replace('/api/v1', '')}${url}`;
+              });
+            console.log('📸 Setting gallery previews:', previews);
+            setGalleryPreviews(previews);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error loading saved media:', error);
+        console.error('Error details:', error.response?.data || error.message);
+      } finally {
+        setIsLoadingProgress(false);
+      }
+    };
+
+    loadSavedMedia();
+  }, [restaurantId]);
 
   const handleLogoChange = (e) => {
     const file = e.target.files[0];
@@ -103,10 +203,21 @@ export default function MediaStep() {
       return;
     }
 
-    const restaurantId = location.state?.restaurantId;
     if (!restaurantId) {
-      setSubmitError('Restaurant ID is missing. Please go back and try again.');
+      setSubmitError('Restaurant ID is missing. Please go back to the previous step and try again.');
       return;
+    }
+
+    // Save progress before submitting (for data persistence)
+    try {
+      await restaurantSetupService.saveStepData(restaurantId, 5, {
+        hasLogo: !!logo,
+        hasGalleryImages: galleryImages.length > 0,
+        galleryImageCount: galleryImages.length
+      });
+    } catch (progressError) {
+      console.log('Progress save warning (non-blocking):', progressError);
+      // Don't block submission if progress save fails
     }
 
     setIsSubmitting(true);
@@ -119,14 +230,20 @@ export default function MediaStep() {
         galleryImages
       });
 
-      // Navigate to next setup step (Payments & Pricing)
-      navigate('/restaurant/setup/payments-pricing', {
+      // Navigate to next setup step (Capacity)
+      navigate('/restaurant/setup/capacity', {
         state: {
           ...location.state,
+          locationData,
+          step2Data,
+          businessDetails,
           media: {
             logo,
             galleryImages
           },
+          userId,
+          email,
+          userName,
           restaurantId
         }
       });
@@ -147,7 +264,8 @@ export default function MediaStep() {
         businessDetails: businessDetails,
         userId,
         email,
-        userName
+        userName,
+        restaurantId: restaurantId // Pass restaurantId when going back
       }
     });
   };
@@ -190,7 +308,7 @@ export default function MediaStep() {
                 </div>
               </div>
             </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Setup Step 3 of 8</p>
+            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Setup Step 3 of 7</p>
           </div>
 
           {/* Main Content */}
@@ -205,6 +323,20 @@ export default function MediaStep() {
             <p className="text-gray-600 mb-8">
               Upload your restaurant's logo and gallery images to showcase your establishment.
             </p>
+
+            {isLoadingProgress && (
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-600">Loading your saved images...</p>
+              </div>
+            )}
+
+            {!restaurantId && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">
+                  Restaurant ID is missing. Please go back to the previous step and complete the account creation process.
+                </p>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Restaurant Logo */}

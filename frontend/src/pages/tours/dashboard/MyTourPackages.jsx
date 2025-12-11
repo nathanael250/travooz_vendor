@@ -297,95 +297,95 @@ const MyTourPackages = () => {
 
           {/* Desktop: Table View */}
           <div className="hidden md:block bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Package Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Category
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Duration
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Price
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredPackages.map((pkg) => {
-                    const packageId = pkg.id || pkg.package_id;
-                    const packageName = pkg.title || pkg.name || 'Unnamed Package';
-                    const category = pkg.category || 'N/A';
-                    const duration = pkg.duration_value ? `${pkg.duration_value} ${pkg.duration_type || 'hours'}` : 'N/A';
-                    const priceValue = pkg.price_per_person || pkg.pricePerPerson || pkg.price || pkg.min_price;
-                    const price = priceValue 
-                      ? `${parseFloat(priceValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${pkg.currency || 'RWF'}`
-                      : 'Price not set';
-                    
-                    return (
-                      <tr key={packageId} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{packageName}</div>
-                          {pkg.short_description && (
-                            <div className="text-sm text-gray-500 truncate max-w-xs">
-                              {pkg.short_description}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{category}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{duration}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-semibold text-[#3CAF54]">{price}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {(pkg.status && pkg.status !== 'draft') && getStatusBadge(pkg.status)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => navigate(`/tours/dashboard/packages/${packageId}`)}
-                              className="p-2 text-gray-600 hover:text-[#3CAF54] hover:bg-gray-100 rounded-lg transition-colors"
-                              title="View"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => navigate(`/tours/dashboard/packages/create/${packageId}?businessId=${localStorage.getItem('tour_business_id') || ''}`)}
-                              className="p-2 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors"
-                              title="Edit"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(packageId)}
-                              className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Package Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Category
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Duration
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Price
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredPackages.map((pkg) => {
+                  const packageId = pkg.id || pkg.package_id;
+                  const packageName = pkg.title || pkg.name || 'Unnamed Package';
+                  const category = pkg.category || 'N/A';
+                  const duration = pkg.duration_value ? `${pkg.duration_value} ${pkg.duration_type || 'hours'}` : 'N/A';
+                  const priceValue = pkg.price_per_person || pkg.pricePerPerson || pkg.price || pkg.min_price;
+                  const price = priceValue 
+                    ? `${parseFloat(priceValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${pkg.currency || 'RWF'}`
+                    : 'Price not set';
+                  
+                  return (
+                    <tr key={packageId} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{packageName}</div>
+                        {pkg.short_description && (
+                          <div className="text-sm text-gray-500 truncate max-w-xs">
+                            {pkg.short_description}
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{category}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{duration}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-semibold text-[#3CAF54]">{price}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {(pkg.status && pkg.status !== 'draft') && getStatusBadge(pkg.status)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => navigate(`/tours/dashboard/packages/${packageId}`)}
+                            className="p-2 text-gray-600 hover:text-[#3CAF54] hover:bg-gray-100 rounded-lg transition-colors"
+                            title="View"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => navigate(`/tours/dashboard/packages/create/${packageId}?businessId=${localStorage.getItem('tour_business_id') || ''}`)}
+                            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(packageId)}
+                            className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
+        </div>
         </>
       )}
     </div>

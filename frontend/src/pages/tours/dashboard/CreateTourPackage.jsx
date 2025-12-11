@@ -3017,15 +3017,15 @@ const CreateTourPackage = () => {
                           continue;
                         }
                         
-                        validFiles.push(file);
+                            validFiles.push(file);
                       }
                       
                       // Update form data with valid files
                       if (validFiles.length > 0) {
-                        setFormData(prev => ({
-                          ...prev,
+                      setFormData(prev => ({
+                        ...prev,
                           photos: [...prev.photos, ...validFiles]
-                        }));
+                      }));
                       }
                       
                       // Show errors if any

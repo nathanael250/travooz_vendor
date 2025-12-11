@@ -492,6 +492,20 @@ router.post('/media', authenticateToken, upload.fields([
       }
     }
 
+    // Save step progress (Step 5 - Media)
+    try {
+      const stepData = {
+        hasLogo: !!(files.logo && files.logo[0]),
+        hasGalleryImages: !!(files.galleryImages && files.galleryImages.length > 0),
+        galleryImageCount: files.galleryImages ? files.galleryImages.length : 0
+      };
+      await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 5, true, stepData);
+      console.log('✅ Step 5 (Media) progress saved');
+    } catch (progressError) {
+      console.error('⚠️ Failed to save step 5 progress:', progressError);
+      // Don't fail the request if progress save fails
+    }
+
     res.json({
       success: true,
       message: 'Media saved successfully',
@@ -543,6 +557,16 @@ router.post('/payments-pricing', authenticateToken, async (req, res) => {
       `UPDATE restaurants SET average_price_range = ? WHERE id = ? AND user_id = ?`,
       [averagePriceRange, restaurantId, userId]
     );
+
+    // Save step progress (Step 6 - Payments & Pricing)
+    try {
+      const stepData = { averagePriceRange };
+      await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 6, true, stepData);
+      console.log('✅ Step 6 (Payments & Pricing) progress saved');
+    } catch (progressError) {
+      console.error('⚠️ Failed to save step 6 progress:', progressError);
+      // Don't fail the request if progress save fails
+    }
 
     res.json({
       success: true,
@@ -625,6 +649,16 @@ router.post('/capacity', authenticateToken, async (req, res) => {
         userId
       ]
     );
+
+    // Save step progress (Step 7 - Capacity)
+    try {
+      const stepData = { capacity: parseInt(capacity), availableSeats: parseInt(availableSeats) };
+      await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 7, true, stepData);
+      console.log('✅ Step 7 (Capacity) progress saved');
+    } catch (progressError) {
+      console.error('⚠️ Failed to save step 7 progress:', progressError);
+      // Don't fail the request if progress save fails
+    }
 
     res.json({
       success: true,
@@ -767,6 +801,25 @@ router.post('/tax-legal', authenticateToken, upload.fields([
           file.mimetype
         ]
       );
+    }
+
+    // Save step progress (Step 8 - Tax & Legal)
+    try {
+      const stepData = {
+        taxIdentificationNumber,
+        registeredBusinessName,
+        businessLicenseNumber,
+        taxType,
+        vatTaxRate: vatTaxRate || null,
+        pricesVatInclusive: pricesVatInclusive || null,
+        hasBusinessLicense: !!(files.businessLicenseFile && files.businessLicenseFile[0]),
+        hasTaxCertificate: !!(files.taxRegistrationCertificateFile && files.taxRegistrationCertificateFile[0])
+      };
+      await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 8, true, stepData);
+      console.log('✅ Step 8 (Tax & Legal) progress saved');
+    } catch (progressError) {
+      console.error('⚠️ Failed to save step 8 progress:', progressError);
+      // Don't fail the request if progress save fails
     }
 
     res.json({
@@ -987,6 +1040,20 @@ router.post('/menu', authenticateToken, upload.any(), async (req, res) => {
       }
     }
 
+    // Save step progress (Step 9 - Menu)
+    try {
+      const stepData = {
+        categoriesCount: categoriesData ? categoriesData.length : 0,
+        menuItemsCount: menuItemsData ? menuItemsData.length : 0,
+        hasMenuItems: !!(menuItemsData && menuItemsData.length > 0)
+      };
+      await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 9, true, stepData);
+      console.log('✅ Step 9 (Menu) progress saved');
+    } catch (progressError) {
+      console.error('⚠️ Failed to save step 9 progress:', progressError);
+      // Don't fail the request if progress save fails
+    }
+
     res.json({
       success: true,
       message: 'Menu setup saved successfully',
@@ -1186,7 +1253,7 @@ router.post('/save-step', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to save step data',
-      error: error.message
+      error: error.message 
     });
   }
 });

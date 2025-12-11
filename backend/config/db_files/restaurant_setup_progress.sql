@@ -4,11 +4,19 @@
 -- This table tracks the progress of restaurant setup flow
 -- Created after Step 3 (Account Creation + Email Verification)
 -- ============================================
+-- 
+-- IMPORTANT: Before running this, check your restaurants table structure:
+-- Run: DESCRIBE restaurants;
+-- 
+-- The restaurant_id column must match the data type and collation of restaurants.id
+-- If restaurants.id is VARCHAR(36), this will work. If it's different, adjust accordingly.
+-- ============================================
 
+-- First, create the table without foreign key constraint
 CREATE TABLE IF NOT EXISTS restaurant_setup_progress (
     progress_id INT AUTO_INCREMENT PRIMARY KEY,
     restaurant_id VARCHAR(36) NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(36) DEFAULT NULL,
     -- Step completion flags (Steps 1-3 are completed together after account creation)
     step_1_3_complete TINYINT(1) DEFAULT '0', -- Location + Basic Info + Account Creation + Email Verification
     step_4_complete TINYINT(1) DEFAULT '0', -- Business Details
@@ -25,10 +33,12 @@ CREATE TABLE IF NOT EXISTS restaurant_setup_progress (
     step_data JSON DEFAULT NULL, -- Stores all form data for each step
     created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
     INDEX idx_user_id (user_id),
     INDEX idx_restaurant_id (restaurant_id),
     INDEX idx_current_step (current_step),
     UNIQUE KEY unique_restaurant (restaurant_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+ALTER TABLE restaurant_setup_progress 
+ADD CONSTRAINT restaurant_setup_progress_ibfk_1 
+FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE;
 
