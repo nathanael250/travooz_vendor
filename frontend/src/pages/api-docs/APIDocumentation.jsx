@@ -1228,7 +1228,7 @@ const APIDocumentation = () => {
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Create Car Rental Booking</h3>
-              <p className="text-gray-600 mb-4">Book a car for rental with pickup and return dates and locations.</p>
+              <p className="text-gray-600 mb-4">Book a car for rental with pickup and return dates, times, and locations. Supports both self-drive and with-driver options. <strong>No authentication required.</strong></p>
               
               <div className="mb-4">
                 <span className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
@@ -1241,15 +1241,21 @@ const APIDocumentation = () => {
                 <CodeBlock
                   id="car-request"
                   code={JSON.stringify({
-                    car_id: 1,
-                    pickup_date: "2024-12-25",
-                    return_date: "2024-12-30",
-                    pickup_location: "Kigali Airport",
-                    return_location: "Kigali Airport",
-                    customer_name: "Alice Brown",
-                    customer_email: "alice@example.com",
-                    customer_phone: "+250788111222",
-                    driver_license_number: "DL123456",
+                    car_id: "CAR-000123",
+                    driver_option: "self-drive",
+                    customer: {
+                      first_name: "Alice",
+                      phone: "+250788111222",
+                      email: "alice@example.com"
+                    },
+                    rental: {
+                      pickup_date: "2024-12-25",
+                      pickup_time: "09:00",
+                      return_date: "2024-12-30",
+                      return_time: "17:00",
+                      pickup_location: "Kigali Airport",
+                      dropoff_location: "Kigali Airport"
+                    },
                     special_requests: "GPS navigation required",
                     payment_method: "card"
                   }, null, 2)}
@@ -1266,11 +1272,24 @@ const APIDocumentation = () => {
                     data: {
                       booking_id: 126,
                       booking_reference: "CAR-1234567890-JKL012MNO",
+                      car_id: "CAR-000123",
+                      customer_first_name: "Alice",
+                      customer_email: "alice@example.com",
+                      customer_phone: "+250788111222",
+                      pickup_date: "2024-12-25",
+                      pickup_time: "09:00",
+                      return_date: "2024-12-30",
+                      return_time: "17:00",
+                      pickup_location: "Kigali Airport",
+                      dropoff_location: "Kigali Airport",
+                      driver_option: "self-drive",
                       total_amount: 300000,
+                      deposit_amount: 0,
                       days: 5,
                       transaction_id: 458,
-                      status: "pending",
-                      payment_status: "pending"
+                      booking_status: "pending",
+                      payment_status: "pending",
+                      special_requests: "GPS navigation required"
                     }
                   }, null, 2)}
                 />
@@ -1279,13 +1298,56 @@ const APIDocumentation = () => {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h4 className="font-semibold text-blue-900 mb-2">Required Fields:</h4>
                 <ul className="list-disc list-inside text-sm text-blue-800 space-y-1">
-                  <li><code>car_id</code> - ID of the car</li>
-                  <li><code>pickup_date</code> - Pickup date (YYYY-MM-DD)</li>
-                  <li><code>return_date</code> - Return date (YYYY-MM-DD)</li>
-                  <li><code>customer_name</code> - Customer full name</li>
-                  <li><code>customer_email</code> - Customer email address</li>
-                  <li><code>customer_phone</code> - Customer phone number</li>
+                  <li><code>car_id</code> - Car ID (string format like "CAR-000123")</li>
+                  <li><code>driver_option</code> - Either <code>"self-drive"</code> or <code>"with-driver"</code></li>
+                  <li><code>customer.first_name</code> - Customer first name</li>
+                  <li><code>customer.phone</code> - Customer phone number (with country code)</li>
+                  <li><code>customer.email</code> - Customer email address (optional)</li>
+                  <li><code>rental.pickup_date</code> - Pickup date (YYYY-MM-DD)</li>
+                  <li><code>rental.pickup_time</code> - Pickup time (HH:MM format, 24-hour)</li>
+                  <li><code>rental.return_date</code> - Return date (YYYY-MM-DD)</li>
+                  <li><code>rental.return_time</code> - Return time (HH:MM format, 24-hour)</li>
+                  <li><code>rental.pickup_location</code> - Pickup location (optional)</li>
+                  <li><code>rental.dropoff_location</code> - Drop-off location (optional)</li>
                 </ul>
+              </div>
+
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-4">
+                <h4 className="font-semibold text-green-900 mb-2">💡 Important Notes:</h4>
+                <ul className="list-disc list-inside text-sm text-green-800 space-y-1">
+                  <li>The booking structure uses nested objects: <code>customer</code> and <code>rental</code></li>
+                  <li><code>driver_option</code> determines if the customer will drive themselves or use a driver</li>
+                  <li>Time fields use 24-hour format (e.g., "09:00" for 9 AM, "17:00" for 5 PM)</li>
+                  <li>Pickup and dropoff locations are optional but recommended</li>
+                  <li>No driver license information is required for bookings</li>
+                  <li>All endpoints are public - no authentication required</li>
+                </ul>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
+                <h4 className="font-semibold text-yellow-900 mb-2">⚠️ Example with Driver:</h4>
+                <CodeBlock
+                  id="car-request-with-driver"
+                  code={JSON.stringify({
+                    car_id: "CAR-000456",
+                    driver_option: "with-driver",
+                    customer: {
+                      first_name: "Bob",
+                      phone: "+250788333444",
+                      email: "bob@example.com"
+                    },
+                    rental: {
+                      pickup_date: "2024-12-25",
+                      pickup_time: "10:00",
+                      return_date: "2024-12-27",
+                      return_time: "18:00",
+                      pickup_location: "Hotel Kigali",
+                      dropoff_location: "Kigali Airport"
+                    },
+                    special_requests: "English speaking driver preferred",
+                    payment_method: "mobile_money"
+                  }, null, 2)}
+                />
               </div>
             </div>
           </div>
