@@ -117,10 +117,10 @@ class RestaurantOrderService {
       throw new Error('Delivery address is required for delivery orders');
     }
 
-    // Verify restaurant exists and is active
+    // Verify restaurant exists and is approved (check for both 'approved' and 'active' for backward compatibility)
     const [restaurants] = await pool.execute(
-      'SELECT * FROM restaurants WHERE id = ? AND status = ?',
-      [restaurant_id, 'active']
+      'SELECT * FROM restaurants WHERE id = ? AND (status = ? OR status = ?)',
+      [restaurant_id, 'approved', 'active']
     );
 
     if (restaurants.length === 0) {

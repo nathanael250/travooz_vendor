@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { restaurantsAPI, ordersAPI } from '../../services/restaurantDashboardService';
-import { Store, DollarSign, TrendingUp, ShoppingBag, Calendar as CalendarIcon } from 'lucide-react';
+import { Store, DollarSign, TrendingUp, ShoppingBag, Calendar as CalendarIcon, Clock, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // Helper function to format date as "MMM dd"
@@ -20,6 +21,7 @@ const formatDateInput = (date) => {
 };
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const [restaurant, setRestaurant] = useState(null);
   const [stats, setStats] = useState({
     totalRevenue: 0,
@@ -36,6 +38,54 @@ const Dashboard = () => {
   useEffect(() => {
     fetchDashboardData();
   }, [dateRange, selectedDate]);
+
+  // Check restaurant approval status on mount
+  useEffect(() => {
+    const checkApprovalStatus = async () => {
+      try {
+        const myRestaurant = await restaurantsAPI.getMyRestaurant();
+        
+        // If restaurant is null and we have restaurant_id in session, it was deleted
+        // getMyRestaurant will handle the logout
+        if (myRestaurant === null && localStorage.getItem('restaurant_id')) {
+          console.log('⚠️ Restaurant was deleted - logout handled by getMyRestaurant');
+          return;
+        }
+        
+        if (myRestaurant) {
+          const restaurantStatus = myRestaurant.status || myRestaurant.data?.status;
+          // Normalize status to lowercase for comparison
+          const normalizedStatus = restaurantStatus ? String(restaurantStatus).toLowerCase() : null;
+          
+          console.log('🔍 Dashboard - Restaurant status check:', {
+            status: restaurantStatus,
+            normalized: normalizedStatus,
+            restaurant: myRestaurant
+          });
+          
+          // If restaurant is not approved, redirect to waiting page
+          if (normalizedStatus && normalizedStatus !== 'approved' && normalizedStatus !== 'active') {
+            console.log('⏳ Restaurant not approved yet (status:', normalizedStatus, '), redirecting to waiting page');
+            navigate('/restaurant/setup/complete', { replace: true });
+            return;
+          } else if (normalizedStatus === 'approved' || normalizedStatus === 'active') {
+            console.log('✅ Restaurant is approved, showing dashboard');
+          }
+        }
+      } catch (error) {
+        // Check if it's a restaurant not found error
+        const { isRestaurantNotFoundError } = await import('../../utils/restaurantAuth');
+        if (isRestaurantNotFoundError(error)) {
+          console.log('⚠️ Restaurant not found error - logout handled');
+          return;
+        }
+        console.error('Error checking restaurant approval status:', error);
+        // Continue - might be in setup process
+      }
+    };
+
+    checkApprovalStatus();
+  }, [navigate]);
 
   const fetchDashboardData = async () => {
     try {
@@ -65,10 +115,46 @@ const Dashboard = () => {
 
       // Get vendor's restaurant (one restaurant per vendor)
       const myRestaurant = await restaurantsAPI.getMyRestaurant();
+      
+      // If restaurant is null and we have restaurant_id in session, it was deleted
+      if (myRestaurant === null && localStorage.getItem('restaurant_id')) {
+        console.log('⚠️ Restaurant was deleted during data fetch - logout handled');
+        return;
+      }
+      
+      // Check status before setting restaurant
+      if (!myRestaurant) {
+        // No restaurant found and no restaurant_id in session - might be new user
+        setRestaurant(null);
+        setLoading(false);
+        return;
+      }
+      
+      if (myRestaurant) {
+        const restaurantStatus = myRestaurant.status || myRestaurant.data?.status;
+        // Normalize status to lowercase for comparison
+        const normalizedStatus = restaurantStatus ? String(restaurantStatus).toLowerCase() : null;
+        
+        console.log('🔍 fetchDashboardData - Restaurant status:', {
+          status: restaurantStatus,
+          normalized: normalizedStatus
+        });
+        
+        // If restaurant is not approved, redirect to waiting page
+        if (normalizedStatus && normalizedStatus !== 'approved' && normalizedStatus !== 'active') {
+          console.log('⏳ Restaurant not approved yet (status:', normalizedStatus, '), redirecting to waiting page');
+          navigate('/restaurant/setup/complete', { replace: true });
+          return;
+        } else if (normalizedStatus === 'approved' || normalizedStatus === 'active') {
+          console.log('✅ Restaurant is approved, loading dashboard data');
+        }
+      }
+      
       setRestaurant(myRestaurant);
 
       if (!myRestaurant) {
-        toast.error('No restaurant found. Please complete your restaurant setup.');
+        // Don't show error toast - just show empty state
+        // The user might be in the middle of setup
         setLoading(false);
         return;
       }
@@ -180,8 +266,43 @@ const Dashboard = () => {
     );
   }
 
+  // Show message if no restaurant found (might be in setup process)
+  if (!restaurant) {
+    return (
+      <div className="p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+          <Store className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Restaurant Found</h2>
+          <p className="text-gray-600 mb-6">
+            Please complete your restaurant setup to access the dashboard.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-4">
+      {/* Waiting for Approval Banner */}
+      {restaurant && restaurant.status && restaurant.status !== 'approved' && restaurant.status !== 'active' && (
+        <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 sm:p-6">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 mt-0.5 sm:mt-1 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base sm:text-lg font-semibold text-blue-900 mb-1.5 sm:mb-2">
+                Waiting for Approval
+              </h3>
+              <p className="text-sm sm:text-base text-blue-800 mb-2 sm:mb-3">
+                Your restaurant is currently under review by our team.
+              </p>
+              <p className="text-xs sm:text-sm text-blue-700">
+                This process typically takes 24-48 hours. You'll be notified once your restaurant is approved and goes live.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-gray-200">
         <div>
@@ -245,9 +366,21 @@ const Dashboard = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-medium text-gray-600">MY RESTAURANT</h3>
-            <Store className="h-4 w-4 text-green-500" />
+            <Store className={`h-4 w-4 ${
+              (restaurant?.status === 'approved' || restaurant?.status === 'active') ? 'text-green-500' : 
+              restaurant?.status === 'pending' ? 'text-blue-500' : 
+              'text-gray-500'
+            }`} />
           </div>
-          <div className="text-xl font-bold text-green-500">{restaurant ? 'Active' : 'Not Set'}</div>
+          <div className={`text-xl font-bold ${
+            (restaurant?.status === 'approved' || restaurant?.status === 'active') ? 'text-green-500' : 
+            restaurant?.status === 'pending' ? 'text-blue-500' : 
+            'text-gray-500'
+          }`}>
+            {(restaurant?.status === 'approved' || restaurant?.status === 'active') ? 'Approved' : 
+             restaurant?.status === 'pending' ? 'Pending' : 
+             restaurant ? 'Inactive' : 'Not Set'}
+          </div>
           <p className="text-xs text-gray-500 mt-1">{restaurant?.name || 'Complete setup to get started'}</p>
         </div>
       </div>

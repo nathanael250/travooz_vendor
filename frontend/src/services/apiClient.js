@@ -129,6 +129,53 @@ apiClient.interceptors.response.use(
   async (error) => {
     const { config, response } = error || {};
     
+    // Check if this is a restaurant-related request
+    const isRestaurantRequest = config?.url?.includes('/restaurant') || 
+                                config?.url?.includes('/eating-out');
+    const currentPath = window.location.pathname;
+    const isRestaurantRoute = currentPath.includes('/restaurant/');
+    
+    // Handle restaurant not found or access denied errors
+    if (isRestaurantRequest || isRestaurantRoute) {
+      const errorMessage = response?.data?.message || 
+                          response?.data?.error || 
+                          error?.message || '';
+      const lowerMessage = errorMessage.toLowerCase();
+      
+      // Check for restaurant not found, access denied, or authentication errors
+      if (response && (
+          response.status === 404 || 
+          response.status === 403 ||
+          response.status === 401 ||
+          lowerMessage.includes('restaurant not found') ||
+          lowerMessage.includes('access denied') ||
+          lowerMessage.includes('access token is required') ||
+          lowerMessage.includes('token is required') ||
+          lowerMessage.includes('authentication required')
+        )) {
+        // Only handle if it's actually a restaurant-related error
+        if (lowerMessage.includes('restaurant') || 
+            lowerMessage.includes('access denied') ||
+            lowerMessage.includes('access token is required') ||
+            lowerMessage.includes('token is required') ||
+            lowerMessage.includes('authentication required') ||
+            response.status === 404 ||
+            (response.status === 401 && isRestaurantRequest)) {
+          console.log('🚪 Restaurant error (not found/access denied/auth error) - logging out');
+          
+          // Import and use the logout handler
+          const { handleRestaurantNotFound } = await import('../utils/restaurantAuth');
+          
+          // Call logout handler - it will redirect, so we don't need to reject
+          handleRestaurantNotFound();
+          
+          // Return a rejected promise to stop further processing
+          // But the redirect will happen, so this is just to prevent error propagation
+          return Promise.reject(new Error('Restaurant access denied - redirecting to login'));
+        }
+      }
+    }
+    
     // Handle 401 - Unauthorized (token expired/invalid)
     // BUT: Don't clear tokens or redirect for login endpoints (they return 401 on invalid credentials)
     const isLoginEndpoint = config?.url?.includes('/auth/login') || 
@@ -138,20 +185,47 @@ apiClient.interceptors.response.use(
                            config?.url?.includes('/client/auth/login');
     
     if (response && response.status === 401 && !isLoginEndpoint) {
+      const errorMessage = response?.data?.message || 
+                          response?.data?.error || 
+                          error?.message || '';
+      const lowerMessage = errorMessage.toLowerCase();
+      
+      // Check if error message indicates token is required/invalid
+      const isTokenError = lowerMessage.includes('access token is required') ||
+                          lowerMessage.includes('token is required') ||
+                          lowerMessage.includes('authentication required') ||
+                          lowerMessage.includes('invalid token') ||
+                          lowerMessage.includes('token expired');
+      
+      // If it's a restaurant route and we have a token error, logout immediately
+      if (isRestaurantRequest && isTokenError) {
+        console.log('🚪 401 with token error on restaurant route - logging out');
+        const { handleRestaurantNotFound } = await import('../utils/restaurantAuth');
+        handleRestaurantNotFound();
+        return Promise.reject(error);
+      }
+      
       // Check if we're on a restaurant route - don't clear tokens for restaurant routes
       // Let the RestaurantDashboardLayout handle the redirect
-      const currentPath = window.location.pathname;
-      const isRestaurantRoute = currentPath.includes('/restaurant/');
       const isStaysRoute = currentPath.includes('/stays/');
       const isTourRoute = currentPath.includes('/tours/');
       const isCarRentalRoute = currentPath.includes('/car-rental/');
       const isClientRoute = currentPath.includes('/client/');
       const isClientRequest = config?.url?.startsWith('/client/');
       
-      // CRITICAL: Don't clear tokens on restaurant routes - let the layout handle auth
-      // This prevents the session from being killed when API calls fail
-      if (isRestaurantRoute) {
-        console.log('401 on restaurant route - preserving tokens, letting layout handle redirect');
+      // For restaurant routes with 401, check if it's a setup page
+      // Setup pages should also logout on 401 to prevent getting stuck
+      const isSetupPage = currentPath.includes('/restaurant/setup/');
+      
+      if (isRestaurantRoute && isSetupPage) {
+        // On setup pages, 401 means token is invalid - logout immediately
+        console.log('🚪 401 on restaurant setup page - logging out');
+        const { handleRestaurantNotFound } = await import('../utils/restaurantAuth');
+        handleRestaurantNotFound();
+        return Promise.reject(error);
+      } else if (isRestaurantRoute && !isSetupPage) {
+        // On dashboard pages, let layout handle it (might be temporary network issue)
+        console.log('401 on restaurant dashboard route - preserving tokens, letting layout handle redirect');
         // Don't clear tokens - let RestaurantDashboardLayout handle authentication
         // Don't redirect here - let the component handle it
       } else if (!isStaysRoute && !isTourRoute && !isCarRentalRoute) {

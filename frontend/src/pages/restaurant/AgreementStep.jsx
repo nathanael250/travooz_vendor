@@ -4,6 +4,7 @@ import { ArrowRight, ArrowLeft, FileText, X, CheckCircle } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import { restaurantSetupService } from '../../services/eatingOutService';
+import SetupProgressIndicator from '../../components/restaurant/SetupProgressIndicator';
 
 export default function AgreementStep() {
   const navigate = useNavigate();
@@ -21,6 +22,27 @@ export default function AgreementStep() {
   const [signatureText, setSignatureText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // Monitor error state and auto-logout on auth errors
+  React.useEffect(() => {
+    if (error) {
+      const lowerError = error.toLowerCase();
+      const isAuthError = lowerError.includes('access token is required') ||
+                         lowerError.includes('token is required') ||
+                         lowerError.includes('authentication required') ||
+                         lowerError.includes('access denied');
+      
+      if (isAuthError) {
+        console.log('🚪 Auth error detected in error state - logging out');
+        // Clear error state first
+        setError('');
+        // Import and call logout handler
+        import('../../utils/restaurantAuth').then(({ handleRestaurantNotFound }) => {
+          handleRestaurantNotFound();
+        });
+      }
+    }
+  }, [error]);
 
   const handleConfirm = () => {
     setShowSignatureModal(true);
@@ -58,6 +80,32 @@ export default function AgreementStep() {
       });
     } catch (err) {
       console.error('Error submitting agreement:', err);
+      
+      // Check if it's an authentication error (401) or access denied
+      const errorMessage = err?.response?.data?.message || 
+                         err?.response?.data?.error || 
+                         err?.message || '';
+      const lowerMessage = errorMessage.toLowerCase();
+      const isAuthError = err?.response?.status === 401 || 
+                         err?.response?.status === 403 ||
+                         lowerMessage.includes('access token is required') ||
+                         lowerMessage.includes('token is required') ||
+                         lowerMessage.includes('authentication required') ||
+                         lowerMessage.includes('access denied');
+      
+      if (isAuthError) {
+        // Authentication error - logout and redirect
+        console.log('🚪 Authentication error in AgreementStep - logging out');
+        setIsSubmitting(false); // Reset submitting state
+        
+        // Import and call logout handler immediately
+        const { handleRestaurantNotFound } = await import('../../utils/restaurantAuth');
+        handleRestaurantNotFound();
+        
+        // Prevent any further execution
+        return;
+      }
+      
       setError(err.message || 'Failed to submit agreement. Please try again.');
       setIsSubmitting(false);
     }
@@ -75,40 +123,7 @@ export default function AgreementStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-3xl w-full mx-auto">
           {/* Progress Indicator */}
-          <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  7
-                </div>
-              </div>
-            </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Setup Step 8 of 8</p>
-          </div>
+          <SetupProgressIndicator currentStep={11} totalSteps={11} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>

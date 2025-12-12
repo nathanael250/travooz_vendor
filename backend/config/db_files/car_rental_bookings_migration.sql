@@ -120,3 +120,4 @@ WHERE return_time IS NULL AND return_date IS NOT NULL;
 SELECT 'Car rental bookings table migration completed successfully!' AS message;
 
 
+

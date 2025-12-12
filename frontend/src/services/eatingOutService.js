@@ -339,4 +339,39 @@ export const restaurantSetupService = {
       throw error.response?.data || error;
     }
   },
+
+  /**
+   * Send email verification code
+   */
+  async sendEmailVerificationCode(userId, email, userName) {
+    try {
+      const response = await apiClient.post('/eating-out/setup/email-verification/send', {
+        userId,
+        email,
+        userName
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error sending email verification code:', error);
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Verify email code
+   */
+  async verifyEmailCode(userId, email, verificationCode, restaurantId) {
+    try {
+      const response = await apiClient.post('/eating-out/setup/email-verification/verify', {
+        userId,
+        email,
+        code: verificationCode, // Backend expects 'code' not 'verificationCode'
+        restaurantId
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error verifying email code:', error);
+      throw error.response?.data || error;
+    }
+  },
 };

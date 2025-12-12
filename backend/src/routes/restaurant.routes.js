@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { authenticateToken } = require('../middlewares/auth.middleware');
 const restaurantSetupProgressService = require('../services/restaurant/restaurantSetupProgress.service');
 const restaurantAuthController = require('../controllers/restaurant/restaurantAuth.controller');
+const restaurantEmailVerificationController = require('../controllers/restaurant/restaurantEmailVerification.controller');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -15,6 +16,10 @@ router.post('/auth/login', restaurantAuthController.login);
 router.get('/auth/profile', authenticateToken, restaurantAuthController.getProfile);
 router.post('/auth/forgot-password', restaurantAuthController.requestPasswordReset);
 router.post('/auth/reset-password', restaurantAuthController.resetPassword);
+
+// Email verification routes (no authentication required)
+router.post('/email-verification/send', restaurantEmailVerificationController.sendVerificationCode);
+router.post('/email-verification/verify', restaurantEmailVerificationController.verifyCode);
 
 const formatUserPhone = (phone, countryCode, defaultCode = '+250') => {
   const raw = (phone || '').toString().replace(/\s+/g, '');
@@ -375,14 +380,25 @@ router.post('/business-details', authenticateToken, async (req, res) => {
       is24Hours,
       openingTime,
       closingTime,
-      shortDescription
+      shortDescription,
+      operatingSchedule
     } = req.body;
-    const userId = req.user.id || req.user.userId || req.user.user_id;
+    let userId = req.user.id || req.user.userId || req.user.user_id;
+    
+    // Convert userId to string for consistency (JWT stores it as string from insertId.toString())
+    userId = userId ? String(userId) : null;
 
     if (!restaurantId) {
       return res.status(400).json({ 
         success: false,
         message: 'Restaurant ID is required' 
+      });
+    }
+
+    if (!userId) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'User ID not found in token' 
       });
     }
 
@@ -448,7 +464,8 @@ router.post('/business-details', authenticateToken, async (req, res) => {
       is24Hours,
       openingTime,
       closingTime,
-      shortDescription
+      shortDescription,
+      operatingSchedule: operatingSchedule || null
     };
     await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 4, true, stepData);
 

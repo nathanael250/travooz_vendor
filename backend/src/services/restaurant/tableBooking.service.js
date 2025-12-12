@@ -49,10 +49,10 @@ class TableBookingService {
   async checkAvailability(restaurantId, bookingDate, bookingTime, numberOfGuests) {
     await this.ensureTableBookingsTable();
 
-    // Get restaurant capacity
+    // Get restaurant capacity (check for both 'approved' and 'active' for backward compatibility)
     const [restaurants] = await pool.execute(
-      'SELECT capacity, available_seats FROM restaurants WHERE id = ? AND status = ?',
-      [restaurantId, 'active']
+      'SELECT capacity, available_seats FROM restaurants WHERE id = ? AND (status = ? OR status = ?)',
+      [restaurantId, 'approved', 'active']
     );
 
     if (restaurants.length === 0) {
@@ -139,10 +139,10 @@ class TableBookingService {
       );
     }
 
-    // Verify restaurant exists and is active
+    // Verify restaurant exists and is approved (check for both 'approved' and 'active' for backward compatibility)
     const [restaurants] = await pool.execute(
-      'SELECT * FROM restaurants WHERE id = ? AND status = ?',
-      [restaurant_id, 'active']
+      'SELECT * FROM restaurants WHERE id = ? AND (status = ? OR status = ?)',
+      [restaurant_id, 'approved', 'active']
     );
 
     if (restaurants.length === 0) {

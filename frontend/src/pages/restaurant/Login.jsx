@@ -107,12 +107,96 @@ export default function RestaurantLogin() {
       // Store user data
       if (result.user) {
         localStorage.setItem('user', JSON.stringify(result.user));
+        
+        // Store restaurant status if available
+        if (result.user.restaurant_status) {
+          localStorage.setItem('restaurant_status', result.user.restaurant_status);
+        }
       }
 
-      toast.success('Login successful!');
-
-      // Redirect to restaurant dashboard
-      navigate('/restaurant/dashboard', { replace: true });
+      // Verify the login was successful before showing success message
+      if (result.token && result.user) {
+        // Check restaurant status and redirect accordingly
+        const restaurantStatus = result.user.restaurant_status;
+        const restaurantId = result.user.restaurant_id;
+        
+        // Store restaurant ID if available
+        if (restaurantId) {
+          localStorage.setItem('restaurant_id', restaurantId);
+        }
+        
+        // Normalize status to lowercase for comparison
+        const normalizedStatus = restaurantStatus ? String(restaurantStatus).toLowerCase() : null;
+        
+        console.log('🔍 Login - Restaurant status check:', {
+          status: restaurantStatus,
+          normalized: normalizedStatus,
+          restaurantId
+        });
+        
+        // Check restaurant status and redirect
+        if (normalizedStatus && normalizedStatus !== 'approved' && normalizedStatus !== 'active') {
+          // Restaurant is pending - redirect to waiting page
+          console.log('⏳ Restaurant is pending, redirecting to waiting page');
+          toast.success('Login successful! Your restaurant is pending approval.');
+          setTimeout(() => {
+            navigate('/restaurant/setup/complete', { replace: true });
+          }, 100);
+        } else if (normalizedStatus === 'approved' || normalizedStatus === 'active') {
+          // Restaurant is approved - go to dashboard
+          console.log('✅ Restaurant is approved, redirecting to dashboard');
+          toast.success('Login successful!');
+          setTimeout(() => {
+            navigate('/restaurant/dashboard', { replace: true });
+          }, 100);
+        } else {
+          // No restaurant yet or status unknown - check if restaurant exists
+          if (restaurantId) {
+            // Has restaurant ID but no status - check restaurant status
+            try {
+              const restaurantsAPI = (await import('../../services/restaurantDashboardService')).restaurantsAPI;
+              const restaurant = await restaurantsAPI.getById(restaurantId);
+              const status = restaurant?.status || restaurant?.data?.status;
+              const normalizedStatusFromAPI = status ? String(status).toLowerCase() : null;
+              
+              console.log('🔍 Login - Fetched restaurant status:', {
+                status,
+                normalized: normalizedStatusFromAPI
+              });
+              
+              if (normalizedStatusFromAPI && normalizedStatusFromAPI !== 'approved' && normalizedStatusFromAPI !== 'active') {
+                console.log('⏳ Restaurant is pending (from API), redirecting to waiting page');
+                toast.success('Login successful! Your restaurant is pending approval.');
+                setTimeout(() => {
+                  navigate('/restaurant/setup/complete', { replace: true });
+                }, 100);
+              } else {
+                console.log('✅ Restaurant is approved or no status (from API), going to dashboard');
+                toast.success('Login successful!');
+                setTimeout(() => {
+                  navigate('/restaurant/dashboard', { replace: true });
+                }, 100);
+              }
+            } catch (error) {
+              console.error('Error checking restaurant status:', error);
+              // Error checking status - go to dashboard (might be in setup)
+              toast.success('Login successful!');
+              setTimeout(() => {
+                navigate('/restaurant/dashboard', { replace: true });
+              }, 100);
+            }
+          } else {
+            // No restaurant ID - might be in setup or new user
+            console.log('⚠️ No restaurant ID, going to dashboard');
+            toast.success('Login successful!');
+            setTimeout(() => {
+              navigate('/restaurant/dashboard', { replace: true });
+            }, 100);
+          }
+        }
+      } else {
+        throw new Error('Login response missing token or user data');
+      }
     } catch (error) {
       console.error('Login error:', error);
       console.error('Error response:', error.response);

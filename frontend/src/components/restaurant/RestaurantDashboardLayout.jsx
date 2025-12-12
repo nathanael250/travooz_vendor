@@ -47,23 +47,86 @@ const RestaurantDashboardLayout = () => {
         const parsedUser = JSON.parse(userData);
         
         // Verify token is still valid by checking with backend
+        // Use the profile endpoint which exists and is more reliable
         try {
           const apiClient = (await import('../../services/apiClient')).default;
-          const response = await apiClient.get('/eating-out/vendor/my');
-          // If this succeeds, user is authenticated
+          // Try to get profile - this will verify the token is valid
+          const response = await apiClient.get('/eating-out/setup/auth/profile');
+          // If this succeeds, user is authenticated and token is valid
+          // Update user data from response if available
+          if (response.data?.data) {
+            const updatedUser = response.data.data;
+            localStorage.setItem('user', JSON.stringify(updatedUser));
+            setUser(updatedUser);
+          } else {
+            setUser(parsedUser);
+          }
         } catch (authError) {
-          // Token invalid or expired
-          console.log('Token validation failed, clearing session');
-          localStorage.removeItem('user');
-          localStorage.removeItem('token');
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('restaurant_id');
-          localStorage.removeItem('restaurant_setup_progress');
-          navigate('/restaurant/login', { replace: true });
-          return;
+          // Check if it's a 401 - token invalid/expired
+          if (authError.response?.status === 401) {
+            console.log('Token validation failed (401), clearing session');
+            localStorage.removeItem('user');
+            localStorage.removeItem('token');
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('restaurant_id');
+            localStorage.removeItem('restaurant_setup_progress');
+            navigate('/restaurant/login', { replace: true });
+            return;
+          } else {
+            // Other errors (network, etc.) - don't clear session, just use stored user
+            console.warn('Token validation error (non-401), using stored user data:', authError.message);
+            setUser(parsedUser);
+          }
         }
-        
-        setUser(parsedUser);
+
+        // Check restaurant status - if pending, redirect to waiting page
+        // Only check if trying to access dashboard or other protected routes (not setup pages)
+        // Also skip if setup is in progress (prevents redirect loops during setup)
+        const isSetupInProgress = localStorage.getItem('restaurant_setup_in_progress') === 'true';
+        if (!location.pathname.startsWith('/restaurant/setup/') && !isSetupInProgress) {
+          try {
+            const restaurantsAPI = (await import('../../services/restaurantDashboardService')).restaurantsAPI;
+            const myRestaurant = await restaurantsAPI.getMyRestaurant();
+            
+            // If restaurant is null and we have restaurant_id in session, it was deleted
+            // getMyRestaurant will handle the logout, but we should return early here
+            if (myRestaurant === null && localStorage.getItem('restaurant_id')) {
+              console.log('⚠️ Restaurant was deleted - logout handled by getMyRestaurant');
+              return;
+            }
+            
+            if (myRestaurant) {
+              const restaurantStatus = myRestaurant.status || myRestaurant.data?.status;
+              // Normalize status to lowercase for comparison
+              const normalizedStatus = restaurantStatus ? String(restaurantStatus).toLowerCase() : null;
+              
+              console.log('🔍 DashboardLayout - Restaurant status check:', {
+                status: restaurantStatus,
+                normalized: normalizedStatus,
+                restaurant: myRestaurant
+              });
+              
+              // If restaurant is not approved, redirect to waiting page
+              if (normalizedStatus && normalizedStatus !== 'approved' && normalizedStatus !== 'active') {
+                console.log('⏳ Restaurant not approved yet (status:', normalizedStatus, '), redirecting to waiting page');
+                navigate('/restaurant/setup/complete', { replace: true });
+                return;
+              } else if (normalizedStatus === 'approved' || normalizedStatus === 'active') {
+                console.log('✅ Restaurant is approved, allowing dashboard access');
+              }
+              // If active, allow dashboard access (continue below)
+            }
+          } catch (statusError) {
+            // Check if it's a restaurant not found error
+            const { isRestaurantNotFoundError } = await import('../../utils/restaurantAuth');
+            if (isRestaurantNotFoundError(statusError)) {
+              console.log('⚠️ Restaurant not found error - logout handled');
+              return;
+            }
+            console.log('Error checking restaurant status:', statusError);
+            // Continue normally - might be in setup process or no restaurant yet
+          }
+        }
 
         // Check for incomplete setup progress
         try {
@@ -102,7 +165,7 @@ const RestaurantDashboardLayout = () => {
 
               // Only redirect if not already on a setup page
               if (!location.pathname.startsWith('/restaurant/setup/')) {
-                toast.info('Continuing your restaurant setup...');
+                toast('Continuing your restaurant setup...', { icon: 'ℹ️' });
                 navigate(targetRoute, { 
                   replace: true,
                   state: { 

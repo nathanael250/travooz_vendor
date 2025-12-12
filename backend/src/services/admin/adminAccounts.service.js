@@ -460,7 +460,7 @@ class AdminAccountsService {
                     const { pool } = require('../../../config/database');
                     const [updateResult] = await pool.execute(
                         `UPDATE restaurants 
-                         SET status = 'active', updated_at = NOW() 
+                         SET status = 'approved', updated_at = NOW() 
                          WHERE id = ?`,
                         [String(accountId)]
                     );
@@ -483,13 +483,23 @@ class AdminAccountsService {
                     
                     if (restaurantApprove.length > 0) {
                         const { business_name, email, name } = restaurantApprove[0];
-                        const dashboardUrl = process.env.RESTAURANT_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/restaurant/dashboard';
-                        await RestaurantApprovalNotificationService.sendApprovalEmail({
-                            email,
-                            name,
-                            businessName: business_name,
-                            dashboardUrl
-                        });
+                        // Send approval email (non-blocking - don't fail approval if email fails)
+                        try {
+                            const dashboardUrl = process.env.RESTAURANT_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/restaurant/dashboard';
+                            await RestaurantApprovalNotificationService.sendApprovalEmail({
+                                email,
+                                name,
+                                businessName: business_name,
+                                dashboardUrl
+                            });
+                            console.log('✅ Restaurant approval email sent successfully');
+                        } catch (emailError) {
+                            // Log error but don't fail the approval
+                            console.error('⚠️  Failed to send approval email (approval still succeeded):', emailError.message);
+                            if (emailError.stack) {
+                                console.error('Email error stack:', emailError.stack);
+                            }
+                        }
                     }
                     break;
 
@@ -736,15 +746,25 @@ class AdminAccountsService {
                     
                     if (restaurantReject.length > 0) {
                         const { business_name, email, name } = restaurantReject[0];
-                        const dashboardUrl = process.env.RESTAURANT_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/restaurant/dashboard';
-                        await RestaurantApprovalNotificationService.sendRejectionEmail({
-                            email,
-                            name,
-                            businessName: business_name,
-                            reason: rejectionReason || 'Your restaurant submission requires updates.',
-                            notes: notes || '',
-                            dashboardUrl
-                        });
+                        // Send rejection email (non-blocking - don't fail rejection if email fails)
+                        try {
+                            const dashboardUrl = process.env.RESTAURANT_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/restaurant/dashboard';
+                            await RestaurantApprovalNotificationService.sendRejectionEmail({
+                                email,
+                                name,
+                                businessName: business_name,
+                                reason: rejectionReason || 'Your restaurant submission requires updates.',
+                                notes: notes || '',
+                                dashboardUrl
+                            });
+                            console.log('✅ Restaurant rejection email sent successfully');
+                        } catch (emailError) {
+                            // Log error but don't fail the rejection
+                            console.error('⚠️  Failed to send rejection email (rejection still succeeded):', emailError.message);
+                            if (emailError.stack) {
+                                console.error('Email error stack:', emailError.stack);
+                            }
+                        }
                     }
                     break;
 

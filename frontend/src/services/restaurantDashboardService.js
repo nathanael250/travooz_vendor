@@ -1,13 +1,82 @@
 import apiClient from './apiClient';
+import { handleRestaurantNotFound, isRestaurantNotFoundError } from '../utils/restaurantAuth';
 
 // Restaurant API - Each vendor manages one restaurant
 export const restaurantsAPI = {
   // Get vendor's restaurant (singular - one restaurant per vendor)
+  // Include all statuses (active, pending, etc.) so users can see their restaurant even if pending
   getMyRestaurant: async () => {
-    const res = await apiClient.get(`/restaurants?status=active`);
-    const restaurants = Array.isArray(res.data) ? res.data : (res.data?.data || []);
-    // Return the first (and only) restaurant for the vendor
-    return restaurants.length > 0 ? restaurants[0] : null;
+    try {
+      const res = await apiClient.get(`/restaurants`);
+      const restaurants = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      const restaurant = restaurants.length > 0 ? restaurants[0] : null;
+      
+      // If we have a restaurant_id in localStorage but no restaurant found, it was deleted
+      const restaurantId = localStorage.getItem('restaurant_id');
+      if (restaurantId && !restaurant) {
+        console.log('⚠️ Restaurant ID exists in session but restaurant not found - likely deleted');
+        handleRestaurantNotFound();
+        return null;
+      }
+      
+      // Log restaurant data for debugging
+      if (restaurant) {
+        console.log('🔍 getMyRestaurant - Restaurant data:', {
+          id: restaurant.id,
+          name: restaurant.name,
+          status: restaurant.status,
+          statusType: typeof restaurant.status,
+          allKeys: Object.keys(restaurant)
+        });
+      }
+      
+      // Return the first (and only) restaurant for the vendor, regardless of status
+      return restaurant;
+    } catch (error) {
+      // Check if restaurant was not found (deleted)
+      if (isRestaurantNotFoundError(error)) {
+        console.log('⚠️ Restaurant not found (404) - likely deleted');
+        handleRestaurantNotFound();
+        return null;
+      }
+      
+      console.error('Error fetching restaurant:', error);
+      // If the endpoint doesn't exist or fails, try the eating-out endpoint
+      try {
+        const res = await apiClient.get(`/eating-out/vendor/my`);
+        const restaurants = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+        const restaurant = restaurants.length > 0 ? restaurants[0] : null;
+        
+        // Check if restaurant was deleted
+        const restaurantId = localStorage.getItem('restaurant_id');
+        if (restaurantId && !restaurant) {
+          console.log('⚠️ Restaurant ID exists in session but restaurant not found (fallback) - likely deleted');
+          handleRestaurantNotFound();
+          return null;
+        }
+        
+        if (restaurant) {
+          console.log('🔍 getMyRestaurant (fallback) - Restaurant data:', {
+            id: restaurant.id,
+            name: restaurant.name,
+            status: restaurant.status,
+            statusType: typeof restaurant.status
+          });
+        }
+        
+        return restaurant;
+      } catch (fallbackError) {
+        // Check if restaurant was not found in fallback too
+        if (isRestaurantNotFoundError(fallbackError)) {
+          console.log('⚠️ Restaurant not found in fallback endpoint (404) - likely deleted');
+          handleRestaurantNotFound();
+          return null;
+        }
+        
+        console.error('Error fetching restaurant from fallback endpoint:', fallbackError);
+        return null;
+      }
+    }
   },
 
   getAll: async (status) => {
@@ -18,8 +87,38 @@ export const restaurantsAPI = {
   },
 
   getById: async (id) => {
-    const res = await apiClient.get(`/restaurants/${id}`);
-    return res.data;
+    try {
+      const res = await apiClient.get(`/restaurants/${id}`);
+      const restaurant = res.data;
+      
+      // If restaurant not found but we have it in session, it was deleted
+      if (!restaurant && localStorage.getItem('restaurant_id') === id) {
+        console.log('⚠️ Restaurant ID in session but restaurant not found - likely deleted');
+        handleRestaurantNotFound();
+        return null;
+      }
+      
+      // Log restaurant data for debugging
+      if (restaurant) {
+        console.log('🔍 getById - Restaurant data:', {
+          id: restaurant.id,
+          name: restaurant.name,
+          status: restaurant.status,
+          statusType: typeof restaurant.status,
+          allKeys: Object.keys(restaurant)
+        });
+      }
+      
+      return restaurant;
+    } catch (error) {
+      // Check if restaurant was not found (deleted)
+      if (isRestaurantNotFoundError(error)) {
+        console.log('⚠️ Restaurant not found by ID (404) - likely deleted');
+        handleRestaurantNotFound();
+        return null;
+      }
+      throw error;
+    }
   },
 
   create: async (restaurant) => {

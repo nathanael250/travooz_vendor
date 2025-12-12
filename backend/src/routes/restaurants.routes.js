@@ -36,6 +36,14 @@ router.get('/', authenticateToken, async (req, res) => {
 
     const [rows] = await pool.execute(query, params);
     
+    // Log query results for debugging
+    console.log('🔍 GET /restaurants - Query results:', {
+      userId,
+      userType,
+      rowsFound: rows.length,
+      restaurants: rows.map(r => ({ id: r.id, name: r.name, status: r.status }))
+    });
+    
     // Fetch images for each restaurant
     const restaurantsWithImages = await Promise.all(
       rows.map(async (restaurant) => {
@@ -85,6 +93,15 @@ router.get('/:id', authenticateToken, async (req, res) => {
     }
 
     const restaurant = rows[0];
+    
+    // Log restaurant data for debugging
+    console.log('🔍 GET /restaurants/:id - Restaurant data:', {
+      id: restaurant.id,
+      name: restaurant.name,
+      status: restaurant.status,
+      statusType: typeof restaurant.status,
+      userId: restaurant.user_id
+    });
     
     // Fetch images for this restaurant
     const [imageRows] = await pool.execute(

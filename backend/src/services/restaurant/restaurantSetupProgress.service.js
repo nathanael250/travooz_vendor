@@ -183,7 +183,42 @@ class RestaurantSetupProgressService {
                 return { allowed: false, reason: 'Steps 1-3 must be completed first' };
             }
 
-            // For step 4, always allow (it's the first step after 1-3)
+            // For steps 4-11, check email verification status
+            if (targetStep >= 4) {
+                // Convert userId to integer if it's a string (user_id is INT in restaurant_users)
+                const userIdInt = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+                
+                if (isNaN(userIdInt)) {
+                    console.error('Invalid userId format:', userId);
+                    return { allowed: false, reason: 'Invalid user ID format' };
+                }
+                
+                console.log(`🔍 Checking email verification for user_id: ${userIdInt}, restaurant_id: ${restaurantId}, step: ${targetStep}`);
+                
+                const userResult = await executeQuery(
+                    `SELECT email_verified, email FROM restaurant_users WHERE user_id = ?`,
+                    [userIdInt]
+                );
+
+                if (!userResult || userResult.length === 0) {
+                    console.error('❌ User not found in restaurant_users:', userIdInt);
+                    return { allowed: false, reason: 'User not found' };
+                }
+
+                const isEmailVerified = userResult[0]?.email_verified === 1;
+                const userEmail = userResult[0]?.email;
+                
+                console.log(`📧 Email verification status for user_id ${userIdInt} (${userEmail}): ${isEmailVerified ? 'VERIFIED' : 'NOT VERIFIED'} (value: ${userResult[0]?.email_verified})`);
+                
+                if (!isEmailVerified) {
+                    return { 
+                        allowed: false, 
+                        reason: 'Email verification required. Please verify your email before continuing.' 
+                    };
+                }
+            }
+
+            // For step 4, always allow if email is verified (it's the first step after 1-3)
             if (targetStep === 4) {
                 return { allowed: true };
             }
@@ -200,6 +235,7 @@ class RestaurantSetupProgressService {
             );
 
             if (!result || result.length === 0) {
+                console.error(`❌ Progress not found for restaurant_id: ${restaurantId}, user_id: ${userId}`);
                 return { allowed: false, reason: 'Progress not found' };
             }
 

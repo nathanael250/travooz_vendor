@@ -4,6 +4,7 @@ import { ArrowRight, ArrowLeft, Building2, FileText, Phone, Mail, Globe, Clock, 
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import { restaurantSetupService } from '../../services/eatingOutService';
+import SetupProgressIndicator from '../../components/restaurant/SetupProgressIndicator';
 
 export default function BusinessDetailsStep() {
   const navigate = useNavigate();
@@ -38,6 +39,62 @@ export default function BusinessDetailsStep() {
     }
   }, [restaurantId]);
 
+  // Check authentication and email verification on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const storedUser = localStorage.getItem('user');
+      const storedToken = localStorage.getItem('token') || localStorage.getItem('auth_token');
+      
+      // Check if user is logged in
+      if (!storedUser || !storedToken) {
+        console.warn('BusinessDetailsStep - No user or token found, redirecting to login');
+        navigate('/restaurant/login', { replace: true });
+        return;
+      }
+
+      try {
+        const user = JSON.parse(storedUser);
+        const finalUserId = userId || user.user_id || user.id;
+        
+        // Verify token is valid by checking profile
+        const apiClient = (await import('../../services/apiClient')).default;
+        try {
+          await apiClient.get('/eating-out/setup/auth/profile');
+        } catch (authError) {
+          if (authError.response?.status === 401) {
+            console.warn('BusinessDetailsStep - Token invalid, redirecting to login');
+            localStorage.removeItem('user');
+            localStorage.removeItem('token');
+            localStorage.removeItem('auth_token');
+            navigate('/restaurant/login', { replace: true });
+            return;
+          }
+        }
+
+        // Check email verification status
+        if (finalUserId) {
+          try {
+            const progress = await restaurantSetupService.getSetupProgress(restaurantId || user.restaurant_id);
+            // If we can't get progress, user might not have completed steps 1-3
+            if (!progress || !progress.step_1_3_complete) {
+              console.warn('BusinessDetailsStep - Steps 1-3 not complete, redirecting to step 3');
+              navigate('/restaurant/list-your-restaurant/step-3', { replace: true });
+              return;
+            }
+          } catch (progressError) {
+            console.error('BusinessDetailsStep - Error checking progress:', progressError);
+            // Don't block if progress check fails, but log it
+          }
+        }
+      } catch (error) {
+        console.error('BusinessDetailsStep - Error checking auth:', error);
+        navigate('/restaurant/login', { replace: true });
+      }
+    };
+
+    checkAuth();
+  }, [navigate, userId, restaurantId]);
+
   // Enable scrolling for this page
   useEffect(() => {
     document.body.classList.add('auth-page');
@@ -57,6 +114,15 @@ export default function BusinessDetailsStep() {
     openingTime: '',
     closingTime: '',
     shortDescription: step2Data.description || '',
+    operatingSchedule: {
+      monday: { open: '09:00', close: '22:00', closed: false },
+      tuesday: { open: '09:00', close: '22:00', closed: false },
+      wednesday: { open: '09:00', close: '22:00', closed: false },
+      thursday: { open: '09:00', close: '22:00', closed: false },
+      friday: { open: '09:00', close: '23:00', closed: false },
+      saturday: { open: '09:00', close: '23:00', closed: false },
+      sunday: { open: '10:00', close: '21:00', closed: false }
+    },
   });
 
   const [errors, setErrors] = useState({});
@@ -90,6 +156,7 @@ export default function BusinessDetailsStep() {
             openingTime: savedStep4Data.openingTime || prev.openingTime,
             closingTime: savedStep4Data.closingTime || prev.closingTime,
             shortDescription: savedStep4Data.shortDescription || prev.shortDescription,
+            operatingSchedule: savedStep4Data.operatingSchedule || prev.operatingSchedule,
           }));
         }
       } catch (error) {
@@ -117,6 +184,50 @@ export default function BusinessDetailsStep() {
         [name]: ''
       }));
     }
+  };
+
+  const handleScheduleChange = (day, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      operatingSchedule: {
+        ...prev.operatingSchedule,
+        [day]: {
+          ...prev.operatingSchedule[day],
+          [field]: value
+        }
+      }
+    }));
+  };
+
+  const handleDayToggle = (day) => {
+    setFormData(prev => ({
+      ...prev,
+      operatingSchedule: {
+        ...prev.operatingSchedule,
+        [day]: {
+          ...prev.operatingSchedule[day],
+          closed: !prev.operatingSchedule[day].closed
+        }
+      }
+    }));
+  };
+
+  const applyToAllDays = (field, value) => {
+    setFormData(prev => {
+      const newSchedule = { ...prev.operatingSchedule };
+      Object.keys(newSchedule).forEach(day => {
+        if (!newSchedule[day].closed) {
+          newSchedule[day] = {
+            ...newSchedule[day],
+            [field]: value
+          };
+        }
+      });
+      return {
+        ...prev,
+        operatingSchedule: newSchedule
+      };
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -198,40 +309,7 @@ export default function BusinessDetailsStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-3xl w-full mx-auto">
           {/* Progress Indicator */}
-          <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  2
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  3
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  4
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  5
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  6
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  7
-                </div>
-              </div>
-            </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Setup Step 2 of 8</p>
-          </div>
+          <SetupProgressIndicator currentStep={4} totalSteps={11} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>
@@ -379,50 +457,84 @@ export default function BusinessDetailsStep() {
                       style={{ accentColor: '#3CAF54' }}
                     />
                     <span className="ml-3 text-sm font-medium text-gray-900">
-                      Open 24/7
+                      Open 24/7 (All Days)
                     </span>
                   </label>
                 </div>
 
-                {/* Time Selectors - Only show if not 24/7 */}
+                {/* Weekly Schedule - Only show if not 24/7 */}
                 {!formData.is24Hours && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="openingTime" className="block text-sm font-medium text-gray-700 mb-2">
-                        Opening Time
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Clock className="h-5 w-5 text-gray-400" />
-                        </div>
-                        <input
-                          type="time"
-                          id="openingTime"
-                          name="openingTime"
-                          value={formData.openingTime}
-                          onChange={handleChange}
-                          className="w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
-                        />
+                  <div className="space-y-3 border-2 rounded-lg p-3 sm:p-4" style={{ borderColor: '#dcfce7' }}>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                      <p className="text-sm font-medium text-gray-700">Weekly Schedule</p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const defaultTime = formData.operatingSchedule.monday.open;
+                            applyToAllDays('open', defaultTime);
+                          }}
+                          className="text-xs px-2 py-1.5 text-gray-600 hover:text-gray-900 border border-gray-300 rounded hover:bg-gray-50 whitespace-nowrap"
+                        >
+                          Apply Open Time to All
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const defaultTime = formData.operatingSchedule.monday.close;
+                            applyToAllDays('close', defaultTime);
+                          }}
+                          className="text-xs px-2 py-1.5 text-gray-600 hover:text-gray-900 border border-gray-300 rounded hover:bg-gray-50 whitespace-nowrap"
+                        >
+                          Apply Close Time to All
+                        </button>
                       </div>
                     </div>
-                    <div>
-                      <label htmlFor="closingTime" className="block text-sm font-medium text-gray-700 mb-2">
-                        Closing Time
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Clock className="h-5 w-5 text-gray-400" />
+                    
+                    {Object.entries(formData.operatingSchedule).map(([day, hours]) => (
+                      <div key={day} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="flex items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
+                          <div className="w-20 sm:w-24 flex-shrink-0">
+                            <h4 className="text-sm font-medium text-gray-900 capitalize">{day}</h4>
+                          </div>
+                          <label className="flex items-center space-x-2 cursor-pointer flex-shrink-0">
+                            <input
+                              type="checkbox"
+                              checked={!hours.closed}
+                              onChange={() => handleDayToggle(day)}
+                              className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500 flex-shrink-0"
+                              style={{ accentColor: '#3CAF54' }}
+                            />
+                            <span className="text-sm text-gray-700 whitespace-nowrap">Open</span>
+                          </label>
                         </div>
-                        <input
-                          type="time"
-                          id="closingTime"
-                          name="closingTime"
-                          value={formData.closingTime}
-                          onChange={handleChange}
-                          className="w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
-                        />
+                        
+                        {!hours.closed ? (
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:space-x-3 sm:flex-shrink-0">
+                            <div className="flex items-center space-x-2 w-full sm:w-auto">
+                              <label className="text-xs text-gray-600 whitespace-nowrap">Open:</label>
+                              <input
+                                type="time"
+                                value={hours.open}
+                                onChange={(e) => handleScheduleChange(day, 'open', e.target.value)}
+                                className="flex-1 sm:flex-none px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-green-500 min-w-0"
+                              />
+                            </div>
+                            <div className="flex items-center space-x-2 w-full sm:w-auto">
+                              <label className="text-xs text-gray-600 whitespace-nowrap">Close:</label>
+                              <input
+                                type="time"
+                                value={hours.close}
+                                onChange={(e) => handleScheduleChange(day, 'close', e.target.value)}
+                                className="flex-1 sm:flex-none px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-green-500 min-w-0"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-red-600 font-medium sm:flex-shrink-0">Closed</span>
+                        )}
                       </div>
-                    </div>
+                    ))}
                   </div>
                 )}
               </div>

@@ -201,7 +201,28 @@ export default function EmailVerification() {
           localStorage.setItem('restaurant_id', finalRestaurantId);
         }
         
-        console.log('EmailVerification - Navigating to BusinessDetailsStep with:', {
+        // Ensure user data and token are still in localStorage (preserve authentication)
+        const storedUser = localStorage.getItem('user');
+        const storedToken = localStorage.getItem('token') || localStorage.getItem('auth_token');
+        
+        if (!storedUser || !storedToken) {
+          console.warn('EmailVerification - User data or token missing, ensuring they are stored');
+          // If user data is missing, reconstruct it
+          if (!storedUser && userId && email) {
+            const userData = {
+              id: userId,
+              user_id: userId,
+              email: email,
+              name: userName || email.split('@')[0],
+              role: 'vendor'
+            };
+            localStorage.setItem('user', JSON.stringify(userData));
+          }
+        }
+        
+        console.log('EmailVerification - User authenticated:', {
+          hasUser: !!storedUser,
+          hasToken: !!storedToken,
           userId,
           restaurantId: finalRestaurantId,
           email,

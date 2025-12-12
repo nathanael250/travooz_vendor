@@ -109,10 +109,20 @@ class RestaurantEmailVerificationService {
      */
     static async verifyCode(userId, email, code) {
         try {
+            // Convert userId to string for restaurant_email_verifications (VARCHAR) and integer for restaurant_users (INT)
+            const userIdStr = String(userId);
+            const userIdInt = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+            if (isNaN(userIdInt)) {
+                console.error('Invalid userId format in email verification:', userId);
+                throw new Error('Invalid user ID format');
+            }
+            
+            console.log(`🔍 Verifying email for user_id: ${userIdInt} (string: ${userIdStr}), email: ${email}`);
+
             // Hash the provided code
             const codeHash = crypto.createHash('sha256').update(code).digest('hex');
 
-            // Find matching code
+            // Find matching code (use userIdStr because restaurant_email_verifications.user_id is VARCHAR)
             const result = await executeQuery(
                 `SELECT * FROM restaurant_email_verifications 
                  WHERE user_id = ? 
@@ -122,12 +132,31 @@ class RestaurantEmailVerificationService {
                  AND expires_at > NOW()
                  ORDER BY created_at DESC
                  LIMIT 1`,
-                [userId, email, codeHash]
+                [userIdStr, email, codeHash]
             );
 
             if (result.length === 0) {
-                return false;
+                console.log(`❌ No valid verification code found for user_id: ${userIdStr}, email: ${email}`);
+                // Also try with integer format in case it was stored differently
+                const resultInt = await executeQuery(
+                    `SELECT * FROM restaurant_email_verifications 
+                     WHERE CAST(user_id AS UNSIGNED) = ? 
+                     AND email = ? 
+                     AND code_hash = ? 
+                     AND is_used = 0 
+                     AND expires_at > NOW()
+                     ORDER BY created_at DESC
+                     LIMIT 1`,
+                    [userIdInt, email, codeHash]
+                );
+                if (resultInt.length === 0) {
+                    return false;
+                }
+                // Use the integer result
+                result[0] = resultInt[0];
             }
+
+            console.log(`✅ Found verification code for user_id: ${userIdInt}`);
 
             // Mark code as used
             await executeQuery(
@@ -137,16 +166,31 @@ class RestaurantEmailVerificationService {
                 [result[0].verification_id]
             );
 
-            // Update user email_verified status in restaurant_users table
-            await executeQuery(
+            // Update user email_verified status in restaurant_users table (use userIdInt because user_id is INT)
+            const updateResult = await executeQuery(
                 `UPDATE restaurant_users SET email_verified = 1 WHERE user_id = ?`,
-                [userId]
+                [userIdInt]
             );
+            
+            console.log(`📝 Update query executed. Rows affected: ${updateResult.affectedRows || 'unknown'}`);
+            
+            // Verify the update was successful
+            const [verifyResult] = await executeQuery(
+                `SELECT email_verified FROM restaurant_users WHERE user_id = ?`,
+                [userIdInt]
+            );
+            
+            if (verifyResult && verifyResult[0] && verifyResult[0].email_verified === 1) {
+                console.log(`✅ Email verified successfully for user_id: ${userIdInt}`);
+            } else {
+                console.error(`❌ Failed to update email_verified for user_id: ${userIdInt}. Current value:`, verifyResult?.[0]?.email_verified);
+                throw new Error('Failed to update email verification status');
+            }
 
             return true;
         } catch (error) {
             console.error('Error verifying code:', error);
-            throw new Error('Failed to verify code');
+            throw new Error('Failed to verify code: ' + error.message);
         }
     }
 

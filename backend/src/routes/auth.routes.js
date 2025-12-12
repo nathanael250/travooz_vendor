@@ -47,14 +47,7 @@ router.post('/login', async (req, res) => {
           });
         }
 
-        // Check if restaurant exists and is active (if user has a restaurant)
-        if (user.restaurant_id && user.restaurant_status && user.restaurant_status !== 'active') {
-          return res.status(403).json({ 
-            success: false,
-            error: 'Restaurant account is not active. Please contact administrator.' 
-          });
-        }
-
+        // Allow login regardless of restaurant status - user can see approval status in dashboard
         // Update last login
         await pool.execute(
           'UPDATE restaurant_users SET last_login = ? WHERE user_id = ?',
@@ -85,6 +78,7 @@ router.post('/login', async (req, res) => {
               name: user.name,
               restaurant_id: user.restaurant_id || null,
               restaurant_name: user.restaurant_name || null,
+              restaurant_status: user.restaurant_status || null,
               userType: 'restaurant_user'
             }
           }

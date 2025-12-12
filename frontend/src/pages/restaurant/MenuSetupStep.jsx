@@ -5,6 +5,7 @@ import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import { restaurantSetupService } from '../../services/eatingOutService';
 import apiClient from '../../services/apiClient';
+import SetupProgressIndicator from '../../components/restaurant/SetupProgressIndicator';
 
 export default function MenuSetupStep() {
   const navigate = useNavigate();
@@ -47,6 +48,17 @@ export default function MenuSetupStep() {
     document.body.classList.add('auth-page');
     return () => {
       document.body.classList.remove('auth-page');
+    };
+  }, []);
+
+  // Prevent redirect loops - don't check status during menu setup
+  // Menu setup is part of the setup flow, so we should allow access regardless of status
+  useEffect(() => {
+    // Mark that we're in setup mode to prevent status redirects
+    localStorage.setItem('restaurant_setup_in_progress', 'true');
+    return () => {
+      // Clean up when leaving the page
+      localStorage.removeItem('restaurant_setup_in_progress');
     };
   }, []);
 
@@ -529,58 +541,21 @@ export default function MenuSetupStep() {
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: '#f0fdf4' }}>
       <StaysNavbar />
-      <div className="flex-1 w-full py-8 px-4">
+      <div className="flex-1 w-full py-4 sm:py-6 md:py-8 px-4 sm:px-6">
         <div className="max-w-6xl w-full mx-auto">
           {/* Progress Indicator */}
-          <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  6
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  7
-                </div>
-              </div>
-            </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Setup Step 6 of 7</p>
-          </div>
+          <SetupProgressIndicator currentStep={9} totalSteps={11} />
 
           {/* Main Content */}
-          <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>
-            <div className="flex items-center gap-3 mb-6">
-              <Utensils className="h-8 w-8" style={{ color: '#3CAF54' }} />
-              <h1 className="text-3xl font-bold text-gray-900">
+          <div className="bg-white rounded-lg shadow-xl p-4 sm:p-6 md:p-8 border" style={{ borderColor: '#dcfce7' }}>
+            <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+              <Utensils className="h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 flex-shrink-0" style={{ color: '#3CAF54' }} />
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">
                 Menu Setup
               </h1>
             </div>
             
-            <p className="text-gray-600 mb-8">
+            <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 md:mb-8">
               Create your restaurant menu by adding categories and menu items. You can add add-ons and customization options for each item.
             </p>
 
@@ -605,11 +580,11 @@ export default function MenuSetupStep() {
             )}
 
             {/* Tabs */}
-            <div className="flex gap-2 mb-6 border-b">
+            <div className="flex gap-1 sm:gap-2 mb-4 sm:mb-6 border-b overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
               <button
                 type="button"
                 onClick={() => setActiveTab('categories')}
-                className={`px-6 py-3 font-semibold transition-colors ${
+                className={`px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-sm sm:text-base font-semibold transition-colors whitespace-nowrap flex-shrink-0 ${
                   activeTab === 'categories'
                     ? 'border-b-2 text-green-600'
                     : 'text-gray-600 hover:text-gray-900'
@@ -621,7 +596,7 @@ export default function MenuSetupStep() {
               <button
                 type="button"
                 onClick={() => setActiveTab('items')}
-                className={`px-6 py-3 font-semibold transition-colors ${
+                className={`px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-sm sm:text-base font-semibold transition-colors whitespace-nowrap flex-shrink-0 ${
                   activeTab === 'items'
                     ? 'border-b-2 text-green-600'
                     : 'text-gray-600 hover:text-gray-900'
@@ -634,10 +609,10 @@ export default function MenuSetupStep() {
 
             {/* Categories Tab */}
             {activeTab === 'categories' && (
-              <div className="space-y-6">
-                <div className="bg-gray-50 p-6 rounded-lg">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Add Menu Category</h2>
-                  <div className="flex gap-4">
+              <div className="space-y-4 sm:space-y-6">
+                <div className="bg-gray-50 p-4 sm:p-6 rounded-lg">
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-4">Add Menu Category</h2>
+                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                     <input
                       type="text"
                       value={categoryForm.name}
@@ -646,59 +621,62 @@ export default function MenuSetupStep() {
                         if (errors.categoryName) setErrors({ ...errors, categoryName: '' });
                       }}
                       placeholder="e.g., Starters, Main Dishes, Desserts, Drinks"
-                      className={`flex-1 px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
+                      className={`flex-1 w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border-2 rounded-lg focus:outline-none transition-all ${
                         errors.categoryName ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
                       }`}
                     />
-                    <button
-                      type="button"
-                      onClick={handleAddCategory}
-                      className="px-6 py-3 text-white font-semibold rounded-lg transition-colors shadow-md hover:shadow-lg flex items-center gap-2"
-                      style={{ backgroundColor: '#3CAF54' }}
-                      onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
-                      onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
-                    >
-                      {categoryForm.editingIndex !== null ? <Edit2 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-                      {categoryForm.editingIndex !== null ? 'Update' : 'Add'}
-                    </button>
-                    {categoryForm.editingIndex !== null && (
+                    <div className="flex gap-2 sm:gap-3">
                       <button
                         type="button"
-                        onClick={() => setCategoryForm({ name: '', editingIndex: null })}
-                        className="px-6 py-3 border-2 rounded-lg font-semibold transition-colors text-gray-700 hover:bg-gray-50"
-                        style={{ borderColor: '#d1d5db' }}
+                        onClick={handleAddCategory}
+                        className="flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base text-white font-semibold rounded-lg transition-colors shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                        style={{ backgroundColor: '#3CAF54' }}
+                        onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
+                        onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
                       >
-                        Cancel
+                        {categoryForm.editingIndex !== null ? <Edit2 className="h-4 w-4 sm:h-5 sm:w-5" /> : <Plus className="h-4 w-4 sm:h-5 sm:w-5" />}
+                        <span className="hidden sm:inline">{categoryForm.editingIndex !== null ? 'Update' : 'Add'}</span>
+                        <span className="sm:hidden">{categoryForm.editingIndex !== null ? 'Update' : 'Add'}</span>
                       </button>
-                    )}
+                      {categoryForm.editingIndex !== null && (
+                        <button
+                          type="button"
+                          onClick={() => setCategoryForm({ name: '', editingIndex: null })}
+                          className="px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base border-2 rounded-lg font-semibold transition-colors text-gray-700 hover:bg-gray-50"
+                          style={{ borderColor: '#d1d5db' }}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {errors.categoryName && (
-                    <p className="mt-2 text-sm text-red-600">{errors.categoryName}</p>
+                    <p className="mt-2 text-xs sm:text-sm text-red-600">{errors.categoryName}</p>
                   )}
                 </div>
 
                 {/* Categories List */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Categories ({categories.length})</h3>
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Your Categories ({categories.length})</h3>
                   {categories.length === 0 ? (
-                    <p className="text-gray-500 text-center py-8">No categories added yet. Add your first category above.</p>
+                    <p className="text-sm sm:text-base text-gray-500 text-center py-6 sm:py-8">No categories added yet. Add your first category above.</p>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                       {categories.map((category, index) => (
-                        <div key={index} className="bg-white border-2 rounded-lg p-4 flex items-center justify-between" style={{ borderColor: '#dcfce7' }}>
-                          <span className="font-medium text-gray-900">{category}</span>
-                          <div className="flex gap-2">
+                        <div key={index} className="bg-white border-2 rounded-lg p-3 sm:p-4 flex items-center justify-between gap-2" style={{ borderColor: '#dcfce7' }}>
+                          <span className="font-medium text-sm sm:text-base text-gray-900 truncate flex-1">{category}</span>
+                          <div className="flex gap-1 sm:gap-2 flex-shrink-0">
                             <button
                               type="button"
                               onClick={() => handleEditCategory(index)}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              className="p-1.5 sm:p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                             >
                               <Edit2 className="h-4 w-4" />
                             </button>
                             <button
                               type="button"
                               onClick={() => handleDeleteCategory(index)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                              className="p-1.5 sm:p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
@@ -713,16 +691,16 @@ export default function MenuSetupStep() {
 
             {/* Menu Items Tab */}
             {activeTab === 'items' && (
-              <div className="space-y-6">
-                <div className="bg-gray-50 p-6 rounded-lg space-y-4">
-                  <h2 className="text-xl font-semibold text-gray-900">
+              <div className="space-y-4 sm:space-y-6">
+                <div className="bg-gray-50 p-4 sm:p-6 rounded-lg space-y-3 sm:space-y-4">
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
                     {itemForm.editingIndex !== null ? 'Edit Menu Item' : 'Add Menu Item'}
                   </h2>
 
                   {/* Basic Information */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                         Item Name *
                       </label>
                       <input
@@ -733,17 +711,17 @@ export default function MenuSetupStep() {
                           if (errors.itemName) setErrors({ ...errors, itemName: '' });
                         }}
                         placeholder="e.g., Grilled Chicken"
-                        className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
+                        className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border-2 rounded-lg focus:outline-none transition-all ${
                           errors.itemName ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
                         }`}
                       />
                       {errors.itemName && (
-                        <p className="mt-1 text-sm text-red-600">{errors.itemName}</p>
+                        <p className="mt-1 text-xs sm:text-sm text-red-600">{errors.itemName}</p>
                       )}
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                         Category *
                       </label>
                       <select
@@ -752,7 +730,7 @@ export default function MenuSetupStep() {
                           setItemForm({ ...itemForm, category: e.target.value });
                           if (errors.itemCategory) setErrors({ ...errors, itemCategory: '' });
                         }}
-                        className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
+                        className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border-2 rounded-lg focus:outline-none transition-all ${
                           errors.itemCategory ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
                         }`}
                       >
@@ -762,13 +740,13 @@ export default function MenuSetupStep() {
                         ))}
                       </select>
                       {errors.itemCategory && (
-                        <p className="mt-1 text-sm text-red-600">{errors.itemCategory}</p>
+                        <p className="mt-1 text-xs sm:text-sm text-red-600">{errors.itemCategory}</p>
                       )}
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                       Description (ingredients, taste, notes)
                     </label>
                     <textarea
@@ -776,12 +754,12 @@ export default function MenuSetupStep() {
                       onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })}
                       placeholder="Describe the dish, its ingredients, taste, and any special notes..."
                       rows="3"
-                      className="w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
+                      className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
                     />
                   </div>
 
                   {/* Price and Discount */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Price *
@@ -842,7 +820,7 @@ export default function MenuSetupStep() {
                   </div>
 
                   {/* Preparation Time and Portion Size */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Estimated Preparation Time *
@@ -921,15 +899,15 @@ export default function MenuSetupStep() {
                   </div>
 
                   {/* Add-ons Section */}
-                  <div className="border-t pt-4">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Add-ons (e.g., extra cheese, sauce)</h3>
-                    <div className="flex gap-4 mb-4">
+                  <div className="border-t pt-3 sm:pt-4">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Add-ons (e.g., extra cheese, sauce)</h3>
+                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-3 sm:mb-4">
                       <input
                         type="text"
                         value={addOnForm.name}
                         onChange={(e) => setAddOnForm({ ...addOnForm, name: e.target.value })}
                         placeholder="Add-on name (e.g., Extra Cheese)"
-                        className="flex-1 px-4 py-2 border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
+                        className="flex-1 w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
                       />
                       <input
                         type="number"
@@ -938,12 +916,12 @@ export default function MenuSetupStep() {
                         placeholder="Price (optional)"
                         min="0"
                         step="0.01"
-                        className="w-32 px-4 py-2 border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
+                        className="w-full sm:w-32 px-3 sm:px-4 py-2 text-sm sm:text-base border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
                       />
                       <button
                         type="button"
                         onClick={handleAddAddOn}
-                        className="px-4 py-2 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                        className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
                         style={{ backgroundColor: '#3CAF54' }}
                         onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
                         onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
@@ -955,14 +933,14 @@ export default function MenuSetupStep() {
                     {itemForm.addOns.length > 0 && (
                       <div className="space-y-2">
                         {itemForm.addOns.map((addOn, index) => (
-                          <div key={index} className="bg-white border-2 rounded-lg p-3 flex items-center justify-between" style={{ borderColor: '#dcfce7' }}>
-                            <span className="text-sm font-medium text-gray-900">
+                          <div key={index} className="bg-white border-2 rounded-lg p-2.5 sm:p-3 flex items-center justify-between gap-2" style={{ borderColor: '#dcfce7' }}>
+                            <span className="text-xs sm:text-sm font-medium text-gray-900 truncate flex-1">
                               {addOn.name} {addOn.price > 0 && `(+$${addOn.price.toFixed(2)})`}
                             </span>
                             <button
                               type="button"
                               onClick={() => handleDeleteAddOn(index)}
-                              className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                              className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
                             >
                               <X className="h-4 w-4" />
                             </button>
@@ -973,27 +951,27 @@ export default function MenuSetupStep() {
                   </div>
 
                   {/* Customization Section */}
-                  <div className="border-t pt-4">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Customization Options (e.g., "no onions," "spicy level")</h3>
-                    <div className="space-y-4 mb-4">
+                  <div className="border-t pt-3 sm:pt-4">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Customization Options (e.g., "no onions," "spicy level")</h3>
+                    <div className="space-y-3 sm:space-y-4 mb-3 sm:mb-4">
                       <input
                         type="text"
                         value={customizationForm.name}
                         onChange={(e) => setCustomizationForm({ ...customizationForm, name: e.target.value })}
                         placeholder="Customization name (e.g., Spicy Level)"
-                        className="w-full px-4 py-2 border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
+                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
                       />
                       <input
                         type="text"
                         value={customizationForm.options}
                         onChange={(e) => setCustomizationForm({ ...customizationForm, options: e.target.value })}
                         placeholder="Options (comma-separated, e.g., Mild, Medium, Hot)"
-                        className="w-full px-4 py-2 border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
+                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
                       />
                       <button
                         type="button"
                         onClick={handleAddCustomization}
-                        className="px-4 py-2 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                        className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
                         style={{ backgroundColor: '#3CAF54' }}
                         onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
                         onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
@@ -1005,20 +983,20 @@ export default function MenuSetupStep() {
                     {itemForm.customizations.length > 0 && (
                       <div className="space-y-2">
                         {itemForm.customizations.map((custom, index) => (
-                          <div key={index} className="bg-white border-2 rounded-lg p-3" style={{ borderColor: '#dcfce7' }}>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-semibold text-gray-900">{custom.name}</span>
+                          <div key={index} className="bg-white border-2 rounded-lg p-2.5 sm:p-3" style={{ borderColor: '#dcfce7' }}>
+                            <div className="flex items-center justify-between mb-2 gap-2">
+                              <span className="text-xs sm:text-sm font-semibold text-gray-900 truncate flex-1">{custom.name}</span>
                               <button
                                 type="button"
                                 onClick={() => handleDeleteCustomization(index)}
-                                className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
                               >
                                 <X className="h-4 w-4" />
                               </button>
                             </div>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-1.5 sm:gap-2">
                               {custom.options.map((opt, optIndex) => (
-                                <span key={optIndex} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
+                                <span key={optIndex} className="px-2 sm:px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
                                   {opt}
                                 </span>
                               ))}
@@ -1030,16 +1008,16 @@ export default function MenuSetupStep() {
                   </div>
 
                   {/* Add/Update Button */}
-                  <div className="flex gap-4 pt-4">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-3 sm:pt-4">
                     <button
                       type="button"
                       onClick={handleAddMenuItem}
-                      className="flex-1 px-6 py-3 text-white font-semibold rounded-lg transition-colors shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                      className="w-full sm:flex-1 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base text-white font-semibold rounded-lg transition-colors shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                       style={{ backgroundColor: '#3CAF54' }}
                       onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
                       onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
                     >
-                      {itemForm.editingIndex !== null ? <Edit2 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+                      {itemForm.editingIndex !== null ? <Edit2 className="h-4 w-4 sm:h-5 sm:w-5" /> : <Plus className="h-4 w-4 sm:h-5 sm:w-5" />}
                       {itemForm.editingIndex !== null ? 'Update Item' : 'Add Item'}
                     </button>
                     {itemForm.editingIndex !== null && (
@@ -1065,7 +1043,7 @@ export default function MenuSetupStep() {
                             photoInputRef.current.value = '';
                           }
                         }}
-                        className="px-6 py-3 border-2 rounded-lg font-semibold transition-colors text-gray-700 hover:bg-gray-50"
+                        className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base border-2 rounded-lg font-semibold transition-colors text-gray-700 hover:bg-gray-50"
                         style={{ borderColor: '#d1d5db' }}
                       >
                         Cancel
@@ -1076,49 +1054,49 @@ export default function MenuSetupStep() {
 
                 {/* Menu Items List */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Menu Items ({menuItems.length})</h3>
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Your Menu Items ({menuItems.length})</h3>
                   {menuItems.length === 0 ? (
-                    <p className="text-gray-500 text-center py-8">No menu items added yet. Add your first item above.</p>
+                    <p className="text-sm sm:text-base text-gray-500 text-center py-6 sm:py-8">No menu items added yet. Add your first item above.</p>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-3 sm:space-y-4">
                       {menuItems.map((item, index) => (
-                        <div key={index} className="bg-white border-2 rounded-lg p-6" style={{ borderColor: '#dcfce7' }}>
-                          <div className="flex gap-4">
+                        <div key={index} className="bg-white border-2 rounded-lg p-4 sm:p-6" style={{ borderColor: '#dcfce7' }}>
+                          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                             {item.photoPreview && (
-                              <img src={item.photoPreview} alt={item.name} className="w-24 h-24 object-cover rounded-lg" />
+                              <img src={item.photoPreview} alt={item.name} className="w-full sm:w-24 h-32 sm:h-24 object-cover rounded-lg flex-shrink-0" />
                             )}
-                            <div className="flex-1">
-                              <div className="flex items-start justify-between mb-2">
-                                <div>
-                                  <h4 className="text-lg font-semibold text-gray-900">{item.name}</h4>
-                                  <p className="text-sm text-gray-600">{item.category}</p>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between mb-2 gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-base sm:text-lg font-semibold text-gray-900 truncate">{item.name}</h4>
+                                  <p className="text-xs sm:text-sm text-gray-600">{item.category}</p>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex gap-1 sm:gap-2 flex-shrink-0">
                                   <button
                                     type="button"
                                     onClick={() => handleEditMenuItem(index)}
-                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                    className="p-1.5 sm:p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                                   >
                                     <Edit2 className="h-4 w-4" />
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => handleDeleteMenuItem(index)}
-                                    className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                    className="p-1.5 sm:p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </button>
                                 </div>
                               </div>
                               {item.description && (
-                                <p className="text-sm text-gray-600 mb-2">{item.description}</p>
+                                <p className="text-xs sm:text-sm text-gray-600 mb-2 line-clamp-2">{item.description}</p>
                               )}
-                              <div className="flex flex-wrap gap-4 text-sm">
+                              <div className="flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm">
                                 <span className="font-semibold text-gray-900">${item.price.toFixed(2)}</span>
                                 {item.discount && (
                                   <span className="text-green-600">Discount: ${item.discount.toFixed(2)}</span>
                                 )}
-                                <span className={`px-2 py-1 rounded ${item.availability === 'available' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                <span className={`px-2 py-1 rounded text-xs ${item.availability === 'available' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                   {item.availability === 'available' ? 'Available' : 'Out of Stock'}
                                 </span>
                                 <span className="text-gray-600">⏱ {item.preparationTime}</span>
@@ -1169,15 +1147,15 @@ export default function MenuSetupStep() {
             )}
 
             {/* Navigation Buttons */}
-            <div className="flex gap-4 pt-8 border-t mt-8">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-6 sm:pt-8 border-t mt-6 sm:mt-8">
               <button
                 type="button"
                 onClick={handleBack}
-                className="flex-1 px-6 py-3 border-2 rounded-lg font-semibold transition-colors text-gray-700 hover:bg-gray-50"
+                className="w-full sm:flex-1 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base border-2 rounded-lg font-semibold transition-colors text-gray-700 hover:bg-gray-50"
                 style={{ borderColor: '#d1d5db' }}
               >
                 <div className="flex items-center justify-center space-x-2">
-                  <ArrowLeft className="h-5 w-5" />
+                  <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                   <span>Back</span>
                 </div>
               </button>
@@ -1185,7 +1163,7 @@ export default function MenuSetupStep() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="flex-1 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full sm:flex-1 text-white font-semibold py-2.5 sm:py-3 px-4 sm:px-6 text-sm sm:text-base rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ backgroundColor: '#3CAF54' }}
                 onMouseEnter={(e) => !isSubmitting && (e.target.style.backgroundColor = '#2d8f42')}
                 onMouseLeave={(e) => !isSubmitting && (e.target.style.backgroundColor = '#3CAF54')}
@@ -1193,12 +1171,12 @@ export default function MenuSetupStep() {
                 {isSubmitting ? (
                   <>
                     <span>Saving...</span>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-b-2 border-white"></div>
                   </>
                 ) : (
                   <>
                     <span>Complete Setup</span>
-                    <ArrowRight className="h-5 w-5" />
+                    <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
                   </>
                 )}
               </button>

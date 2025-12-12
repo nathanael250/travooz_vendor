@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { CheckCircle, Clock, ArrowRight } from 'lucide-react';
+import { CheckCircle, Clock, LogOut } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import { restaurantsAPI } from '../../services/restaurantDashboardService';
@@ -39,6 +39,22 @@ export default function SetupComplete() {
     }
   }, [location]);
 
+  // Also check restaurant status from user data if restaurantId is not available
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData && !restaurantId) {
+      try {
+        const user = JSON.parse(userData);
+        if (user.restaurant_id) {
+          setRestaurantId(user.restaurant_id);
+          localStorage.setItem('restaurant_id', user.restaurant_id);
+        }
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+      }
+    }
+  }, [restaurantId]);
+
   const fetchUserRestaurants = async () => {
     try {
       const restaurants = await restaurantsAPI.getAll();
@@ -52,65 +68,140 @@ export default function SetupComplete() {
     }
   };
 
+  // Prevent multiple redirects
+  const redirectRef = useRef(false);
+
   // Check restaurant status
   const checkRestaurantStatus = async () => {
-    if (!restaurantId) {
+    // If already redirecting, don't check again
+    if (redirectRef.current) {
+      console.log('⏸️ Redirect already in progress, skipping status check');
+      return;
+    }
+
+    // Try to get restaurant ID if not available
+    let currentRestaurantId = restaurantId;
+    if (!currentRestaurantId) {
+      // Try to get from localStorage
+      currentRestaurantId = localStorage.getItem('restaurant_id');
+      if (currentRestaurantId) {
+        setRestaurantId(currentRestaurantId);
+      } else {
+        // Try to get from API
+        try {
+          const myRestaurant = await restaurantsAPI.getMyRestaurant();
+          if (myRestaurant && myRestaurant.id) {
+            currentRestaurantId = myRestaurant.id;
+            setRestaurantId(currentRestaurantId);
+            localStorage.setItem('restaurant_id', currentRestaurantId);
+          }
+        } catch (error) {
+          console.error('Error fetching restaurant:', error);
+        }
+      }
+    }
+
+    if (!currentRestaurantId) {
       setIsChecking(false);
       return;
     }
 
     try {
-      const restaurant = await restaurantsAPI.getById(restaurantId);
-      const status = restaurant?.status || restaurant?.data?.status;
-      setRestaurantStatus(status);
-      setIsChecking(false);
+      // Try getById first, then fallback to getMyRestaurant
+      let restaurant = null;
+      let status = null;
+      
+      try {
+        restaurant = await restaurantsAPI.getById(currentRestaurantId);
+        // If restaurant is null and we have restaurant_id in session, it was deleted
+        if (restaurant === null && localStorage.getItem('restaurant_id') === currentRestaurantId) {
+          console.log('⚠️ Restaurant was deleted - logout handled by getById');
+          return;
+        }
+        status = restaurant?.status || restaurant?.data?.status;
+        console.log('🔍 Restaurant status from getById:', status, 'Restaurant:', restaurant);
+      } catch (getByIdError) {
+        // Check if it's a restaurant not found error
+        const { isRestaurantNotFoundError } = await import('../../utils/restaurantAuth');
+        if (isRestaurantNotFoundError(getByIdError)) {
+          console.log('⚠️ Restaurant not found error - logout handled');
+          return;
+        }
+        console.log('⚠️ getById failed, trying getMyRestaurant:', getByIdError.message);
+        const myRestaurant = await restaurantsAPI.getMyRestaurant();
+        // If restaurant is null and we have restaurant_id in session, it was deleted
+        if (myRestaurant === null && localStorage.getItem('restaurant_id')) {
+          console.log('⚠️ Restaurant was deleted - logout handled by getMyRestaurant');
+          return;
+        }
+        if (myRestaurant) {
+          restaurant = myRestaurant;
+          status = myRestaurant.status || myRestaurant.data?.status;
+          console.log('🔍 Restaurant status from getMyRestaurant:', status, 'Restaurant:', myRestaurant);
+        }
+      }
 
-      // If approved (active), redirect to dashboard
-      if (status === 'active') {
-        toast.success('Your restaurant has been approved! Redirecting to dashboard...');
-        setTimeout(() => {
-          navigate('/restaurant/dashboard', { replace: true });
-        }, 1500);
-        return;
+      if (status !== null && status !== undefined) {
+        // Normalize status to lowercase for comparison
+        const normalizedStatus = String(status).trim().toLowerCase();
+        setRestaurantStatus(normalizedStatus);
+        setIsChecking(false);
+
+        console.log('🔍 SetupComplete - Status check:', {
+          rawStatus: status,
+          normalizedStatus: normalizedStatus,
+          isActive: normalizedStatus === 'active'
+        });
+
+        // If approved, redirect to dashboard (only once)
+        if ((normalizedStatus === 'approved' || normalizedStatus === 'active') && !redirectRef.current) {
+          redirectRef.current = true;
+          console.log('✅ Restaurant is approved! Redirecting to dashboard...');
+          toast.success('Your restaurant has been approved! Redirecting to dashboard...');
+          setTimeout(() => {
+            navigate('/restaurant/dashboard', { replace: true });
+          }, 1500);
+          return;
+        } else {
+          console.log('⏳ Restaurant status is:', normalizedStatus, '- showing waiting page');
+        }
+      } else {
+        console.log('⚠️ No status found for restaurant (status is null/undefined)');
+        // If no status, assume pending
+        setRestaurantStatus('pending');
+        setIsChecking(false);
       }
     } catch (error) {
-      console.error('Error checking restaurant status:', error);
+      console.error('❌ Error checking restaurant status:', error);
       setIsChecking(false);
     }
   };
 
   // Check status on mount and periodically
   useEffect(() => {
-    if (restaurantId) {
-      checkRestaurantStatus();
-      
-      // Check every 10 seconds for status updates
-      const intervalId = setInterval(() => {
-        checkRestaurantStatus();
-      }, 10000);
-
-      return () => clearInterval(intervalId);
-    }
-  }, [restaurantId]);
-
-  const handleGoToDashboard = async () => {
-    // Check status first
-    if (restaurantId) {
-      try {
-        const restaurant = await restaurantsAPI.getById(restaurantId);
-        const status = restaurant?.status || restaurant?.data?.status;
-        
-        if (status === 'active') {
-          navigate('/restaurant/dashboard', { replace: true });
-          return;
-        }
-      } catch (error) {
-        console.error('Error checking status:', error);
-      }
-    }
+    // Check immediately on mount
+    checkRestaurantStatus();
     
-    // Navigate to dashboard even if pending (user can see status there)
-    navigate('/restaurant/dashboard', { replace: true });
+    // Check every 10 seconds for status updates
+    const intervalId = setInterval(() => {
+      checkRestaurantStatus();
+    }, 10000);
+
+    return () => clearInterval(intervalId);
+  }, [restaurantId]); // Re-run when restaurantId changes
+
+  const handleLogout = () => {
+    // Clear all authentication data
+    localStorage.removeItem('token');
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('restaurant_id');
+    localStorage.removeItem('restaurant_setup_progress');
+    
+    toast.success('Logged out successfully');
+    
+    // Navigate to login page
+    navigate('/restaurant/login', { replace: true });
   };
 
   // Show loading state while checking
@@ -118,10 +209,10 @@ export default function SetupComplete() {
     return (
       <div className="flex flex-col min-h-screen" style={{ backgroundColor: '#f0fdf4' }}>
         <StaysNavbar />
-        <div className="flex-1 w-full py-8 px-4 flex items-center justify-center">
+        <div className="flex-1 w-full py-4 sm:py-6 md:py-8 px-4 sm:px-6 flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3CAF54] mx-auto mb-4"></div>
-            <p className="text-gray-600">Checking restaurant status...</p>
+            <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-[#3CAF54] mx-auto mb-3 sm:mb-4"></div>
+            <p className="text-sm sm:text-base text-gray-600">Checking restaurant status...</p>
           </div>
         </div>
         <StaysFooter />
@@ -129,35 +220,38 @@ export default function SetupComplete() {
     );
   }
 
-  // If approved, show success message
-  if (restaurantStatus === 'active') {
+  // If approved, show success message (check normalized status)
+  const normalizedCurrentStatus = restaurantStatus ? String(restaurantStatus).toLowerCase() : null;
+  if (normalizedCurrentStatus === 'approved' || normalizedCurrentStatus === 'active') {
     return (
       <div className="flex flex-col min-h-screen" style={{ backgroundColor: '#f0fdf4' }}>
         <StaysNavbar />
-        <div className="flex-1 w-full py-8 px-4">
+        <div className="flex-1 w-full py-4 sm:py-6 md:py-8 px-4 sm:px-6">
           <div className="max-w-2xl w-full mx-auto">
-            <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>
-              <div className="flex justify-center mb-6">
-                <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dcfce7' }}>
-                  <CheckCircle className="h-12 w-12" style={{ color: '#3CAF54' }} />
+            <div className="bg-white rounded-lg shadow-xl p-6 sm:p-8 border" style={{ borderColor: '#dcfce7' }}>
+              <div className="flex justify-center mb-4 sm:mb-6">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dcfce7' }}>
+                  <CheckCircle className="h-10 w-10 sm:h-12 sm:w-12" style={{ color: '#3CAF54' }} />
                 </div>
               </div>
-              <div className="text-center mb-8">
-                <h1 className="text-3xl font-bold text-gray-900 mb-4">
+              <div className="text-center mb-6 sm:mb-8">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">
                   Restaurant Approved! 🎉
                 </h1>
-                <p className="text-lg text-gray-600 mb-6">
-                  Your restaurant has been approved and is now live on the platform!
+                <p className="text-base sm:text-lg text-gray-600">
+                  Your restaurant is now live on the platform!
                 </p>
               </div>
               <div className="flex justify-center">
                 <button
-                  onClick={handleGoToDashboard}
-                  className="px-8 py-4 text-white font-semibold rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
+                  onClick={handleLogout}
+                  className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base text-white font-semibold rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
                   style={{ backgroundColor: '#3CAF54' }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
                 >
-                  <span>Go to Dashboard</span>
-                  <ArrowRight className="h-5 w-5" />
+                  <span>Logout</span>
+                  <LogOut className="h-4 w-4 sm:h-5 sm:w-5" />
                 </button>
               </div>
             </div>
@@ -171,77 +265,56 @@ export default function SetupComplete() {
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: '#f0fdf4' }}>
       <StaysNavbar />
-      <div className="flex-1 w-full py-8 px-4">
+      <div className="flex-1 w-full py-4 sm:py-6 md:py-8 px-4 sm:px-6">
         <div className="max-w-2xl w-full mx-auto">
           {/* Success Content */}
-          <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>
+          <div className="bg-white rounded-lg shadow-xl p-6 sm:p-8 border" style={{ borderColor: '#dcfce7' }}>
             {/* Success Icon */}
-            <div className="flex justify-center mb-6">
-              <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dcfce7' }}>
-                <CheckCircle className="h-12 w-12" style={{ color: '#3CAF54' }} />
+            <div className="flex justify-center mb-4 sm:mb-6">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dcfce7' }}>
+                <CheckCircle className="h-10 w-10 sm:h-12 sm:w-12" style={{ color: '#3CAF54' }} />
               </div>
             </div>
 
             {/* Success Message */}
-            <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            <div className="text-center mb-6 sm:mb-8">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">
                 Restaurant Setup Complete!
               </h1>
-              <p className="text-lg text-gray-600 mb-6">
-                Thank you for completing your restaurant setup. Your information has been submitted successfully.
+              <p className="text-base sm:text-lg text-gray-600">
+                Your information has been submitted successfully.
               </p>
             </div>
 
             {/* Review Notice */}
-            <div className="bg-blue-50 rounded-lg p-6 border-2 mb-6" style={{ borderColor: '#bfdbfe' }}>
-              <div className="flex items-start gap-4">
-                <Clock className="h-6 w-6 text-blue-600 mt-1 flex-shrink-0" />
-                <div>
-                  <h3 className="text-lg font-semibold text-blue-900 mb-2">
+            <div className="bg-blue-50 rounded-lg p-4 sm:p-6 border-2 mb-6" style={{ borderColor: '#bfdbfe' }}>
+              <div className="flex items-start gap-3 sm:gap-4">
+                <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 mt-0.5 sm:mt-1 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base sm:text-lg font-semibold text-blue-900 mb-1.5 sm:mb-2">
                     Review in Progress
                   </h3>
-                  <p className="text-blue-800 mb-3">
-                    Our Travooz staff team needs to review your restaurant information before making it live on the platform.
+                  <p className="text-sm sm:text-base text-blue-800 mb-2 sm:mb-3">
+                    Our team is reviewing your restaurant information.
                   </p>
-                  <p className="text-blue-700 text-sm">
-                    This process typically takes 24-48 hours. You'll be notified once your restaurant is approved and goes live.
+                  <p className="text-xs sm:text-sm text-blue-700">
+                    This typically takes 24-48 hours. You'll be notified once approved.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* What's Next */}
-            <div className="bg-gray-50 rounded-lg p-6 mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                What's Next?
-              </h3>
-              <ul className="space-y-3 text-gray-700">
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
-                  <span>Monitor your dashboard for updates on your restaurant's approval status</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
-                  <span>You can update your restaurant information anytime from the dashboard</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
-                  <span>Once approved, your restaurant will be visible to customers on the platform</span>
-                </li>
-              </ul>
-            </div>
-
             {/* Action Button */}
             <div className="flex justify-center">
               <button
-                onClick={handleGoToDashboard}
-                className="px-8 py-4 text-white font-semibold rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
+                onClick={handleLogout}
+                className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base text-white font-semibold rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
                 style={{ backgroundColor: '#3CAF54' }}
                 onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
                 onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
               >
-                <span>Wait in the Dashboard</span>
-                <ArrowRight className="h-5 w-5" />
+                <span>Logout</span>
+                <LogOut className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
             </div>
           </div>
