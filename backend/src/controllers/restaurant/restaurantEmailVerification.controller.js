@@ -51,22 +51,11 @@ const verifyCode = async (req, res) => {
             return sendError(res, 'Invalid or expired verification code', 400);
         }
 
-        // Update step 1-3 progress (Email Verification) if restaurantId is provided
-        if (restaurantId) {
-            try {
-                // Email verification is part of step 1-3, which should already be marked complete
-                // But we can ensure it's marked as complete here
-                await restaurantSetupProgressService.updateStepProgress(
-                    restaurantId,
-                    userId,
-                    3, // Step 1-3 includes email verification
-                    true
-                );
-            } catch (progressError) {
-                console.warn('Failed to update step 1-3 progress:', progressError);
-                // Don't fail the verification if progress update fails
-            }
-        }
+        // Note: Email verification is part of steps 1-3, which are completed together
+        // when the restaurant is initially created. The setup progress table is created
+        // after steps 1-3 are complete, so we don't need to update it here.
+        // If restaurantId is provided, we can verify the progress exists, but we don't
+        // need to update it since email verification happens before the progress table exists.
 
         return sendSuccess(res, { verified: true }, 'Email verified successfully');
     } catch (error) {

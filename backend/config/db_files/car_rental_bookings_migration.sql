@@ -121,3 +121,4 @@ SELECT 'Car rental bookings table migration completed successfully!' AS message;
 
 
 
+

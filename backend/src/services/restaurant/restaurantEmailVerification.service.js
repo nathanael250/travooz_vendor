@@ -167,20 +167,28 @@ class RestaurantEmailVerificationService {
             );
 
             // Update user email_verified status in restaurant_users table (use userIdInt because user_id is INT)
+            // Note: executeQuery for UPDATE returns result info, not rows
             const updateResult = await executeQuery(
                 `UPDATE restaurant_users SET email_verified = 1 WHERE user_id = ?`,
                 [userIdInt]
             );
             
+            // Check if update affected any rows (user exists)
+            if (!updateResult || (updateResult.affectedRows !== undefined && updateResult.affectedRows === 0)) {
+                console.error(`❌ User not found in restaurant_users table: user_id ${userIdInt}`);
+                throw new Error('User not found in restaurant_users table');
+            }
+            
             console.log(`📝 Update query executed. Rows affected: ${updateResult.affectedRows || 'unknown'}`);
             
-            // Verify the update was successful
-            const [verifyResult] = await executeQuery(
+            // Verify the update was successful by querying the updated value
+            const verifyResult = await executeQuery(
                 `SELECT email_verified FROM restaurant_users WHERE user_id = ?`,
                 [userIdInt]
             );
             
-            if (verifyResult && verifyResult[0] && verifyResult[0].email_verified === 1) {
+            // executeQuery returns an array of rows, so verifyResult[0] is the first row
+            if (verifyResult && verifyResult.length > 0 && verifyResult[0].email_verified === 1) {
                 console.log(`✅ Email verified successfully for user_id: ${userIdInt}`);
             } else {
                 console.error(`❌ Failed to update email_verified for user_id: ${userIdInt}. Current value:`, verifyResult?.[0]?.email_verified);
