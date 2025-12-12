@@ -801,7 +801,9 @@ class ClientBookingService {
       const customer_email = customer.email || bookingData.customer_email;
       const customer_phone = customer.phone || bookingData.customer_phone;
       
-      const special_requests = bookingData.special_requests;
+  const special_requests = bookingData.special_requests;
+  // Ensure we always have a string/null variable for special requests used later
+  let specialRequestsText = special_requests || null;
       const payment_method = bookingData.payment_method || 'card';
 
       // Validate required fields
@@ -969,12 +971,13 @@ class ClientBookingService {
       const bookingReference = `CAR-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
       // Create booking
+      // Use sanitized specialRequestsText (null if not provided) to avoid undefined in bind params
       const bookingResult = await executeQuery(
         `INSERT INTO bookings (
           service_type, total_amount, status, payment_status, 
           booking_reference, booking_source, special_requests
         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        ['car_rental', totalAmount, 'pending', 'pending', bookingReference, 'website', special_requests]
+        ['car_rental', totalAmount || 0.00, 'pending', 'pending', bookingReference, 'website', specialRequestsText]
       );
 
       const bookingId = bookingResult.insertId;
@@ -1002,10 +1005,10 @@ class ClientBookingService {
             total_amount, deposit_amount, booking_status, payment_status, special_requests
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
           insertParams = [
-            bookingId, car_id, carData.vendor_id, customer_first_name, customer_email || null, customer_phone,
-            pickup_date, pickup_time, return_date, return_time,
-            pickup_location || null, dropoff_location || null, driver_option,
-            totalAmount, securityDeposit, 'pending', 'pending', special_requests || null
+            bookingId, car_id, (carData && carData.vendor_id) || null, customer_first_name, customer_email || null, customer_phone,
+            pickup_date || null, pickup_time || null, return_date || null, return_time || null,
+            pickup_location || null, dropoff_location || null, driver_option || 'self-drive',
+            totalAmount || 0.00, securityDeposit || 0.00, 'pending', 'pending', specialRequestsText
           ];
         } else {
           // Old structure - combine date and time into DATETIME for pickup_date and dropoff_date
@@ -1025,13 +1028,16 @@ class ClientBookingService {
             total_amount, deposit_amount, booking_status, payment_status, special_requests
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
           insertParams = [
-            bookingId, car_id, carData.vendor_id, customer_first_name, customer_email || null, customer_phone,
-            pickupDateTime, dropoffDateTime,
+            bookingId, car_id, (carData && carData.vendor_id) || null, customer_first_name, customer_email || null, customer_phone,
+            pickupDateTime || null, dropoffDateTime || null,
             pickup_location || null, dropoff_location || null,
-            totalAmount, securityDeposit, 'pending', 'pending', specialRequestsText
+            totalAmount || 0.00, securityDeposit || 0.00, 'pending', 'pending', specialRequestsText
           ];
         }
         
+        // Sanitize parameters: mysql2 rejects `undefined` in bind parameters. Convert undefined -> null
+        insertParams = insertParams.map(p => p === undefined ? null : p);
+
         await executeQuery(insertQuery, insertParams);
       } catch (err) {
         console.error('Error creating car rental booking:', err);
