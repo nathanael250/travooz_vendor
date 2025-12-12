@@ -110,9 +110,35 @@ const RestaurantDashboardLayout = () => {
               
               // Check if restaurant is approved/active
               isRestaurantApproved = normalizedStatus === 'approved' || normalizedStatus === 'active';
-              
-              // If restaurant is not approved, redirect to waiting page
+
+              // If restaurant is not approved, double-check the setup service to avoid
+              // redirect loops when the restaurant record and setup service disagree.
               if (normalizedStatus && !isRestaurantApproved) {
+                try {
+                  const restaurantIdForCheck = myRestaurant.id || myRestaurant.data?.id || localStorage.getItem('restaurant_id');
+                  if (restaurantIdForCheck) {
+                    const { restaurantSetupService } = await import('../../services/eatingOutService');
+                    try {
+                      const setupInfo = await restaurantSetupService.getSetupStatus(restaurantIdForCheck);
+                      const setupApproved = !!(
+                        setupInfo?.approved ||
+                        setupInfo?.is_approved ||
+                        (typeof setupInfo?.status === 'string' && setupInfo.status.toLowerCase().includes('approved'))
+                      );
+
+                      if (setupApproved) {
+                        console.log('🔍 Setup service reports approved while restaurant record is not approved - allowing dashboard access');
+                        return;
+                      }
+                    } catch (setupCheckErr) {
+                      console.warn('⚠️ Could not fetch setup status while deciding redirect - proceeding with restaurant record:', setupCheckErr);
+                      // If setup check fails, fall through to redirect based on restaurant record
+                    }
+                  }
+                } catch (err) {
+                  console.warn('⚠️ Error while double-checking setup service:', err);
+                }
+
                 console.log('⏳ Restaurant not approved yet (status:', normalizedStatus, '), redirecting to waiting page');
                 navigate('/restaurant/setup/complete', { replace: true });
                 return;

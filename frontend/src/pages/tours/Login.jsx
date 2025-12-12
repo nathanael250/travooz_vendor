@@ -30,6 +30,24 @@ export default function ToursLogin() {
       if (user && token) {
         try {
           const userData = JSON.parse(user);
+          // If this user also has a restaurant account, make sure the restaurant is approved
+          // If not approved, send them to the restaurant waiting page so they cannot access other services
+          try {
+            const restaurantId = userData.restaurant_id || localStorage.getItem('restaurant_id');
+            if (restaurantId) {
+              const restaurantsAPI = (await import('../../services/restaurantDashboardService')).restaurantsAPI;
+              const rest = await restaurantsAPI.getById(restaurantId);
+              const restStatus = rest?.status || rest?.data?.status;
+              const normalizedRestStatus = restStatus ? String(restStatus).toLowerCase() : null;
+              if (normalizedRestStatus && normalizedRestStatus !== 'approved' && normalizedRestStatus !== 'active') {
+                navigate('/restaurant/setup/complete', { replace: true });
+                return;
+              }
+            }
+          } catch (e) {
+            // ignore restaurant check errors here - fall back to normal tours logic
+            console.warn('⚠️ Could not check restaurant approval during tours auth check:', e);
+          }
           
           // Verify this is actually a tour user by checking the token
           // If token is invalid, clear it and stay on login page
@@ -188,6 +206,24 @@ export default function ToursLogin() {
       // Store tour business ID if available
       if (result.tourBusinessId) {
         localStorage.setItem('tour_business_id', result.tourBusinessId.toString());
+      }
+
+      // After login, if the user owns a restaurant and it's not approved, force restaurant waiting page
+      try {
+        const restaurantIdAfter = result.user?.restaurant_id || localStorage.getItem('restaurant_id');
+        if (restaurantIdAfter) {
+          const restaurantsAPI = (await import('../../services/restaurantDashboardService')).restaurantsAPI;
+          const rest = await restaurantsAPI.getById(restaurantIdAfter);
+          const restStatus = rest?.status || rest?.data?.status;
+          const normalizedRestStatus = restStatus ? String(restStatus).toLowerCase() : null;
+          if (normalizedRestStatus && normalizedRestStatus !== 'approved' && normalizedRestStatus !== 'active') {
+            toast.success('Login successful! Your restaurant is pending approval.');
+            navigate('/restaurant/setup/complete', { replace: true });
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Could not perform post-login restaurant approval check for tours:', e);
       }
 
       toast.success('Login successful!');

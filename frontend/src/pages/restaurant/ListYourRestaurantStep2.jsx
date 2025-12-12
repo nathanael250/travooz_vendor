@@ -18,14 +18,75 @@ export default function ListYourRestaurantStep2() {
     };
   }, []);
 
-  const [formData, setFormData] = useState({
-    restaurantName: '',
-    restaurantType: '',
-    restaurantTypeName: '',
-    subcategoryId: '',
-    description: '',
-    phone: '',
-  });
+  // Try to prefill step2 form from navigation state or localStorage (auto-fill previously entered phone)
+  const getInitialFormData = () => {
+    // Prefer navigation state (when user navigates back/forward between steps)
+    const navStep2 = location.state?.step2Data || null;
+
+    // Also accept a few localStorage keys that may contain previous content (graceful fallback)
+    const rawLocalPhone = (() => {
+      const candidates = [
+        localStorage.getItem('phone'),
+        localStorage.getItem('restaurant_step2'),
+        localStorage.getItem('step2Data'),
+        localStorage.getItem('vendor_step2')
+      ];
+      for (const c of candidates) {
+        if (!c) continue;
+        // If this looks like JSON, try to parse and extract phone
+        try {
+          const parsed = JSON.parse(c);
+          if (parsed && parsed.phone) return parsed.phone;
+        } catch (e) {
+          // not JSON - maybe it's the phone string itself
+          return c;
+        }
+      }
+      return null;
+    })();
+
+    const prevPhone = navStep2?.phone || rawLocalPhone || '';
+
+    // Parse phone string into countryCode and phoneNumber
+    let countryCode = '+250';
+    let phoneNumber = '';
+    if (prevPhone && prevPhone.toString().trim()) {
+      const p = prevPhone.toString().trim();
+      // If starts with + and digits: +250789xxx
+      const match = p.match(/^(\+\d{1,4})(\d+)$/);
+      if (match) {
+        countryCode = match[1];
+        phoneNumber = match[2];
+      } else {
+        // Strip non-digits and try to heuristically split
+        const digits = p.replace(/\D/g, '');
+        if (digits.length >= 7 && digits.length <= 9) {
+          // likely local number, keep default country code
+          phoneNumber = digits;
+        } else if (digits.length > 9) {
+          // assume leading digits are country code
+          const ccLen = digits.length - 9; // assume national number is last 9 digits
+          countryCode = `+${digits.slice(0, ccLen)}`;
+          phoneNumber = digits.slice(ccLen);
+        } else {
+          // fallback: set whatever we have
+          phoneNumber = digits;
+        }
+      }
+    }
+
+    return {
+      restaurantName: navStep2?.restaurantName || '',
+      restaurantType: navStep2?.restaurantType || '',
+      restaurantTypeName: navStep2?.restaurantTypeName || '',
+      subcategoryId: navStep2?.subcategoryId || '',
+      description: navStep2?.description || '',
+      countryCode,
+      phoneNumber,
+    };
+  };
+
+  const [formData, setFormData] = useState(getInitialFormData);
 
   const [errors, setErrors] = useState({});
 
@@ -85,8 +146,8 @@ export default function ListYourRestaurantStep2() {
     if (!formData.description.trim()) {
       newErrors.description = 'Description is required';
     }
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Phone number is required';
+    if (!formData.phoneNumber.trim()) {
+      newErrors.phoneNumber = 'Phone number is required';
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -97,9 +158,12 @@ export default function ListYourRestaurantStep2() {
     // Just collect data and navigate to next step (no API call yet)
     // The restaurant listing will be created in Step 3 along with the user account
     navigate('/restaurant/list-your-restaurant/step-3', {
-      state: {
+        state: {
         ...location.state,
-        step2Data: formData
+        step2Data: {
+          ...formData,
+          phone: `${formData.countryCode}${formData.phoneNumber}`
+        }
       }
     });
   };
@@ -235,23 +299,41 @@ export default function ListYourRestaurantStep2() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    id="phone"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="+250 7XX XXX XXX"
-                    className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
-                      errors.phone ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
-                    }`}
-                  />
-                  {errors.phone && (
-                    <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
-                  )}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
+                  <div className="flex items-center gap-3">
+                    <div className="w-28">
+                      <select
+                        id="countryCode"
+                        name="countryCode"
+                        value={formData.countryCode}
+                        onChange={handleChange}
+                        className="w-full px-3 py-3 border-2 rounded-lg focus:outline-none transition-all border-gray-300"
+                      >
+                        <option value="+250">+250 (RW)</option>
+                        <option value="+1">+1 (US)</option>
+                        <option value="+44">+44 (UK)</option>
+                        <option value="+254">+254 (KE)</option>
+                        <option value="+255">+255 (TZ)</option>
+                        <option value="+256">+256 (UG)</option>
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <input
+                        type="tel"
+                        id="phoneNumber"
+                        name="phoneNumber"
+                        value={formData.phoneNumber}
+                        onChange={handleChange}
+                        placeholder="7XX XXX XXX"
+                        className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
+                          errors.phoneNumber ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
+                        }`}
+                      />
+                      {errors.phoneNumber && (
+                        <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 

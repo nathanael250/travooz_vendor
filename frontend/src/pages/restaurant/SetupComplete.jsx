@@ -205,10 +205,37 @@ export default function SetupComplete() {
           isActive: normalizedStatus === 'active'
         });
 
-        // If approved, redirect to dashboard (only once)
+        // ALSO check the setup service for explicit approval flag (more authoritative)
+        try {
+          const { restaurantSetupService } = await import('../../services/eatingOutService');
+          const setupInfo = await restaurantSetupService.getSetupStatus(currentRestaurantId);
+          console.log('🔍 Setup status from setup service:', setupInfo);
+
+          // Determine approval from setup service fields
+          // NOTE: setupInfo.setupComplete (or setup_complete) means the vendor finished the steps,
+          // it is NOT an admin approval flag. Only trust explicit approval indicators.
+          const setupApproved = !!(
+            setupInfo?.approved ||
+            setupInfo?.is_approved ||
+            (typeof setupInfo?.status === 'string' && setupInfo.status.toLowerCase().includes('approved'))
+          );
+
+          if (setupApproved && !redirectRef.current) {
+            redirectRef.current = true;
+            console.log('✅ Setup service reports restaurant approved - redirecting to dashboard');
+            toast.success('Your restaurant has been approved! Redirecting to dashboard...');
+            setTimeout(() => navigate('/restaurant/dashboard', { replace: true }), 1500);
+            return;
+          }
+        } catch (setupErr) {
+          console.warn('⚠️ Could not fetch setup status (non-fatal):', setupErr);
+          // Fall back to using restaurant.status below
+        }
+
+        // If approved by restaurant.status, redirect to dashboard (only once)
         if ((normalizedStatus === 'approved' || normalizedStatus === 'active') && !redirectRef.current) {
           redirectRef.current = true;
-          console.log('✅ Restaurant is approved! Redirecting to dashboard...');
+          console.log('✅ Restaurant is approved (by restaurant.status)! Redirecting to dashboard...');
           toast.success('Your restaurant has been approved! Redirecting to dashboard...');
           setTimeout(() => {
             navigate('/restaurant/dashboard', { replace: true });

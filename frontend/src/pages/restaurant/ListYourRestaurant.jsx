@@ -31,6 +31,70 @@ export default function ListYourRestaurant() {
 
   const GOOGLE_MAPS_API_KEY = 'AIzaSyD2arEwy-YlQ7NU7fWOIxbJgTOLiH6RUqc'; // Not used - loaded from index.html
 
+  // Fallback address lookup using OpenStreetMap (Nominatim)
+  const fetchFallbackAddress = async (lat, lng) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`
+      );
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (fallbackError) {
+      console.error('Fallback geocoding error:', fallbackError);
+      return null;
+    }
+  };
+
+  const handleFallbackAddressLookup = async (lat, lng, placeId) => {
+    setIsGeocoding(true);
+    const fallbackData = await fetchFallbackAddress(lat, lng);
+    setIsGeocoding(false);
+
+    if (fallbackData?.display_name) {
+      const components = fallbackData.address
+        ? Object.entries(fallbackData.address).map(([key, value]) => ({
+            long_name: value,
+            short_name: value,
+            types: [key]
+          }))
+        : [];
+
+      const locationInfo = {
+        name: fallbackData.display_name,
+        formatted_address: fallbackData.display_name,
+        place_id: placeId,
+        lat,
+        lng,
+        address_components: components,
+        fallback_provider: 'nominatim'
+      };
+
+      setSelectedMapLocation({ ...locationInfo, lat, lng });
+      setLocation(fallbackData.display_name);
+      setLocationData(locationInfo);
+      setMapError('Using OpenStreetMap to describe this pinned location.');
+    } else {
+      setMapError('Address lookup failed. Saving precise coordinates only.');
+    }
+  };
+
+  const getGeocodeErrorMessage = (status) => {
+    switch (status) {
+      case 'ZERO_RESULTS':
+        return 'No address found for this location. Using coordinates instead.';
+      case 'OVER_QUERY_LIMIT':
+        return 'Geocoding service temporarily unavailable. Using coordinates instead.';
+      case 'REQUEST_DENIED':
+        return 'Geocoding request denied. Using coordinates instead.';
+      case 'INVALID_REQUEST':
+        return 'We could not understand this map request. Using coordinates instead.';
+      case 'UNKNOWN_ERROR':
+        return 'Geocoding service returned an unknown error. Using coordinates instead.';
+      default:
+        return `Geocoding failed (${status}). Using coordinates instead.`;
+    }
+  };
+
   // Initialize Google Places Autocomplete
   const initializeAutocomplete = () => {
     if (!inputRef.current || !window.google || !window.google.maps || !window.google.maps.places) {
@@ -229,16 +293,11 @@ export default function ListYourRestaurant() {
               setError('');
               setMapError('');
             } else {
-              // If geocoding fails, keep the coordinates we already set
-              if (status === 'ZERO_RESULTS') {
-                setMapError('No address found for this location. Using coordinates instead.');
-              } else if (status === 'OVER_QUERY_LIMIT') {
-                setMapError('Geocoding service temporarily unavailable. Using coordinates instead.');
-              } else if (status === 'REQUEST_DENIED') {
-                setMapError('Geocoding request denied. Using coordinates instead.');
-              } else {
-                setMapError(`Geocoding failed (${status}). Using coordinates instead.`);
-              }
+              // If geocoding fails, attempt an OpenStreetMap fallback to get a human-readable address
+              const msg = getGeocodeErrorMessage(status);
+              setMapError(msg);
+              // Try Nominatim fallback to obtain a formatted address
+              handleFallbackAddressLookup(lat, lng, `manual_${lat}_${lng}`);
             }
           });
         } catch (error) {
@@ -290,8 +349,10 @@ export default function ListYourRestaurant() {
                 setError('');
                 setMapError('');
               } else {
-                // If geocoding fails, keep the coordinates we already set
-                setMapError('Address lookup failed. Using coordinates.');
+                // If geocoding fails, attempt fallback to obtain a human-readable address
+                const msg = getGeocodeErrorMessage(status);
+                setMapError(msg);
+                handleFallbackAddressLookup(newLat, newLng, `manual_${newLat}_${newLng}`);
               }
             });
           } catch (error) {
@@ -573,8 +634,8 @@ export default function ListYourRestaurant() {
                 ) : selectedMapLocation.formatted_address ? (
                   <p className="text-xs sm:text-sm text-gray-600 mb-3 break-words">{selectedMapLocation.formatted_address}</p>
                 ) : (
-                  <p className="text-xs sm:text-sm text-gray-600 mb-3 break-all">
-                    {selectedMapLocation.lat?.toFixed(6)}, {selectedMapLocation.lng?.toFixed(6)}
+                  <p className="text-xs sm:text-sm text-gray-600 mb-3 break-words">
+                    Coordinates saved
                   </p>
                 )}
                 {mapError && (

@@ -56,6 +56,7 @@ export default function ListYourCarRental() {
   const [locationData, setLocationData] = useState(null);
   const autocompleteRef = useRef(null);
   const inputRef = useRef(null);
+  // Reuse native Google Places Autocomplete (no custom suggestion UI)
   const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = useState(false);
   const [googleMapsError, setGoogleMapsError] = useState(null);
   const [showMapModal, setShowMapModal] = useState(false);
@@ -188,6 +189,8 @@ export default function ListYourCarRental() {
     });
   };
 
+  // We rely on the native Google Places Autocomplete UI for suggestions to match other services
+
   // Load Google Maps script - check if already loaded or wait for it
   useEffect(() => {
     // Check if Google Maps is already loaded
@@ -236,6 +239,27 @@ export default function ListYourCarRental() {
     // Listen for error events
     window.addEventListener('googlemaps:error', handleGoogleMapsError);
 
+    // Also listen for the explicit load event dispatched from index.html
+    const handleGoogleMapsLoaded = () => {
+      // Try to initialize when the global loader notifies us
+      checkGoogleMaps();
+    };
+    window.addEventListener('googlemaps:loaded', handleGoogleMapsLoaded);
+
+    // Re-initialize autocomplete when the input gains focus (helps when script loads late)
+    const handleInputFocus = () => {
+      try {
+        if (!autocompleteRef.current && window.google && window.google.maps && window.google.maps.places) {
+          initializeAutocomplete();
+        }
+      } catch (err) {
+        console.error('Error re-initializing autocomplete on focus:', err);
+      }
+    };
+    if (inputRef.current) {
+      inputRef.current.addEventListener('focus', handleInputFocus);
+    }
+
     // Wait for Google Maps to load (it's loaded in index.html)
     let checkInterval = setInterval(() => {
       if (checkGoogleMaps()) {
@@ -258,6 +282,10 @@ export default function ListYourCarRental() {
       clearInterval(checkInterval);
       clearTimeout(timeout);
       window.removeEventListener('googlemaps:error', handleGoogleMapsError);
+      window.removeEventListener('googlemaps:loaded', handleGoogleMapsLoaded);
+      if (inputRef.current) {
+        inputRef.current.removeEventListener('focus', handleInputFocus);
+      }
     };
   }, []);
 
@@ -585,6 +613,7 @@ export default function ListYourCarRental() {
               {!isGoogleMapsLoaded && !googleMapsError && (
                 <p className="mt-2 text-sm text-gray-500">Loading location services...</p>
               )}
+              {/* Use native Google Places dropdown (pac-container) for consistent UI */}
               {googleMapsError === 'billing' && (
                 <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-sm font-semibold text-yellow-800 mb-2">

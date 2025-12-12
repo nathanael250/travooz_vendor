@@ -56,3 +56,23 @@ body.auth-page #root {
 .animate-slideInRight {
   animation: slideInRight 0.3s ease-out;
 }
+
+/* Google Places Autocomplete (pac) styling to ensure consistent dropdown across pages */
+.pac-container {
+  z-index: 99999 !important;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
+  max-height: 320px;
+}
+.pac-item {
+  padding: 0.5rem 0.75rem;
+}
+.pac-item:hover {
+  background: #f3f4f6;
+}
+.pac-item span {
+  display: inline-block;
+}

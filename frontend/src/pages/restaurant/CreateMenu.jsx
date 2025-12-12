@@ -474,6 +474,11 @@ export default function CreateMenu() {
         }
         return {
           ...item,
+          // Ensure backend-friendly availability fields: include both the string `availability`
+          // and a boolean `available` so different endpoints that expect either form will behave
+          // consistently. This prevents new items from being treated as unavailable by default.
+          availability: item.availability || 'available',
+          available: item.available !== undefined ? item.available : (item.availability === 'available'),
           id: tempId,
           tempId: tempId
         };
@@ -769,19 +774,50 @@ export default function CreateMenu() {
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <Clock className="h-5 w-5 text-gray-400" />
                     </div>
-                    <input
-                      type="text"
-                      value={itemForm.preparationTime}
+                    {/* Simplified: provide common ranges to choose from to avoid free-text entry */}
+                    <select
+                      value={itemForm.preparationTimeOption || itemForm.preparationTime}
                       onChange={(e) => {
-                        setItemForm({ ...itemForm, preparationTime: e.target.value });
-                        if (errors.preparationTime) setErrors({ ...errors, preparationTime: '' });
+                        const val = e.target.value;
+                        if (val === 'custom') {
+                          // open custom input with empty value
+                          setItemForm({ ...itemForm, preparationTimeOption: 'custom', preparationTime: '' });
+                        } else {
+                          setItemForm({ ...itemForm, preparationTimeOption: val, preparationTime: val });
+                          if (errors.preparationTime) setErrors({ ...errors, preparationTime: '' });
+                        }
                       }}
-                      placeholder="e.g., 15-20 minutes"
                       className={`w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
                         errors.preparationTime ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
                       }`}
-                    />
+                    >
+                      <option value="">-- Select preparation time --</option>
+                      <option value="Under 10 minutes">Under 10 minutes</option>
+                      <option value="10-15 minutes">10-15 minutes</option>
+                      <option value="15-20 minutes">15-20 minutes</option>
+                      <option value="20-30 minutes">20-30 minutes</option>
+                      <option value="30-45 minutes">30-45 minutes</option>
+                      <option value="45-60 minutes">45-60 minutes</option>
+                      <option value=">60 minutes">60+ minutes</option>
+                      <option value="custom">Custom (minutes)</option>
+                    </select>
                   </div>
+                  {itemForm.preparationTimeOption === 'custom' && (
+                    <div className="mt-2">
+                      <input
+                        type="number"
+                        min="1"
+                        value={itemForm.preparationMinutes || ''}
+                        onChange={(e) => {
+                          const mins = e.target.value;
+                          setItemForm({ ...itemForm, preparationMinutes: mins, preparationTime: mins ? `${mins} minutes` : '' });
+                          if (errors.preparationTime) setErrors({ ...errors, preparationTime: '' });
+                        }}
+                        placeholder="e.g., 25"
+                        className="w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all border-gray-300 focus:border-green-500"
+                      />
+                    </div>
+                  )}
                   {errors.preparationTime && (
                     <p className="mt-1 text-sm text-red-600">{errors.preparationTime}</p>
                   )}

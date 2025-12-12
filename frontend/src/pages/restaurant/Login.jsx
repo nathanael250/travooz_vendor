@@ -21,18 +21,51 @@ export default function RestaurantLogin() {
   useEffect(() => {
     const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
     const user = localStorage.getItem('user');
-    
-    if (token && user) {
+
+    // Only auto-redirect if we have a token and an explicit approval/status indicating the
+    // restaurant is live. Previously we redirected any vendor/admin directly which caused
+    // a bounce between dashboard and the waiting page when approval was still pending.
+    if (!token || !user) return;
+
+    let cancelled = false;
+    (async () => {
       try {
         const userData = JSON.parse(user);
-        // Check if user has restaurants
-        if (userData.role === 'vendor' || userData.role === 'admin') {
-          navigate('/restaurant/dashboard');
+        if (!(userData.role === 'vendor' || userData.role === 'admin')) return;
+
+        const normalizedStatus = userData.restaurant_status ? String(userData.restaurant_status).toLowerCase() : null;
+        if (normalizedStatus === 'approved' || normalizedStatus === 'active') {
+          if (!cancelled) navigate('/restaurant/dashboard');
+          return;
+        }
+
+        // If status is missing/unknown, ask the setup service for an explicit approval flag
+        if (!normalizedStatus && userData.restaurant_id) {
+          try {
+            const { restaurantSetupService } = await import('../../services/eatingOutService');
+            const setupInfo = await restaurantSetupService.getSetupStatus(userData.restaurant_id);
+            const setupApproved = !!(
+              setupInfo?.approved ||
+              setupInfo?.is_approved ||
+              (typeof setupInfo?.status === 'string' && setupInfo.status.toLowerCase().includes('approved'))
+            );
+
+            if (setupApproved && !cancelled) {
+              navigate('/restaurant/dashboard');
+            }
+          } catch (e) {
+            // Ignore errors here and do not redirect; let the user stay on the login page
+            // so they can complete the proper flow (or manually sign-in again).
+            console.warn('⚠️ Could not determine setup approval on page load:', e);
+          }
         }
       } catch (error) {
-        // Invalid user data, stay on login page
+        // Invalid user data or parse error — do not redirect
+        console.warn('⚠️ Login redirect check failed:', error);
       }
-    }
+    })();
+
+    return () => { cancelled = true; };
   }, [navigate]);
 
   const [formData, setFormData] = useState({
@@ -150,48 +183,69 @@ export default function RestaurantLogin() {
             navigate('/restaurant/dashboard', { replace: true });
           }, 100);
         } else {
-          // No restaurant yet or status unknown - check if restaurant exists
-          if (restaurantId) {
-            // Has restaurant ID but no status - check restaurant status
-            try {
-              const restaurantsAPI = (await import('../../services/restaurantDashboardService')).restaurantsAPI;
-              const restaurant = await restaurantsAPI.getById(restaurantId);
-              const status = restaurant?.status || restaurant?.data?.status;
-              const normalizedStatusFromAPI = status ? String(status).toLowerCase() : null;
-              
-              console.log('🔍 Login - Fetched restaurant status:', {
-                status,
-                normalized: normalizedStatusFromAPI
-              });
-              
-              if (normalizedStatusFromAPI && normalizedStatusFromAPI !== 'approved' && normalizedStatusFromAPI !== 'active') {
-                console.log('⏳ Restaurant is pending (from API), redirecting to waiting page');
-                toast.success('Login successful! Your restaurant is pending approval.');
-                setTimeout(() => {
-                  navigate('/restaurant/setup/complete', { replace: true });
-                }, 100);
-              } else {
-                console.log('✅ Restaurant is approved or no status (from API), going to dashboard');
+          // If status is missing/unknown, check the setup service for an authoritative approval flag
+          let setupApproved = false;
+          try {
+            const { restaurantSetupService } = await import('../../services/eatingOutService');
+            const setupInfo = await restaurantSetupService.getSetupStatus(restaurantId);
+            // Only treat explicit approval flags or an explicit 'approved' status as approval.
+            // Do NOT treat setupComplete/setup_complete as admin approval; that's vendor-completion.
+            setupApproved = !!(
+              setupInfo?.approved || setupInfo?.is_approved ||
+              (typeof setupInfo?.status === 'string' && setupInfo.status.toLowerCase().includes('approved'))
+            );
+            console.log('🔍 Login - setup service check:', setupInfo, 'approved:', setupApproved);
+          } catch (e) {
+            console.warn('⚠️ Login - could not fetch setup status, falling back to restaurant record', e);
+          }
+
+          if (setupApproved) {
+            toast.success('Login successful!');
+            setTimeout(() => navigate('/restaurant/dashboard', { replace: true }), 100);
+          } else {
+            // No restaurant yet or status unknown - check if restaurant exists
+            if (restaurantId) {
+              // Has restaurant ID but no status - check restaurant status
+              try {
+                const restaurantsAPI = (await import('../../services/restaurantDashboardService')).restaurantsAPI;
+                const restaurant = await restaurantsAPI.getById(restaurantId);
+                const status = restaurant?.status || restaurant?.data?.status;
+                const normalizedStatusFromAPI = status ? String(status).toLowerCase() : null;
+
+                console.log('🔍 Login - Fetched restaurant status:', {
+                  status,
+                  normalized: normalizedStatusFromAPI
+                });
+
+                if (normalizedStatusFromAPI && normalizedStatusFromAPI !== 'approved' && normalizedStatusFromAPI !== 'active') {
+                  console.log('⏳ Restaurant is pending (from API), redirecting to waiting page');
+                  toast.success('Login successful! Your restaurant is pending approval.');
+                  setTimeout(() => {
+                    navigate('/restaurant/setup/complete', { replace: true });
+                  }, 100);
+                } else {
+                  console.log('✅ Restaurant is approved or no status (from API), going to dashboard');
+                  toast.success('Login successful!');
+                  setTimeout(() => {
+                    navigate('/restaurant/dashboard', { replace: true });
+                  }, 100);
+                }
+              } catch (error) {
+                console.error('Error checking restaurant status:', error);
+                // Error checking status - go to dashboard (might be in setup)
                 toast.success('Login successful!');
                 setTimeout(() => {
                   navigate('/restaurant/dashboard', { replace: true });
                 }, 100);
               }
-            } catch (error) {
-              console.error('Error checking restaurant status:', error);
-              // Error checking status - go to dashboard (might be in setup)
+            } else {
+              // No restaurant ID - might be in setup or new user
+              console.log('⚠️ No restaurant ID, going to dashboard');
               toast.success('Login successful!');
               setTimeout(() => {
                 navigate('/restaurant/dashboard', { replace: true });
               }, 100);
             }
-          } else {
-            // No restaurant ID - might be in setup or new user
-            console.log('⚠️ No restaurant ID, going to dashboard');
-            toast.success('Login successful!');
-            setTimeout(() => {
-              navigate('/restaurant/dashboard', { replace: true });
-            }, 100);
           }
         }
       } else {
