@@ -998,7 +998,12 @@ router.post('/menu', authenticateToken, upload.any(), async (req, res) => {
           itemId = existingItemId;
           isUpdate = true;
           processedItemIds.add(itemId);
-          
+          // Determine availability boolean with clear defaults
+          const availabilityValue = (item.availability || 'available').toString();
+          const isAvailableFlag = (typeof item.available !== 'undefined')
+            ? (item.available ? 1 : 0)
+            : (availabilityValue.toLowerCase() === 'available' ? 1 : 0);
+
           await pool.execute(
             `UPDATE menu_items SET
              category_id = ?, name = ?, description = ?, price = ?, discount = ?, 
@@ -1011,11 +1016,11 @@ router.post('/menu', authenticateToken, upload.any(), async (req, res) => {
               item.description || null,
               item.price || 0,
               item.discount || 0,
-              item.availability || 'available',
+              availabilityValue || 'available',
               item.preparationTime || null,
               item.portionSize || null,
               imageUrl || null,
-              item.availability === 'available' ? 1 : 0,
+              isAvailableFlag,
               itemId
             ]
           );
@@ -1023,7 +1028,12 @@ router.post('/menu', authenticateToken, upload.any(), async (req, res) => {
           // Insert new item
           itemId = uuidv4();
           isUpdate = false;
-          
+          // Determine availability boolean with clear defaults
+          const availabilityValueNew = (item.availability || 'available').toString();
+          const isAvailableFlagNew = (typeof item.available !== 'undefined')
+            ? (item.available ? 1 : 0)
+            : (availabilityValueNew.toLowerCase() === 'available' ? 1 : 0);
+
           await pool.execute(
             `INSERT INTO menu_items 
              (id, restaurant_id, category_id, name, description, price, discount, availability, preparation_time, portion_size, image_url, available)
@@ -1036,11 +1046,11 @@ router.post('/menu', authenticateToken, upload.any(), async (req, res) => {
               item.description || null,
               item.price || 0,
               item.discount || 0,
-              item.availability || 'available',
+              availabilityValueNew || 'available',
               item.preparationTime || null,
               item.portionSize || null,
               imageUrl,
-              item.availability === 'available' ? 1 : 0
+              isAvailableFlagNew
             ]
           );
         }

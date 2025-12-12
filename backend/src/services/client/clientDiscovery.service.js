@@ -928,7 +928,7 @@ class ClientDiscoveryService {
           r.status,
           NULL as average_rating
         FROM restaurants r
-        WHERE r.status = 'active'
+  WHERE r.status IN ('active', 'approved')
       `;
 
       const params = [];
@@ -992,7 +992,7 @@ class ClientDiscoveryService {
   async getRestaurantById(restaurantId) {
     try {
       const restaurants = await executeQuery(
-        `SELECT * FROM restaurants WHERE id = ? AND status = 'active'`,
+        `SELECT * FROM restaurants WHERE id = ? AND status IN ('active', 'approved')`,
         [restaurantId]
       );
 
@@ -1041,7 +1041,7 @@ class ClientDiscoveryService {
     try {
       // Get restaurant with capacity info
       const restaurants = await executeQuery(
-        `SELECT id, capacity, available_seats FROM restaurants WHERE id = ? AND status = 'active'`,
+        `SELECT id, capacity, available_seats FROM restaurants WHERE id = ? AND status IN ('active', 'approved')`,
         [restaurantId]
       );
 
