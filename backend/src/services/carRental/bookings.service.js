@@ -49,10 +49,28 @@ class BookingsService {
     async getBookingsByVendor(vendorId, filters = {}) {
         try {
             await this.ensureBookingsTable();
+            // Build SELECT depending on DB schema (some installations use old schema with dropoff_date)
+            let selectReturnField = 'cb.dropoff_date as return_date';
+            try {
+                const cols = await executeQuery(
+                    `SELECT COLUMN_NAME FROM information_schema.columns 
+                     WHERE table_schema = DATABASE() 
+                     AND table_name = 'car_rental_bookings' 
+                     AND COLUMN_NAME IN ('return_date', 'dropoff_date')`
+                );
+                const hasReturnDate = cols && cols.some(c => c.COLUMN_NAME === 'return_date');
+                if (hasReturnDate) selectReturnField = 'cb.return_date';
+                else selectReturnField = 'cb.dropoff_date as return_date';
+            } catch (schemaErr) {
+                // If schema check fails, default to dropoff_date alias (safe fallback)
+                console.error('Error checking car_rental_bookings schema:', schemaErr);
+                selectReturnField = 'cb.dropoff_date as return_date';
+            }
+
             let query = `
                 SELECT 
                     cb.*,
-                    cb.return_date,
+                    ${selectReturnField},
                     cb.booking_status as status,
                     c.brand as car_brand, c.model as car_model, c.license_plate as car_license_plate
                 FROM car_rental_bookings cb

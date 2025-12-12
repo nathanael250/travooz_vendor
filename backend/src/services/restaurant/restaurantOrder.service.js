@@ -1,4 +1,5 @@
 const { pool } = require('../../../config/database');
+const EmailService = require('../../utils/email.service');
 const { v4: uuidv4 } = require('uuid');
 
 class RestaurantOrderService {
@@ -228,7 +229,93 @@ class RestaurantOrderService {
     }
 
     // Get created order with items
-    return await this.getOrderById(orderId);
+    const createdOrder = await this.getOrderById(orderId);
+
+    // Send confirmation email to customer (non-blocking)
+    try {
+      if (customer_email) {
+        const customerHtml = `
+          <div style="font-family: Arial, sans-serif; max-width:600px; margin:0 auto; padding:20px;">
+            <h2>Thank you for your order from ${createdOrder.restaurant_name || 'our restaurant'}</h2>
+            <p>Hi ${customer_name || 'there'},</p>
+            <p>We have received your order <strong>${createdOrder.id}</strong>. Here are the details:</p>
+            <p><strong>Total:</strong> ${Number(createdOrder.total_amount || 0).toLocaleString()} RWF</p>
+            <p>We will notify you when your order status changes.</p>
+            <p>Regards,<br/>Travooz Team</p>
+          </div>
+        `;
+
+        const customerText = `Thank you for your order ${createdOrder.id}. Total: ${Number(createdOrder.total_amount || 0)} RWF`;
+
+        await EmailService.sendEmail({
+          to: customer_email,
+          subject: `Order received (${createdOrder.id}) - ${createdOrder.restaurant_name || 'Travooz'}`,
+          html: customerHtml,
+          text: customerText
+        });
+      }
+    } catch (err) {
+      console.error('⚠️ Failed to send customer order confirmation email:', err.message || err);
+    }
+
+    // Send notification email to vendor (non-blocking)
+    try {
+      // Try to resolve vendor email from restaurants -> restaurant_users
+      const [restaurants] = await pool.execute('SELECT user_id, name FROM restaurants WHERE id = ? LIMIT 1', [restaurant_id]);
+      let vendorEmail = null;
+      let vendorName = null;
+      if (restaurants && restaurants.length > 0) {
+        const r = restaurants[0];
+        vendorName = r.name || null;
+        if (r.user_id) {
+          // Attempt to get email from restaurant_users (user_id may be int)
+          try {
+            const [users] = await pool.execute('SELECT email, name FROM restaurant_users WHERE user_id = ? LIMIT 1', [r.user_id]);
+            if (users && users.length > 0) {
+              vendorEmail = users[0].email;
+              vendorName = users[0].name || vendorName;
+            }
+          } catch (userErr) {
+            // Fallback: try as string id
+            try {
+              const [users2] = await pool.execute('SELECT email, name FROM restaurant_users WHERE CAST(user_id AS CHAR) = ? LIMIT 1', [String(r.user_id)]);
+              if (users2 && users2.length > 0) {
+                vendorEmail = users2[0].email;
+                vendorName = users2[0].name || vendorName;
+              }
+            } catch (err2) {
+              console.error('Error querying restaurant_users for vendor email:', err2.message || err2);
+            }
+          }
+        }
+      }
+
+      if (vendorEmail) {
+        const vendorHtml = `
+          <div style="font-family: Arial, sans-serif; max-width:600px; margin:0 auto; padding:20px;">
+            <h2>New order received</h2>
+            <p>Hi ${vendorName || 'there'},</p>
+            <p>A new order <strong>${createdOrder.id}</strong> has been placed for your restaurant ${createdOrder.restaurant_name || ''}.</p>
+            <p><strong>Total:</strong> ${Number(createdOrder.total_amount || 0).toLocaleString()} RWF</p>
+            <p>Please check your vendor dashboard to accept and prepare the order.</p>
+            <p>Regards,<br/>Travooz Team</p>
+          </div>
+        `;
+
+        const vendorText = `New order ${createdOrder.id} received. Total: ${Number(createdOrder.total_amount || 0)} RWF`;
+
+        await EmailService.sendEmail({
+          to: vendorEmail,
+          subject: `New order received (${createdOrder.id})`,
+          html: vendorHtml,
+          text: vendorText
+        });
+      }
+    } catch (err) {
+      console.error('⚠️ Failed to send vendor order notification email:', err.message || err);
+    }
+
+    return createdOrder;
   }
 
   /**
