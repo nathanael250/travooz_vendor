@@ -77,8 +77,8 @@ async function createOrder(req, res) {
       if (userType === 'restaurant_user') {
         // For restaurant_users, user_id is INT
         const [restaurants] = await pool.execute(
-          'SELECT id FROM restaurants WHERE user_id = ? AND status = ? LIMIT 1',
-          [vendorUserId, 'active']
+          'SELECT id FROM restaurants WHERE user_id = ? AND status IN (?, ?) LIMIT 1',
+          [vendorUserId, 'active', 'approved']
         );
         if (restaurants.length > 0) {
           restaurantId = restaurants[0].id;
@@ -86,8 +86,8 @@ async function createOrder(req, res) {
       } else {
         // For profiles, user_id is VARCHAR UUID
         const [restaurants] = await pool.execute(
-          'SELECT id FROM restaurants WHERE user_id = ? AND status = ? LIMIT 1',
-          [vendorUserId, 'active']
+          'SELECT id FROM restaurants WHERE user_id = ? AND status IN (?, ?) LIMIT 1',
+          [vendorUserId, 'active', 'approved']
         );
         if (restaurants.length > 0) {
           restaurantId = restaurants[0].id;
@@ -102,10 +102,10 @@ async function createOrder(req, res) {
       });
     }
 
-    // Verify restaurant exists and is active
+    // Verify restaurant exists and is active/approved
     const [restaurantCheck] = await pool.execute(
-      'SELECT * FROM restaurants WHERE id = ? AND status = ?',
-      [restaurantId, 'active']
+      'SELECT * FROM restaurants WHERE id = ? AND status IN (?, ?)',
+      [restaurantId, 'active', 'approved']
     );
 
     if (restaurantCheck.length === 0) {
