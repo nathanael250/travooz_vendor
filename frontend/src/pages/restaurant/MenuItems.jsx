@@ -178,10 +178,14 @@ const MenuItems = () => {
           return;
         }
 
-        const newMenuItem = await menuItemsAPI.create({
+        // Ensure available is explicitly set to true if not provided
+        const menuItemData = {
           ...formData,
           price: Number(formData.price),
-        });
+          available: formData.available !== undefined ? formData.available : true, // Default to true
+        };
+        
+        const newMenuItem = await menuItemsAPI.create(menuItemData);
         
         if (imagePreviews.length > 0) {
           try {
@@ -257,13 +261,18 @@ const MenuItems = () => {
   };
 
   const resetForm = () => {
+    // Auto-set restaurant_id to selected restaurant if available
+    const defaultRestaurantId = selectedRestaurant && selectedRestaurant !== 'all' 
+      ? selectedRestaurant 
+      : (restaurants.length > 0 ? restaurants[0].id : '');
+    
     setFormData({
       name: '',
       description: '',
       price: 0,
       category: '',
-      available: true,
-      restaurant_id: '',
+      available: true, // Default to available
+      restaurant_id: defaultRestaurantId,
     });
     setImagePreviews([]);
     setEditingId(null);
@@ -356,7 +365,10 @@ const MenuItems = () => {
             Create Menu
           </button>
           <button
-            onClick={() => setDialogOpen(true)}
+            onClick={() => {
+              resetForm(); // Reset form with default values including restaurant_id
+              setDialogOpen(true);
+            }}
             className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-md flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
@@ -533,7 +545,10 @@ const MenuItems = () => {
               </p>
               {(!searchQuery && selectedRestaurant === 'all') && (
                 <button
-                  onClick={() => setDialogOpen(true)}
+                  onClick={() => {
+              resetForm(); // Reset form with default values including restaurant_id
+              setDialogOpen(true);
+            }}
                   className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-2"
                 >
                   <Plus className="w-4 h-4" />

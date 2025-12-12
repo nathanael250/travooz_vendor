@@ -135,8 +135,21 @@ apiClient.interceptors.response.use(
     const currentPath = window.location.pathname;
     const isRestaurantRoute = currentPath.includes('/restaurant/');
     
+    // Don't auto-logout during setup flow (steps 1-3, email verification)
+    const isSetupFlow = currentPath.includes('/restaurant/list-your-restaurant') ||
+                        currentPath.includes('/restaurant/setup/email-verification') ||
+                        currentPath.includes('/restaurant/setup/business-details') ||
+                        currentPath.includes('/restaurant/setup/media') ||
+                        currentPath.includes('/restaurant/setup/payments') ||
+                        currentPath.includes('/restaurant/setup/capacity') ||
+                        currentPath.includes('/restaurant/setup/tax-legal') ||
+                        currentPath.includes('/restaurant/setup/menu') ||
+                        currentPath.includes('/restaurant/setup/review') ||
+                        currentPath.includes('/restaurant/setup/agreement');
+    
     // Handle restaurant not found or access denied errors
-    if (isRestaurantRequest || isRestaurantRoute) {
+    // BUT skip auto-logout during setup flow (let setup pages handle their own errors)
+    if ((isRestaurantRequest || isRestaurantRoute) && !isSetupFlow) {
       const errorMessage = response?.data?.message || 
                           response?.data?.error || 
                           error?.message || '';

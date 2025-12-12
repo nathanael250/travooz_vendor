@@ -83,6 +83,8 @@ const RestaurantDashboardLayout = () => {
         // Only check if trying to access dashboard or other protected routes (not setup pages)
         // Also skip if setup is in progress (prevents redirect loops during setup)
         const isSetupInProgress = localStorage.getItem('restaurant_setup_in_progress') === 'true';
+        let isRestaurantApproved = false;
+        
         if (!location.pathname.startsWith('/restaurant/setup/') && !isSetupInProgress) {
           try {
             const restaurantsAPI = (await import('../../services/restaurantDashboardService')).restaurantsAPI;
@@ -106,15 +108,19 @@ const RestaurantDashboardLayout = () => {
                 restaurant: myRestaurant
               });
               
+              // Check if restaurant is approved/active
+              isRestaurantApproved = normalizedStatus === 'approved' || normalizedStatus === 'active';
+              
               // If restaurant is not approved, redirect to waiting page
-              if (normalizedStatus && normalizedStatus !== 'approved' && normalizedStatus !== 'active') {
+              if (normalizedStatus && !isRestaurantApproved) {
                 console.log('⏳ Restaurant not approved yet (status:', normalizedStatus, '), redirecting to waiting page');
                 navigate('/restaurant/setup/complete', { replace: true });
                 return;
-              } else if (normalizedStatus === 'approved' || normalizedStatus === 'active') {
-                console.log('✅ Restaurant is approved, allowing dashboard access');
+              } else if (isRestaurantApproved) {
+                console.log('✅ Restaurant is approved, allowing dashboard access - skipping setup progress check');
+                // If approved, skip setup progress check and allow dashboard access
+                return;
               }
-              // If active, allow dashboard access (continue below)
             }
           } catch (statusError) {
             // Check if it's a restaurant not found error
@@ -128,57 +134,60 @@ const RestaurantDashboardLayout = () => {
           }
         }
 
-        // Check for incomplete setup progress
-        try {
-          const progress = await restaurantSetupService.getSetupProgressByUser();
-          if (progress && progress.restaurant_id) {
-            // Check if setup is incomplete (not all steps complete)
-            const allStepsComplete = 
-              progress.step_1_3_complete &&
-              progress.step_4_complete &&
-              progress.step_5_complete &&
-              progress.step_6_complete &&
-              progress.step_7_complete &&
-              progress.step_8_complete &&
-              progress.step_9_complete &&
-              progress.step_10_complete &&
-              progress.step_11_complete;
+        // Only check for incomplete setup progress if restaurant is NOT approved
+        // Approved restaurants should always go to dashboard, regardless of setup progress
+        if (!isRestaurantApproved) {
+          try {
+            const progress = await restaurantSetupService.getSetupProgressByUser();
+            if (progress && progress.restaurant_id) {
+              // Check if setup is incomplete (not all steps complete)
+              const allStepsComplete = 
+                progress.step_1_3_complete &&
+                progress.step_4_complete &&
+                progress.step_5_complete &&
+                progress.step_6_complete &&
+                progress.step_7_complete &&
+                progress.step_8_complete &&
+                progress.step_9_complete &&
+                progress.step_10_complete &&
+                progress.step_11_complete;
 
-            if (!allStepsComplete && location.pathname !== '/restaurant/setup/complete') {
-              // Redirect to the appropriate step based on current_step
-              const stepRoutes = {
-                4: '/restaurant/setup/business-details',
-                5: '/restaurant/setup/media',
-                6: '/restaurant/setup/payments-pricing',
-                7: '/restaurant/setup/capacity',
-                8: '/restaurant/setup/tax-legal',
-                9: '/restaurant/setup/menu',
-                10: '/restaurant/setup/review',
-                11: '/restaurant/setup/agreement'
-              };
+              if (!allStepsComplete && location.pathname !== '/restaurant/setup/complete') {
+                // Redirect to the appropriate step based on current_step
+                const stepRoutes = {
+                  4: '/restaurant/setup/business-details',
+                  5: '/restaurant/setup/media',
+                  6: '/restaurant/setup/payments-pricing',
+                  7: '/restaurant/setup/capacity',
+                  8: '/restaurant/setup/tax-legal',
+                  9: '/restaurant/setup/menu',
+                  10: '/restaurant/setup/review',
+                  11: '/restaurant/setup/agreement'
+                };
 
-              const targetRoute = stepRoutes[progress.current_step] || '/restaurant/setup/business-details';
-              
-              // Store progress data in localStorage for restoration
-              localStorage.setItem('restaurant_setup_progress', JSON.stringify(progress));
-              localStorage.setItem('restaurant_id', progress.restaurant_id);
+                const targetRoute = stepRoutes[progress.current_step] || '/restaurant/setup/business-details';
+                
+                // Store progress data in localStorage for restoration
+                localStorage.setItem('restaurant_setup_progress', JSON.stringify(progress));
+                localStorage.setItem('restaurant_id', progress.restaurant_id);
 
-              // Only redirect if not already on a setup page
-              if (!location.pathname.startsWith('/restaurant/setup/')) {
-                toast('Continuing your restaurant setup...', { icon: 'ℹ️' });
-                navigate(targetRoute, { 
-                  replace: true,
-                  state: { 
-                    progress,
-                    restaurantId: progress.restaurant_id 
-                  }
-                });
+                // Only redirect if not already on a setup page
+                if (!location.pathname.startsWith('/restaurant/setup/')) {
+                  toast('Continuing your restaurant setup...', { icon: 'ℹ️' });
+                  navigate(targetRoute, { 
+                    replace: true,
+                    state: { 
+                      progress,
+                      restaurantId: progress.restaurant_id 
+                    }
+                  });
+                }
               }
             }
+          } catch (progressError) {
+            // If progress check fails, continue normally (might be a new user)
+            console.log('No incomplete setup found or error checking progress:', progressError);
           }
-        } catch (progressError) {
-          // If progress check fails, continue normally (might be a new user)
-          console.log('No incomplete setup found or error checking progress:', progressError);
         }
       } catch (error) {
         console.error('Error checking auth:', error);

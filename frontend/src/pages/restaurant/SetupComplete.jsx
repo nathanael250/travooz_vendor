@@ -106,6 +106,58 @@ export default function SetupComplete() {
       return;
     }
 
+    // First, check if email is verified - if not, redirect to email verification
+    // Setup progress is only created after email verification (step 1-3), so if it doesn't exist,
+    // the user needs to verify their email first
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        const userId = user.user_id || user.id;
+        const userEmail = user.email;
+        
+        if (userId && userEmail) {
+          // Check if setup progress exists - if not, email is not verified
+          const { restaurantSetupService } = await import('../../services/eatingOutService');
+          try {
+            const progress = await restaurantSetupService.getSetupProgress(currentRestaurantId);
+            
+            // If progress exists, email is verified (progress is created after email verification)
+            console.log('🔍 Setup progress exists - email is verified');
+          } catch (progressError) {
+            // If progress doesn't exist (404), user hasn't verified email yet
+            // OR if error mentions email verification, redirect to email verification
+            const errorMessage = progressError?.response?.data?.message || progressError?.message || '';
+            const isNotFound = progressError?.response?.status === 404;
+            const isEmailError = errorMessage.toLowerCase().includes('email verification') || 
+                                errorMessage.toLowerCase().includes('email_verified') ||
+                                errorMessage.toLowerCase().includes('email verification required');
+            
+            if (isNotFound || isEmailError) {
+              console.log('📧 Email not verified or setup not complete - redirecting to email verification');
+              redirectRef.current = true;
+              navigate('/restaurant/setup/email-verification', {
+                state: {
+                  userId,
+                  email: userEmail,
+                  userName: user.name || userEmail.split('@')[0],
+                  restaurantId: currentRestaurantId,
+                  fromSetupComplete: true
+                },
+                replace: true
+              });
+              return;
+            }
+            // If it's a different error, continue with status check
+            console.warn('⚠️ Error checking setup progress (non-email error):', progressError);
+          }
+        }
+      }
+    } catch (emailCheckError) {
+      console.error('Error checking email verification:', emailCheckError);
+      // Continue with status check even if email check fails
+    }
+
     try {
       // Try getById first, then fallback to getMyRestaurant
       let restaurant = null;
