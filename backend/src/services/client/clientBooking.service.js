@@ -601,17 +601,16 @@ class ClientBookingService {
    */
   async createRestaurantReservation(bookingData) {
     try {
-      const {
-        restaurant_id,
-        reservation_date,
-        reservation_time,
-        number_of_guests,
-        customer_name,
-        customer_email,
-        customer_phone,
-        special_requests,
-        payment_method = 'card'
-      } = bookingData;
+      // Accept multiple possible field names from clients (backwards/alternate naming)
+      const restaurant_id = bookingData.restaurant_id || bookingData.restaurantId;
+      const reservation_date = bookingData.reservation_date || bookingData.booking_date || bookingData.bookingDate;
+      const reservation_time = bookingData.reservation_time || bookingData.booking_time || bookingData.bookingTime;
+      const number_of_guests = bookingData.number_of_guests || bookingData.guests || bookingData.numberOfGuests;
+      const customer_name = bookingData.customer_name || bookingData.customerName || bookingData.customer;
+      const customer_email = bookingData.customer_email || bookingData.customerEmail || bookingData.email;
+      const customer_phone = bookingData.customer_phone || bookingData.customerPhone || bookingData.phone;
+      const special_requests = bookingData.special_requests || bookingData.table_booking_special_requests || bookingData.special_instructions || bookingData.specialInstructions || null;
+      const payment_method = bookingData.payment_method || bookingData.paymentMethod || 'card';
 
       // Validate required fields
       if (!restaurant_id || !reservation_date || !reservation_time || 
@@ -620,8 +619,9 @@ class ClientBookingService {
       }
 
       // Get restaurant details
+      // Lookup restaurant by primary id column and allow both approved/active statuses
       const restaurant = await executeQuery(
-        `SELECT * FROM restaurants WHERE restaurant_id = ? AND status = 'active'`,
+        `SELECT * FROM restaurants WHERE id = ? AND status IN ('active', 'approved')`,
         [restaurant_id]
       );
 
