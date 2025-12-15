@@ -9,6 +9,7 @@ const getBaseURL = () => {
 const apiClient = axios.create({
   baseURL: getBaseURL(),
   headers: { 'Content-Type': 'application/json' },
+  timeout: 30000, // Default 30 seconds timeout for regular requests
 });
 
 // Request interceptor - add authentication token

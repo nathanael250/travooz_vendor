@@ -147,27 +147,50 @@ export const restaurantSetupService = {
   /**
    * Step 2 (Setup): Save Media (logo and gallery images)
    */
-  async saveMedia(restaurantId, mediaData) {
+  async saveMedia(restaurantId, mediaData, onUploadProgress) {
     try {
       const formData = new FormData();
       formData.append('restaurantId', restaurantId);
       
+      // Validate file sizes before upload (10MB limit)
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+      
       if (mediaData.logo) {
+        if (mediaData.logo.size > MAX_FILE_SIZE) {
+          throw new Error('Logo image is too large. Maximum size is 10MB. Please compress the image and try again.');
+        }
         formData.append('logo', mediaData.logo);
       }
       
       if (mediaData.galleryImages && Array.isArray(mediaData.galleryImages)) {
-        mediaData.galleryImages.forEach((file) => {
+        for (const file of mediaData.galleryImages) {
+          if (file.size > MAX_FILE_SIZE) {
+            throw new Error(`Gallery image "${file.name}" is too large. Maximum size is 10MB. Please compress the image and try again.`);
+          }
           formData.append('galleryImages', file);
-        });
+        }
       }
 
       const response = await apiClient.post('/eating-out/setup/media', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120000, // 2 minutes timeout for large file uploads
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        onUploadProgress: onUploadProgress ? (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onUploadProgress(percentCompleted);
+        } : undefined,
       });
       return response.data.data || response.data;
     } catch (error) {
-      throw error.response?.data || error;
+      // Handle network errors specifically
+      if (error.code === 'ECONNABORTED' || error.message === 'Network Error') {
+        throw new Error('Upload timed out. Please check your internet connection and try again. If the problem persists, try uploading smaller images.');
+      }
+      if (error.response?.data) {
+        throw error.response.data;
+      }
+      throw error;
     }
   },
 

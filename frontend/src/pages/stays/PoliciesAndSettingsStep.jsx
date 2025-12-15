@@ -307,8 +307,8 @@ export default function PoliciesAndSettingsStep() {
       });
     } else {
       navigate('/stays/list-your-property/step-3', {
-        state: location.state
-      });
+      state: location.state
+    });
     }
   };
 

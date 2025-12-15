@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Clock, CheckCircle, ArrowRight, LogOut, XCircle, X } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
+import SetupProgressIndicator from '../../components/car-rental/SetupProgressIndicator';
 import carRentalSetupService from '../../services/carRentalSetupService';
 
 export default function SetupComplete() {
@@ -172,6 +173,9 @@ export default function SetupComplete() {
       <StaysNavbar />
       <div className="flex-1 w-full py-4 sm:py-6 md:py-8 px-4 sm:px-6 flex items-start sm:items-center justify-center min-h-0">
         <div className="max-w-xl w-full mx-auto my-auto">
+          {/* Progress Indicator */}
+          <SetupProgressIndicator currentStepKey="complete" currentStepNumber={6} />
+          
           <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border p-4 sm:p-6 md:p-8 text-center space-y-4 sm:space-y-6" style={{ borderColor: isRejected ? '#fee2e2' : '#dcfce7' }}>
             <div className="flex justify-center">
               <div

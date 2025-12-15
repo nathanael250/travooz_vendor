@@ -58,6 +58,7 @@ export default function MediaStep() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [isLoadingProgress, setIsLoadingProgress] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Load saved images from restaurant (if already uploaded)
   useEffect(() => {
@@ -144,8 +145,8 @@ export default function MediaStep() {
   const handleLogoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Logo file size should be less than 5MB');
+      if (file.size > 10 * 1024 * 1024) {
+        alert('Logo file size should be less than 10MB. Please compress the image and try again.');
         return;
       }
       setLogo(file);
@@ -161,7 +162,7 @@ export default function MediaStep() {
     const files = Array.from(e.target.files);
     const validFiles = files.filter(file => {
       if (file.size > 10 * 1024 * 1024) {
-        alert(`${file.name} is too large. Maximum size is 10MB.`);
+        alert(`${file.name} is too large. Maximum size is 10MB. Please compress the image and try again.`);
         return false;
       }
       return true;
@@ -228,13 +229,16 @@ export default function MediaStep() {
 
     setIsSubmitting(true);
     setSubmitError('');
+    setUploadProgress(0);
 
     try {
-      // Save media via API
+      // Save media via API with upload progress tracking
       // Only send logo if it's a File object (new upload), not if it's 'existing' marker
       await restaurantSetupService.saveMedia(restaurantId, {
         logo: logo instanceof File ? logo : null, // Only send file if it's a new upload
         galleryImages
+      }, (progress) => {
+        setUploadProgress(progress);
       });
 
       // Navigate to next setup step (Capacity)
@@ -256,7 +260,28 @@ export default function MediaStep() {
       });
     } catch (error) {
       console.error('Error saving media:', error);
-      setSubmitError(error.message || 'Failed to save media. Please try again.');
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to save media. Please try again.';
+      
+      if (error.message) {
+        if (error.message.includes('timeout') || error.message.includes('timed out')) {
+          errorMessage = 'Upload timed out. Please check your internet connection and try again. If the problem persists, try uploading smaller images (under 5MB each).';
+        } else if (error.message.includes('Network Error') || error.message.includes('network')) {
+          errorMessage = 'Network error occurred. Please check your internet connection and try again. If the problem persists, try uploading smaller images or using a different network.';
+        } else if (error.message.includes('too large')) {
+          errorMessage = error.message;
+        } else {
+          errorMessage = error.message;
+        }
+      } else if (error.error) {
+        errorMessage = error.error;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      setSubmitError(errorMessage);
+      setUploadProgress(0);
     } finally {
       setIsSubmitting(false);
     }
@@ -304,6 +329,21 @@ export default function MediaStep() {
               </div>
             )}
 
+            {isSubmitting && uploadProgress > 0 && (
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-blue-600 font-medium">Uploading images...</p>
+                  <span className="text-sm text-blue-600 font-medium">{uploadProgress}%</span>
+                </div>
+                <div className="w-full h-2 bg-blue-200 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-600 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+
             {!restaurantId && (
               <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-sm text-red-600">
@@ -317,7 +357,7 @@ export default function MediaStep() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Front Image *
-                  <span className="text-gray-500 font-normal ml-2">(Recommended: Square, 500x500px, max 5MB)</span>
+                  <span className="text-gray-500 font-normal ml-2">(Recommended: Square, 500x500px, max 10MB)</span>
                 </label>
                 <div className="flex items-start gap-4">
                   {logoPreview ? (
