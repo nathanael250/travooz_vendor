@@ -173,7 +173,13 @@ class AdminAccountsService {
                             ru.phone as owner_phone,
                             r.status as submission_status
                         FROM restaurants r
-                        LEFT JOIN restaurant_users ru ON CAST(r.user_id AS UNSIGNED) = ru.user_id
+                        LEFT JOIN restaurant_users ru ON (
+                            r.user_id IS NOT NULL AND (
+                                (r.user_id REGEXP '^[0-9]+$' AND CAST(r.user_id AS UNSIGNED) = ru.user_id)
+                                OR 
+                                (r.user_id NOT REGEXP '^[0-9]+$' AND CAST(r.user_id AS CHAR) = CAST(ru.user_id AS CHAR))
+                            )
+                        )
                         WHERE 1=1
                     `;
                     const restaurantParams = [];
@@ -322,11 +328,12 @@ class AdminAccountsService {
             switch (serviceType) {
                 case 'car_rental':
                     // Update car rental setup submissions (if exists)
+                    // Note: car_rental_setup_submissions table doesn't have approved_at, approved_by, notes columns
                     await executeQuery(
                         `UPDATE car_rental_setup_submissions 
-                         SET status = 'approved', approved_at = NOW(), approved_by = ?, notes = ?, updated_at = NOW() 
+                         SET status = 'approved', updated_at = NOW() 
                          WHERE car_rental_business_id = ?`,
-                        [adminId, notes, accountId]
+                        [accountId]
                     ).catch(() => {
                         // Table might not exist or record might not exist, that's okay
                     });
@@ -360,17 +367,27 @@ class AdminAccountsService {
                         [accountId]
                     );
                     
-                    if (carRentalApprove.length > 0) {
+                    if (carRentalApprove && carRentalApprove.length > 0) {
                         const { business_name, email, name } = carRentalApprove[0];
                         const dashboardUrl = process.env.CAR_RENTAL_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/car-rental/dashboard';
-                        await CarRentalApprovalNotificationService.sendApprovalEmail({
-                            email,
-                            name,
-                            businessName: business_name,
-                            dashboardUrl
-                        });
+                        try {
+                            await CarRentalApprovalNotificationService.sendApprovalEmail({
+                                email,
+                                name,
+                                businessName: business_name,
+                                dashboardUrl
+                            });
+                        } catch (emailError) {
+                            console.error('Failed to send approval email for car rental:', emailError);
+                            // Don't fail the approval if email fails
+                        }
                     }
-                    break;
+                    
+                    return {
+                        accountId,
+                        serviceType: 'car_rental',
+                        status: 'approved'
+                    };
 
                 case 'tours':
                     // Update tours setup submission

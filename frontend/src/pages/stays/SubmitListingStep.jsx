@@ -20,11 +20,46 @@ export default function SubmitListingStep() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [incompleteSteps, setIncompleteSteps] = useState([]);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+
+  // Check setup status on page load to show incomplete steps
+  React.useEffect(() => {
+    const checkStatus = async () => {
+      const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
+      
+      if (!propertyId || propertyId === 0) {
+        setIsCheckingStatus(false);
+        return;
+      }
+
+      try {
+        const status = await staysSetupService.getSetupStatus(propertyId);
+        
+        if (!status.allComplete) {
+          // Extract incomplete steps
+          const incomplete = Object.entries(status.steps)
+            .filter(([_, complete]) => !complete)
+            .map(([step, _]) => step);
+          
+          setIncompleteSteps(incomplete);
+          
+          if (incomplete.length > 0) {
+            setSubmitError('Please complete all setup steps before submitting');
+          }
+        }
+      } catch (error) {
+        console.error('Error checking setup status:', error);
+      } finally {
+        setIsCheckingStatus(false);
+      }
+    };
+
+    checkStatus();
+  }, [location.state]);
 
   // Map step keys to user-friendly names and routes
   const stepNames = {
     'step1_email': { name: 'Email Verification', route: '/stays/list-your-property/verify-email' },
-    'step2_contract': { name: 'Contract Acceptance', route: '/stays/setup/contract' },
     'step3_policies': { name: 'Policies and Settings', route: '/stays/setup/policies' },
     'step4_amenities': { name: 'Property Amenities', route: '/stays/setup/amenities' },
     'step5_rooms': { name: 'Rooms and Rates', route: '/stays/setup/rooms' },
@@ -54,8 +89,8 @@ export default function SubmitListingStep() {
         // Mark setup as complete in localStorage
         localStorage.setItem('stays_setup_complete', 'true');
         
-        // Navigate to dashboard
-        navigate('/stays/dashboard', {
+        // Navigate to waiting screen (similar to tours)
+        navigate('/stays/setup/complete', {
           state: {
             ...location.state,
             setupComplete: true,
@@ -78,11 +113,17 @@ export default function SubmitListingStep() {
       
       if (incompleteStepsList.length > 0) {
         setIncompleteSteps(incompleteStepsList);
+        console.log('Incomplete steps found:', incompleteStepsList);
       }
       
       // Extract error message
       const errorMessage = error.message || error.response?.data?.message || 'Failed to submit listing. Please try again.';
       setSubmitError(errorMessage);
+      
+      // If we have incomplete steps but no error message, set a default one
+      if (incompleteStepsList.length > 0 && !errorMessage.includes('complete')) {
+        setSubmitError('Please complete all setup steps before submitting');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -142,19 +183,29 @@ export default function SubmitListingStep() {
                 You can expect to hear back from us in 2 to 3 days.
               </p>
               
-              {/* Error Display */}
-              {submitError && (
+              {/* Loading status check */}
+              {isCheckingStatus && (
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-600 flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Checking setup status...
+                  </p>
+                </div>
+              )}
+
+              {/* Error Display - Show if there's an error or incomplete steps */}
+              {(submitError || incompleteSteps.length > 0) && !isCheckingStatus && (
                 <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
                   <p className="text-sm text-red-600 flex items-center gap-2 mb-2">
                     <AlertCircle className="h-4 w-4" />
-                    {submitError}
+                    {submitError || 'Please complete all setup steps before submitting'}
                   </p>
                   
                   {/* Show incomplete steps */}
                   {incompleteSteps.length > 0 && (
                     <div className="mt-3">
                       <p className="text-sm font-semibold text-red-700 mb-2">Please complete the following steps:</p>
-                      <ul className="list-disc list-inside space-y-1">
+                      <ul className="list-disc list-inside space-y-2">
                         {incompleteSteps.map((stepKey) => {
                           const step = stepNames[stepKey];
                           if (step) {
@@ -163,14 +214,18 @@ export default function SubmitListingStep() {
                                 <button
                                   type="button"
                                   onClick={() => handleGoToStep(stepKey)}
-                                  className="underline hover:text-red-800 font-medium"
+                                  className="underline hover:text-red-800 font-medium transition-colors"
                                 >
                                   {step.name}
                                 </button>
                               </li>
                             );
                           }
-                          return null;
+                          return (
+                            <li key={stepKey} className="text-sm text-red-600">
+                              {stepKey}
+                            </li>
+                          );
                         })}
                       </ul>
                     </div>

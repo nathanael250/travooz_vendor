@@ -1,273 +1,183 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { CheckCircle, Clock, LogOut } from 'lucide-react';
+import { Clock, CheckCircle, ArrowRight, LogOut, XCircle, X } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import { restaurantsAPI } from '../../services/restaurantDashboardService';
-import toast from 'react-hot-toast';
+import { restaurantOnboardingProgressService } from '../../services/eatingOutService';
 
 export default function SetupComplete() {
   const navigate = useNavigate();
   const location = useLocation();
   const [restaurantStatus, setRestaurantStatus] = useState(null);
   const [isChecking, setIsChecking] = useState(true);
-  const [restaurantId, setRestaurantId] = useState(null);
+  const [restaurant, setRestaurant] = useState(null);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState('');
+  const [modalType, setModalType] = useState('pending'); // 'pending' or 'approved'
 
-  // Enable scrolling for this page
   useEffect(() => {
-    document.body.classList.add('auth-page');
-    return () => {
-      document.body.classList.remove('auth-page');
-    };
-  }, []);
-
-  // Get restaurant ID from location state or try to find user's restaurant
-  useEffect(() => {
-    const idFromState = location.state?.restaurantId;
-    if (idFromState) {
-      setRestaurantId(idFromState);
-      localStorage.setItem('restaurant_id', idFromState);
-    } else {
-      // Try to get from localStorage
-      const storedId = localStorage.getItem('restaurant_id');
-      if (storedId) {
-        setRestaurantId(storedId);
-      } else {
-        // Try to fetch user's restaurants
-        fetchUserRestaurants();
-      }
-    }
-  }, [location]);
-
-  // Also check restaurant status from user data if restaurantId is not available
-  useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData && !restaurantId) {
+    // Check restaurant status and onboarding progress
+    const checkStatus = async () => {
+      setIsChecking(true);
       try {
-        const user = JSON.parse(userData);
-        if (user.restaurant_id) {
-          setRestaurantId(user.restaurant_id);
-          localStorage.setItem('restaurant_id', user.restaurant_id);
-        }
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-      }
-    }
-  }, [restaurantId]);
-
-  const fetchUserRestaurants = async () => {
-    try {
-      const restaurants = await restaurantsAPI.getAll();
-      if (restaurants && restaurants.length > 0) {
-        const firstRestaurant = restaurants[0];
-        setRestaurantId(firstRestaurant.id);
-        localStorage.setItem('restaurant_id', firstRestaurant.id);
-      }
-    } catch (error) {
-      console.error('Error fetching restaurants:', error);
-    }
-  };
-
-  // Prevent multiple redirects
-  const redirectRef = useRef(false);
-
-  // Check restaurant status
-  const checkRestaurantStatus = async () => {
-    // If already redirecting, don't check again
-    if (redirectRef.current) {
-      console.log('⏸️ Redirect already in progress, skipping status check');
-      return;
-    }
-
-    // Try to get restaurant ID if not available
-    let currentRestaurantId = restaurantId;
-    if (!currentRestaurantId) {
-      // Try to get from localStorage
-      currentRestaurantId = localStorage.getItem('restaurant_id');
-      if (currentRestaurantId) {
-        setRestaurantId(currentRestaurantId);
-      } else {
-        // Try to get from API
+        // First, check onboarding progress to see if setup is actually complete
         try {
-          const myRestaurant = await restaurantsAPI.getMyRestaurant();
-          if (myRestaurant && myRestaurant.id) {
-            currentRestaurantId = myRestaurant.id;
-            setRestaurantId(currentRestaurantId);
-            localStorage.setItem('restaurant_id', currentRestaurantId);
-          }
-        } catch (error) {
-          console.error('Error fetching restaurant:', error);
-        }
-      }
-    }
-
-    if (!currentRestaurantId) {
-      setIsChecking(false);
-      return;
-    }
-
-    // First, check if email is verified - if not, redirect to email verification
-    // Setup progress is only created after email verification (step 1-3), so if it doesn't exist,
-    // the user needs to verify their email first
-    try {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        const userId = user.user_id || user.id;
-        const userEmail = user.email;
-        
-        if (userId && userEmail) {
-          // Check if setup progress exists - if not, email is not verified
-          const { restaurantSetupService } = await import('../../services/eatingOutService');
-          try {
-            const progress = await restaurantSetupService.getSetupProgress(currentRestaurantId);
+          const progressData = await restaurantOnboardingProgressService.getProgress();
+          if (progressData && progressData.progress) {
+            const progress = progressData.progress;
+            const stepMapping = progressData.stepMapping || {};
             
-            // If progress exists, email is verified (progress is created after email verification)
-            console.log('🔍 Setup progress exists - email is verified');
-          } catch (progressError) {
-            // If progress doesn't exist (404), user hasn't verified email yet
-            // OR if error mentions email verification, redirect to email verification
-            const errorMessage = progressError?.response?.data?.message || progressError?.message || '';
-            const isNotFound = progressError?.response?.status === 404;
-            const isEmailError = errorMessage.toLowerCase().includes('email verification') || 
-                                errorMessage.toLowerCase().includes('email_verified') ||
-                                errorMessage.toLowerCase().includes('email verification required');
+            // Check if setup is incomplete (not at 'complete' step)
+            const isComplete = progress.current_step === 'complete' || progress.is_complete;
             
-            if (isNotFound || isEmailError) {
-              console.log('📧 Email not verified or setup not complete - redirecting to email verification');
-              redirectRef.current = true;
-              navigate('/restaurant/setup/email-verification', {
-                state: {
-                  userId,
-                  email: userEmail,
-                  userName: user.name || userEmail.split('@')[0],
-                  restaurantId: currentRestaurantId,
-                  fromSetupComplete: true
-                },
-                replace: true
+            if (!isComplete) {
+              // Setup is not complete - redirect to the current step
+              const currentStepInfo = stepMapping[progress.current_step];
+              const targetRoute = currentStepInfo?.route || '/restaurant/setup/business-details';
+              
+              console.log('🔄 SetupComplete - Setup incomplete, redirecting to step:', progress.current_step, '->', targetRoute);
+              
+              // Store progress data in localStorage for restoration
+              localStorage.setItem('restaurant_setup_progress', JSON.stringify(progress));
+              if (progress.restaurant_id) {
+                localStorage.setItem('restaurant_id', progress.restaurant_id);
+              }
+              
+              navigate(targetRoute, { 
+                replace: true,
+                state: { 
+                  progress,
+                  restaurantId: progress.restaurant_id 
+                }
               });
               return;
             }
-            // If it's a different error, continue with status check
-            console.warn('⚠️ Error checking setup progress (non-email error):', progressError);
           }
+        } catch (progressError) {
+          console.log('⚠️ Could not check onboarding progress:', progressError);
+          // Continue to check restaurant status
         }
-      }
-    } catch (emailCheckError) {
-      console.error('Error checking email verification:', emailCheckError);
-      // Continue with status check even if email check fails
-    }
 
-    try {
-      // Try getById first, then fallback to getMyRestaurant
-      let restaurant = null;
-      let status = null;
-      
-      try {
-        restaurant = await restaurantsAPI.getById(currentRestaurantId);
-        // If restaurant is null and we have restaurant_id in session, it was deleted
-        if (restaurant === null && localStorage.getItem('restaurant_id') === currentRestaurantId) {
-          console.log('⚠️ Restaurant was deleted - logout handled by getById');
-          return;
-        }
-        status = restaurant?.status || restaurant?.data?.status;
-        console.log('🔍 Restaurant status from getById:', status, 'Restaurant:', restaurant);
-      } catch (getByIdError) {
-        // Check if it's a restaurant not found error
-        const { isRestaurantNotFoundError } = await import('../../utils/restaurantAuth');
-        if (isRestaurantNotFoundError(getByIdError)) {
-          console.log('⚠️ Restaurant not found error - logout handled');
-          return;
-        }
-        console.log('⚠️ getById failed, trying getMyRestaurant:', getByIdError.message);
         const myRestaurant = await restaurantsAPI.getMyRestaurant();
+        
         // If restaurant is null and we have restaurant_id in session, it was deleted
         if (myRestaurant === null && localStorage.getItem('restaurant_id')) {
           console.log('⚠️ Restaurant was deleted - logout handled by getMyRestaurant');
           return;
         }
-        if (myRestaurant) {
-          restaurant = myRestaurant;
-          status = myRestaurant.status || myRestaurant.data?.status;
-          console.log('🔍 Restaurant status from getMyRestaurant:', status, 'Restaurant:', myRestaurant);
+        
+        if (!myRestaurant) {
+          // No restaurant found - redirect to start
+          console.log('⚠️ No restaurant found. Redirecting to start...');
+          navigate('/restaurant/list-your-restaurant', { replace: true });
+          return;
         }
-      }
 
-      if (status !== null && status !== undefined) {
-        // Normalize status to lowercase for comparison
+        setRestaurant(myRestaurant);
+        
+        // Get restaurant status
+        const status = myRestaurant.status || myRestaurant.data?.status || 'pending';
         const normalizedStatus = String(status).trim().toLowerCase();
+        
+        console.log('📊 SetupComplete - Restaurant status:', status, 'normalized:', normalizedStatus);
+        
         setRestaurantStatus(normalizedStatus);
         setIsChecking(false);
-
-        console.log('🔍 SetupComplete - Status check:', {
-          rawStatus: status,
-          normalizedStatus: normalizedStatus,
-          isActive: normalizedStatus === 'active'
-        });
-
-        // ALSO check the setup service for explicit approval flag (more authoritative)
-        try {
-          const { restaurantSetupService } = await import('../../services/eatingOutService');
-          const setupInfo = await restaurantSetupService.getSetupStatus(currentRestaurantId);
-          console.log('🔍 Setup status from setup service:', setupInfo);
-
-          // Determine approval from setup service fields
-          // NOTE: setupInfo.setupComplete (or setup_complete) means the vendor finished the steps,
-          // it is NOT an admin approval flag. Only trust explicit approval indicators.
-          const setupApproved = !!(
-            setupInfo?.approved ||
-            setupInfo?.is_approved ||
-            (typeof setupInfo?.status === 'string' && setupInfo.status.toLowerCase().includes('approved'))
-          );
-
-          if (setupApproved && !redirectRef.current) {
-            redirectRef.current = true;
-            console.log('✅ Setup service reports restaurant approved - redirecting to dashboard');
-            toast.success('Your restaurant has been approved! Redirecting to dashboard...');
-            setTimeout(() => navigate('/restaurant/dashboard', { replace: true }), 1500);
-            return;
-          }
-        } catch (setupErr) {
-          console.warn('⚠️ Could not fetch setup status (non-fatal):', setupErr);
-          // Fall back to using restaurant.status below
-        }
-
-        // If approved by restaurant.status, redirect to dashboard (only once)
-        if ((normalizedStatus === 'approved' || normalizedStatus === 'active') && !redirectRef.current) {
-          redirectRef.current = true;
-          console.log('✅ Restaurant is approved (by restaurant.status)! Redirecting to dashboard...');
-          toast.success('Your restaurant has been approved! Redirecting to dashboard...');
+        
+        // Store status in localStorage for quick access
+        localStorage.setItem('restaurant_status', normalizedStatus);
+        
+        // If approved, automatically redirect to dashboard immediately
+        if (normalizedStatus === 'approved' || normalizedStatus === 'active') {
+          console.log('✅ Restaurant approved! Redirecting to dashboard immediately...');
+          // Small delay to ensure state is set
           setTimeout(() => {
             navigate('/restaurant/dashboard', { replace: true });
-          }, 1500);
+          }, 100);
           return;
-        } else {
-          console.log('⏳ Restaurant status is:', normalizedStatus, '- showing waiting page');
         }
-      } else {
-        console.log('⚠️ No status found for restaurant (status is null/undefined)');
-        // If no status, assume pending
-        setRestaurantStatus('pending');
+        
+        // If not approved, stay on waiting screen (don't redirect)
+        console.log('⏳ Restaurant not approved yet, staying on waiting screen');
+      } catch (error) {
+        console.error('❌ Error checking restaurant status:', error);
+        
+        // For errors, check localStorage as fallback
+        const storedStatus = localStorage.getItem('restaurant_status');
+        if (storedStatus) {
+          console.log('📦 Using stored status from localStorage after error:', storedStatus);
+          setRestaurantStatus(storedStatus);
+          setIsChecking(false);
+          
+          if (storedStatus === 'approved' || storedStatus === 'active') {
+            navigate('/restaurant/dashboard', { replace: true });
+            return;
+          }
+        } else {
+          // No stored status either, redirect to start
+          console.log('⚠️ No stored status found. Redirecting to start...');
+          navigate('/restaurant/list-your-restaurant', { replace: true });
+          return;
+        }
+      } finally {
         setIsChecking(false);
       }
+    };
+
+    // Check immediately on mount
+    checkStatus();
+  }, [navigate]);
+
+  const handleCheckStatus = async () => {
+    setIsChecking(true);
+    try {
+      const myRestaurant = await restaurantsAPI.getMyRestaurant();
+      
+      if (!myRestaurant) {
+        navigate('/restaurant/list-your-restaurant', { replace: true });
+        return;
+      }
+
+      setRestaurant(myRestaurant);
+      
+      const status = myRestaurant.status || myRestaurant.data?.status || 'pending';
+      const normalizedStatus = String(status).trim().toLowerCase();
+      
+      setRestaurantStatus(normalizedStatus);
+      localStorage.setItem('restaurant_status', normalizedStatus);
+      
+      if (normalizedStatus === 'approved' || normalizedStatus === 'active') {
+        // Approved - redirect to dashboard
+        setModalType('approved');
+        setModalMessage('Your restaurant has been approved! Redirecting to dashboard...');
+        setShowStatusModal(true);
+        
+        // Redirect after showing modal briefly
+        setTimeout(() => {
+          navigate('/restaurant/dashboard', { replace: true });
+        }, 1500);
+        return;
+      } else {
+        // Still pending - show modal
+        setModalType('pending');
+        setModalMessage('Your account is still being reviewed. Thanks for your patience.');
+        setShowStatusModal(true);
+      }
     } catch (error) {
-      console.error('❌ Error checking restaurant status:', error);
+      console.error('Error checking status:', error);
+      setModalType('pending');
+      setModalMessage('Unable to check status at this time. Please try again later.');
+      setShowStatusModal(true);
+    } finally {
       setIsChecking(false);
     }
   };
 
-  // Check status on mount and periodically
-  useEffect(() => {
-    // Check immediately on mount
-    checkRestaurantStatus();
-    
-    // Check every 10 seconds for status updates
-    const intervalId = setInterval(() => {
-      checkRestaurantStatus();
-    }, 10000);
-
-    return () => clearInterval(intervalId);
-  }, [restaurantId]); // Re-run when restaurantId changes
+  const handleGoToDashboard = async () => {
+    // Always check status first when button is clicked
+    await handleCheckStatus();
+  };
 
   const handleLogout = () => {
     // Clear all authentication data
@@ -276,22 +186,20 @@ export default function SetupComplete() {
     localStorage.removeItem('user');
     localStorage.removeItem('restaurant_id');
     localStorage.removeItem('restaurant_setup_progress');
+    localStorage.removeItem('restaurant_status');
     
-    toast.success('Logged out successfully');
-    
-    // Navigate to login page
     navigate('/restaurant/login', { replace: true });
   };
 
   // Show loading state while checking
-  if (isChecking) {
+  if (isChecking || restaurantStatus === null) {
     return (
-      <div className="flex flex-col min-h-screen" style={{ backgroundColor: '#f0fdf4' }}>
+      <div className="flex flex-col min-h-screen overflow-y-auto" style={{ backgroundColor: '#f0fdf4' }}>
         <StaysNavbar />
-        <div className="flex-1 w-full py-4 sm:py-6 md:py-8 px-4 sm:px-6 flex items-center justify-center">
+        <div className="flex-1 w-full py-8 px-4 flex items-center justify-center min-h-0">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-[#3CAF54] mx-auto mb-3 sm:mb-4"></div>
-            <p className="text-sm sm:text-base text-gray-600">Checking restaurant status...</p>
+            <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-[#3CAF54] mx-auto mb-4"></div>
+            <p className="text-sm sm:text-base text-gray-600">Checking status...</p>
           </div>
         </div>
         <StaysFooter />
@@ -299,108 +207,157 @@ export default function SetupComplete() {
     );
   }
 
-  // If approved, show success message (check normalized status)
-  const normalizedCurrentStatus = restaurantStatus ? String(restaurantStatus).toLowerCase() : null;
-  if (normalizedCurrentStatus === 'approved' || normalizedCurrentStatus === 'active') {
-    return (
-      <div className="flex flex-col min-h-screen" style={{ backgroundColor: '#f0fdf4' }}>
-        <StaysNavbar />
-        <div className="flex-1 w-full py-4 sm:py-6 md:py-8 px-4 sm:px-6">
-          <div className="max-w-2xl w-full mx-auto">
-            <div className="bg-white rounded-lg shadow-xl p-6 sm:p-8 border" style={{ borderColor: '#dcfce7' }}>
-              <div className="flex justify-center mb-4 sm:mb-6">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dcfce7' }}>
-                  <CheckCircle className="h-10 w-10 sm:h-12 sm:w-12" style={{ color: '#3CAF54' }} />
-                </div>
-              </div>
-              <div className="text-center mb-6 sm:mb-8">
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">
-                  Restaurant Approved! 🎉
-                </h1>
-                <p className="text-base sm:text-lg text-gray-600">
-                  Your restaurant is now live on the platform!
-                </p>
-              </div>
-              <div className="flex justify-center">
-                <button
-                  onClick={handleLogout}
-                  className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base text-white font-semibold rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
-                  style={{ backgroundColor: '#3CAF54' }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
-                >
-                  <span>Logout</span>
-                  <LogOut className="h-4 w-4 sm:h-5 sm:w-5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        <StaysFooter />
-      </div>
-    );
-  }
+  const isApproved = restaurantStatus === 'approved' || restaurantStatus === 'active';
+  const isRejected = restaurantStatus === 'rejected';
 
   return (
-    <div className="flex flex-col min-h-screen" style={{ backgroundColor: '#f0fdf4' }}>
+    <div className="flex flex-col min-h-screen overflow-y-auto" style={{ backgroundColor: '#f0fdf4' }}>
       <StaysNavbar />
-      <div className="flex-1 w-full py-4 sm:py-6 md:py-8 px-4 sm:px-6">
-        <div className="max-w-2xl w-full mx-auto">
-          {/* Success Content */}
-          <div className="bg-white rounded-lg shadow-xl p-6 sm:p-8 border" style={{ borderColor: '#dcfce7' }}>
-            {/* Success Icon */}
-            <div className="flex justify-center mb-4 sm:mb-6">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dcfce7' }}>
-                <CheckCircle className="h-10 w-10 sm:h-12 sm:w-12" style={{ color: '#3CAF54' }} />
+      <div className="flex-1 w-full py-4 sm:py-6 md:py-8 px-4 sm:px-6 flex items-start sm:items-center justify-center min-h-0">
+        <div className="max-w-xl w-full mx-auto my-auto">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border p-4 sm:p-6 md:p-8 text-center space-y-4 sm:space-y-6" style={{ borderColor: isRejected ? '#fee2e2' : '#dcfce7' }}>
+            <div className="flex justify-center">
+              <div
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ backgroundColor: isApproved ? '#dcfce7' : isRejected ? '#fee2e2' : '#fef3c7' }}
+              >
+                {isApproved ? (
+                  <CheckCircle className="h-10 w-10 sm:h-12 sm:w-12" style={{ color: '#3CAF54' }} />
+                ) : isRejected ? (
+                  <XCircle className="h-10 w-10 sm:h-12 sm:w-12" style={{ color: '#ef4444' }} />
+                ) : (
+                  <Clock className="h-10 w-10 sm:h-12 sm:w-12" style={{ color: '#f59e0b' }} />
+                )}
               </div>
             </div>
-
-            {/* Success Message */}
-            <div className="text-center mb-6 sm:mb-8">
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">
-                Restaurant Setup Complete!
+            
+            <div className="space-y-2 sm:space-y-3">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 px-2">
+                {isApproved ? 'Your Restaurant is Approved!' : isRejected ? 'Restaurant Needs Corrections' : "We're Reviewing Your Restaurant"}
               </h1>
-              <p className="text-base sm:text-lg text-gray-600">
-                Your information has been submitted successfully.
+              <p className="text-sm sm:text-base text-gray-600 px-2 sm:px-4">
+                {isApproved
+                  ? 'Your restaurant is approved and live. You can now manage orders and view your dashboard.'
+                  : isRejected
+                  ? 'Our team reviewed your restaurant, but we need a few corrections before we can approve it.'
+                  : 'Thanks for submitting your restaurant details. Our team is reviewing everything to ensure quality and accuracy.'}
               </p>
             </div>
 
-            {/* Review Notice */}
-            <div className="bg-blue-50 rounded-lg p-4 sm:p-6 border-2 mb-6" style={{ borderColor: '#bfdbfe' }}>
-              <div className="flex items-start gap-3 sm:gap-4">
-                <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 mt-0.5 sm:mt-1 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-base sm:text-lg font-semibold text-blue-900 mb-1.5 sm:mb-2">
-                    Review in Progress
-                  </h3>
-                  <p className="text-sm sm:text-base text-blue-800 mb-2 sm:mb-3">
-                    Our team is reviewing your restaurant information.
-                  </p>
-                  <p className="text-xs sm:text-sm text-blue-700">
-                    This typically takes 24-48 hours. You'll be notified once approved.
-                  </p>
-                </div>
+            {!isApproved && !isRejected && (
+              <div className="rounded-lg bg-green-50 text-green-800 text-xs sm:text-sm p-3 sm:p-4 mx-2 sm:mx-0">
+                We usually wrap up reviews within 1–3 business days. You'll receive an email as soon as we're done.
               </div>
-            </div>
+            )}
 
-            {/* Action Button */}
-            <div className="flex justify-center">
-              <button
-                onClick={handleLogout}
-                className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base text-white font-semibold rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
-                style={{ backgroundColor: '#3CAF54' }}
-                onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
-                onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
-              >
-                <span>Logout</span>
-                <LogOut className="h-4 w-4 sm:h-5 sm:w-5" />
-              </button>
+            {restaurant && (
+              <div className="rounded-lg bg-gray-50 p-3 sm:p-4 text-left mx-2 sm:mx-0">
+                <p className="text-xs sm:text-sm font-semibold text-gray-900 mb-1">Restaurant Name:</p>
+                <p className="text-xs sm:text-sm text-gray-700 break-words">{restaurant.name || restaurant.restaurant_name || 'Unnamed Restaurant'}</p>
+              </div>
+            )}
+
+            <div className="space-y-2 sm:space-y-3 pt-2">
+              {isApproved ? (
+                <button
+                  onClick={handleGoToDashboard}
+                  className="w-full text-white font-semibold py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg text-sm sm:text-base"
+                  style={{ backgroundColor: '#3CAF54' }}
+                  onMouseEnter={(e) => (e.target.style.backgroundColor = '#2d8f42')}
+                  onMouseLeave={(e) => (e.target.style.backgroundColor = '#3CAF54')}
+                >
+                  <span>Go to Dashboard</span>
+                  <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleCheckStatus}
+                    disabled={isChecking}
+                    className="w-full text-white font-semibold py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                    style={{ backgroundColor: '#3CAF54' }}
+                    onMouseEnter={(e) => !isChecking && (e.target.style.backgroundColor = '#2d8f42')}
+                    onMouseLeave={(e) => !isChecking && (e.target.style.backgroundColor = '#3CAF54')}
+                  >
+                    {isChecking ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-b-2 border-white"></div>
+                        <span>Checking Status...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
+                        <span>Check Status</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full border-2 border-gray-200 text-gray-700 font-semibold py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 hover:bg-gray-50 text-sm sm:text-base"
+                  >
+                    <LogOut className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <span>Log Out</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
       </div>
       <StaysFooter />
+
+      {/* Status Check Modal */}
+      {showStatusModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl max-w-md w-full p-4 sm:p-6 space-y-3 sm:space-y-4 my-auto">
+            <div className="flex justify-between items-start gap-2">
+              <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                <div
+                  className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    modalType === 'approved' ? 'bg-green-100' : 'bg-yellow-100'
+                  }`}
+                >
+                  {modalType === 'approved' ? (
+                    <CheckCircle className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
+                  ) : (
+                    <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-600" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">
+                    {modalType === 'approved' ? 'Restaurant Approved!' : 'Status Check'}
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowStatusModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <p className="text-sm sm:text-base text-gray-700 break-words">
+              {modalMessage}
+            </p>
+            
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setShowStatusModal(false)}
+                className={`px-4 sm:px-6 py-2 rounded-lg font-medium transition-colors text-sm sm:text-base ${
+                  modalType === 'approved'
+                    ? 'bg-green-600 text-white hover:bg-green-700'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                {modalType === 'approved' ? 'Continue' : 'OK'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

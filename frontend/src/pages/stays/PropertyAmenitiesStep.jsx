@@ -18,6 +18,11 @@ export default function PropertyAmenitiesStep() {
     };
   }, []);
 
+  // Scroll to top when component mounts or location changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
+
   // Redirect if no user data
   useEffect(() => {
     if (!location.state?.userId) {
@@ -64,6 +69,116 @@ export default function PropertyAmenitiesStep() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
+  // Load amenities data from location.state, localStorage, or API when component mounts
+  useEffect(() => {
+    const loadAmenities = async () => {
+      const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
+      
+      // First, try location.state (from navigation)
+      const savedAmenities = location.state?.amenities;
+      
+      if (savedAmenities) {
+        console.log('[PropertyAmenitiesStep] Loading amenities from location.state:', savedAmenities);
+        loadAmenitiesIntoForm(savedAmenities);
+        return;
+      }
+      
+      // Second, try localStorage (same device/browser)
+      const localStorageAmenities = localStorage.getItem('stays_amenities');
+      if (localStorageAmenities) {
+        try {
+          const parsed = JSON.parse(localStorageAmenities);
+          console.log('[PropertyAmenitiesStep] Loading amenities from localStorage:', parsed);
+          setFormData(parsed);
+          return;
+        } catch (e) {
+          console.error('[PropertyAmenitiesStep] Error parsing localStorage amenities:', e);
+        }
+      }
+      
+      // Third, fetch from API (for different device/browser)
+      if (propertyId && propertyId > 0) {
+        try {
+          console.log('[PropertyAmenitiesStep] Fetching amenities from API for propertyId:', propertyId);
+          const apiAmenities = await staysSetupService.getAmenities(propertyId);
+          if (apiAmenities) {
+            console.log('[PropertyAmenitiesStep] Loaded amenities from API:', apiAmenities);
+            loadAmenitiesIntoForm(apiAmenities);
+            // Also save to localStorage for future use
+            const mappedFormData = mapApiToFormData(apiAmenities);
+            localStorage.setItem('stays_amenities', JSON.stringify(mappedFormData));
+          }
+        } catch (error) {
+          console.error('[PropertyAmenitiesStep] Error fetching amenities from API:', error);
+          // Don't show error to user, just use default form values
+        }
+      }
+    };
+
+    // Helper function to map API data to form data format
+    const mapApiToFormData = (apiData) => {
+      // Map check-in time fields - API has checkInTime and checkInEnds separately
+      let checkInFrom = apiData.checkInTime || '';
+      let checkInTo = apiData.checkInEnds || '';
+      let noCheckInEndTime = !checkInTo;
+      
+      // If checkInTime contains a range (format: "HH:MM - HH:MM"), parse it
+      if (apiData.checkInTime && apiData.checkInTime.includes(' - ')) {
+        const timeParts = apiData.checkInTime.split(' - ');
+        checkInFrom = timeParts[0] || '';
+        checkInTo = timeParts[1] || '';
+        noCheckInEndTime = !checkInTo;
+      }
+      
+      return {
+        hasFrontDesk: apiData.hasFrontDesk || 'no',
+        checkInFrom: checkInFrom,
+        checkInTo: checkInTo,
+        noCheckInEndTime: noCheckInEndTime,
+        minimumCheckInAge: apiData.minCheckInAge ? String(apiData.minCheckInAge) : '15',
+        offerInternet: apiData.offerInternet || 'no',
+        offerParking: apiData.offerParking || 'no',
+        offerBreakfast: apiData.offerBreakfast || 'no',
+        breakfastType: apiData.breakfastType || '',
+        poolAccess: apiData.hasPool ? 'yes' : 'no',
+        poolType: apiData.poolType || '',
+        diningVenues: (apiData.hasRestaurant || apiData.hasBar) ? 'yes' : 'no',
+        spaServices: apiData.hasSpa ? 'yes' : 'no',
+        allowPets: apiData.petsAllowed === 'yes' ? 'yes' : 'no',
+        accessibilityFeatures: 'no', // Not in API yet
+        guestServices: (apiData.hasConcierge || apiData.hasLaundry || apiData.hasBusinessCenter) ? 'yes' : 'no',
+        inRoomConveniences: 'no', // Not in API yet
+        housekeeping: 'no', // Not in API yet
+        themes: apiData.themes || [],
+        // Additional fields for backend compatibility
+        hasPool: apiData.hasPool || false,
+        hasSpa: apiData.hasSpa || false,
+        hasFitnessCenter: apiData.hasFitnessCenter || false,
+        hasRestaurant: apiData.hasRestaurant || false,
+        hasBar: apiData.hasBar || false,
+        hasConcierge: apiData.hasConcierge || false,
+        hasLaundry: apiData.hasLaundry || false,
+        hasBusinessCenter: apiData.hasBusinessCenter || false,
+        petsAllowed: apiData.petsAllowed || 'no'
+      };
+    };
+
+    // Helper function to load amenities into form
+    const loadAmenitiesIntoForm = (savedAmenities) => {
+      // If data is already in form format (from localStorage or location.state)
+      if (savedAmenities.checkInFrom !== undefined || savedAmenities.minimumCheckInAge !== undefined) {
+        setFormData(savedAmenities);
+        return;
+      }
+      
+      // If data is from API, map it to form format
+      const mappedData = mapApiToFormData(savedAmenities);
+      setFormData(mappedData);
+    };
+
+    loadAmenities();
+  }, [location.state?.amenities, location.state?.propertyId]);
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
@@ -107,25 +222,42 @@ export default function PropertyAmenitiesStep() {
 
     try {
       // Transform formData to match backend API expectations (camelCase)
+      // Construct checkInTime and checkInEnds from checkInFrom and checkInTo
+      const checkInTime = formData.checkInFrom || null;
+      const checkInEnds = formData.noCheckInEndTime ? null : (formData.checkInTo || null);
+      
+      // Map form fields to API format
+      // Form uses poolAccess/spaServices/diningVenues (yes/no), but API needs hasPool/hasSpa/hasRestaurant (boolean)
+      // Also check if fields were already set from API data (hasPool, hasSpa, etc.)
+      const hasPool = formData.poolAccess === 'yes' || (formData.hasPool === true);
+      const hasSpa = formData.spaServices === 'yes' || (formData.hasSpa === true);
+      const hasRestaurant = formData.diningVenues === 'yes' || (formData.hasRestaurant === true);
+      const hasBar = formData.diningVenues === 'yes' || (formData.hasBar === true); // Dining venues includes bar
+      // Guest services includes concierge, laundry, business center, and fitness center
+      const hasFitnessCenter = formData.guestServices === 'yes' || (formData.hasFitnessCenter === true);
+      const hasConcierge = formData.guestServices === 'yes' || (formData.hasConcierge === true);
+      const hasLaundry = formData.guestServices === 'yes' || (formData.hasLaundry === true);
+      const hasBusinessCenter = formData.guestServices === 'yes' || (formData.hasBusinessCenter === true);
+      
       const amenitiesData = {
-        minCheckInAge: formData.minCheckInAge ? parseInt(formData.minCheckInAge) : null,
-        checkInTime: formData.checkInTime || null,
-        checkInEnds: formData.checkInEnds || null,
+        minCheckInAge: formData.minimumCheckInAge ? parseInt(formData.minimumCheckInAge) : null,
+        checkInTime: checkInTime,
+        checkInEnds: checkInEnds,
         hasFrontDesk: formData.hasFrontDesk || 'no',
         offerBreakfast: formData.offerBreakfast || 'no',
         breakfastType: formData.breakfastType || null,
         offerInternet: formData.offerInternet || 'no',
         offerParking: formData.offerParking || 'no',
-        hasPool: formData.hasPool || false,
+        hasPool: hasPool,
         poolType: formData.poolType || null,
-        hasSpa: formData.hasSpa || false,
-        hasFitnessCenter: formData.hasFitnessCenter || false,
-        hasRestaurant: formData.hasRestaurant || false,
-        hasBar: formData.hasBar || false,
-        hasConcierge: formData.hasConcierge || false,
-        hasLaundry: formData.hasLaundry || false,
-        hasBusinessCenter: formData.hasBusinessCenter || false,
-        petsAllowed: formData.petsAllowed || 'no',
+        hasSpa: hasSpa,
+        hasFitnessCenter: hasFitnessCenter,
+        hasRestaurant: hasRestaurant,
+        hasBar: hasBar,
+        hasConcierge: hasConcierge,
+        hasLaundry: hasLaundry,
+        hasBusinessCenter: hasBusinessCenter,
+        petsAllowed: formData.allowPets === 'yes' ? 'yes' : (formData.petsAllowed || 'no'),
         hasPetSurcharge: formData.hasPetSurcharge || 'no',
         petSurchargeAmount: formData.petSurchargeAmount ? parseFloat(formData.petSurchargeAmount) : null,
         petSurchargeCurrency: formData.petSurchargeCurrency || 'RWF',
@@ -159,8 +291,12 @@ export default function PropertyAmenitiesStep() {
   };
 
   const handleBack = () => {
+    // Preserve current form data when going back
     navigate('/stays/setup/policies', {
-      state: location.state
+      state: {
+        ...location.state,
+        amenities: formData // Save current form state
+      }
     });
   };
 
@@ -171,7 +307,7 @@ export default function PropertyAmenitiesStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-5xl mx-auto">
           {/* Progress Indicator */}
-          <ProgressIndicator currentStep={4} totalSteps={10} />
+          <ProgressIndicator currentStep={3} totalSteps={10} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>

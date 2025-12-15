@@ -3,6 +3,8 @@ const { pool } = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
 const { authenticateToken } = require('../middlewares/auth.middleware');
 const restaurantSetupProgressService = require('../services/restaurant/restaurantSetupProgress.service');
+const restaurantOnboardingProgressService = require('../services/restaurant/onboardingProgress.service');
+const restaurantOnboardingProgressController = require('../controllers/restaurant/onboardingProgress.controller');
 const restaurantAuthController = require('../controllers/restaurant/restaurantAuth.controller');
 const restaurantEmailVerificationController = require('../controllers/restaurant/restaurantEmailVerification.controller');
 const multer = require('multer');
@@ -20,6 +22,13 @@ router.post('/auth/reset-password', restaurantAuthController.resetPassword);
 // Email verification routes (no authentication required)
 router.post('/email-verification/send', restaurantEmailVerificationController.sendVerificationCode);
 router.post('/email-verification/verify', restaurantEmailVerificationController.verifyCode);
+
+// Onboarding Progress Tracking routes (require authentication)
+// These routes are mounted at /api/v1/eating-out/onboarding, so they should be /progress, /complete-step, etc.
+router.get('/progress', authenticateToken, restaurantOnboardingProgressController.getProgress);
+router.post('/progress', authenticateToken, restaurantOnboardingProgressController.saveProgress);
+router.post('/complete-step', authenticateToken, restaurantOnboardingProgressController.completeStep);
+router.get('/next-step', authenticateToken, restaurantOnboardingProgressController.getNextStep);
 
 const formatUserPhone = (phone, countryCode, defaultCode = '+250') => {
   const raw = (phone || '').toString().replace(/\s+/g, '');
@@ -327,6 +336,15 @@ router.post('/listing', async (req, res) => {
       
       await restaurantSetupProgressService.initializeProgress(restaurantId, userId, stepData);
       console.log('✅ Restaurant setup progress initialized');
+      
+      // Also initialize onboarding progress tracking (similar to stays)
+      try {
+        await restaurantOnboardingProgressService.saveProgress(userId, 'business-details', restaurantId, false);
+        console.log('✅ Restaurant onboarding progress tracking initialized');
+      } catch (onboardingProgressError) {
+        console.error('⚠️ Failed to initialize onboarding progress tracking:', onboardingProgressError);
+        // Don't fail the request if onboarding progress initialization fails
+      }
     } catch (progressError) {
       console.error('⚠️ Failed to initialize setup progress:', progressError);
       // Don't fail the request if progress initialization fails
@@ -468,6 +486,13 @@ router.post('/business-details', authenticateToken, async (req, res) => {
       operatingSchedule: operatingSchedule || null
     };
     await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 4, true, stepData);
+    
+    // Also save to onboarding progress tracking
+    try {
+      await restaurantOnboardingProgressService.completeStep(userId, 'business-details', restaurantId);
+    } catch (onboardingError) {
+      console.error('⚠️ Failed to save onboarding progress for business-details:', onboardingError);
+    }
 
     res.json({
       success: true,
@@ -481,6 +506,59 @@ router.post('/business-details', authenticateToken, async (req, res) => {
       message: 'Failed to save business details',
       error: error.message 
     });
+  }
+});
+
+/**
+ * Save operating schedule (per-weekday) and exceptions
+ * POST /api/eating-out/setup/operating-schedule
+ */
+// Mount at /operating-schedule because router is already mounted at /eating-out/setup
+router.post('/operating-schedule', authenticateToken, async (req, res) => {
+  try {
+    const { restaurantId, operatingSchedule = [], exceptions = [] } = req.body;
+    const userId = req.user.id || req.user.userId || req.user.user_id;
+
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, message: 'restaurantId is required' });
+    }
+
+    // Verify restaurant belongs to user
+    const [checkRows] = await pool.execute('SELECT * FROM restaurants WHERE id = ? AND user_id = ?', [restaurantId, userId]);
+    if (checkRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Restaurant not found or access denied' });
+    }
+
+    // Upsert schedules: simple approach - delete existing and insert provided
+    await pool.execute('DELETE FROM restaurant_schedules WHERE restaurant_id = ?', [restaurantId]);
+    for (const s of operatingSchedule) {
+      const day = typeof s.day_of_week !== 'undefined' ? s.day_of_week : s.day;
+      await pool.execute(
+        `INSERT INTO restaurant_schedules (restaurant_id, day_of_week, opens, closes, is_closed) VALUES (?, ?, ?, ?, ?)`,
+        [restaurantId, day, s.opens || null, s.closes || null, s.is_closed ? 1 : 0]
+      );
+    }
+
+    // Exceptions
+    await pool.execute('DELETE FROM restaurant_schedule_exceptions WHERE restaurant_id = ?', [restaurantId]);
+    for (const ex of exceptions) {
+      await pool.execute(
+        `INSERT INTO restaurant_schedule_exceptions (restaurant_id, date, opens, closes, is_closed, note) VALUES (?, ?, ?, ?, ?, ?)`,
+        [restaurantId, ex.date, ex.opens || null, ex.closes || null, ex.is_closed ? 1 : 0, ex.note || null]
+      );
+    }
+
+    // Save progress (if relevant)
+    try {
+      await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 4, true, { operatingSchedule, exceptions });
+    } catch (err) {
+      console.warn('Failed to update setup progress with schedule:', err.message || err);
+    }
+
+    return res.json({ success: true, message: 'Operating schedule saved' });
+  } catch (error) {
+    console.error('Error saving operating schedule:', error);
+    return res.status(500).json({ success: false, message: 'Failed to save operating schedule', error: error.message });
   }
 });
 
@@ -559,6 +637,13 @@ router.post('/media', authenticateToken, upload.fields([
       };
       await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 5, true, stepData);
       console.log('✅ Step 5 (Media) progress saved');
+      
+      // Also save to onboarding progress tracking
+      try {
+        await restaurantOnboardingProgressService.completeStep(userId, 'media', restaurantId);
+      } catch (onboardingError) {
+        console.error('⚠️ Failed to save onboarding progress for media:', onboardingError);
+      }
     } catch (progressError) {
       console.error('⚠️ Failed to save step 5 progress:', progressError);
       // Don't fail the request if progress save fails
@@ -621,6 +706,13 @@ router.post('/payments-pricing', authenticateToken, async (req, res) => {
       const stepData = { averagePriceRange };
       await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 6, true, stepData);
       console.log('✅ Step 6 (Payments & Pricing) progress saved');
+      
+      // Also save to onboarding progress tracking
+      try {
+        await restaurantOnboardingProgressService.completeStep(userId, 'payments-pricing', restaurantId);
+      } catch (onboardingError) {
+        console.error('⚠️ Failed to save onboarding progress for payments-pricing:', onboardingError);
+      }
     } catch (progressError) {
       console.error('⚠️ Failed to save step 6 progress:', progressError);
       // Don't fail the request if progress save fails
@@ -708,11 +800,18 @@ router.post('/capacity', authenticateToken, async (req, res) => {
       ]
     );
 
-    // Save step progress (Step 7 - Capacity)
+    // Save step progress (Step 6 - Capacity)
     try {
       const stepData = { capacity: parseInt(capacity), availableSeats: parseInt(availableSeats) };
-      await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 7, true, stepData);
-      console.log('✅ Step 7 (Capacity) progress saved');
+      await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 6, true, stepData);
+      console.log('✅ Step 6 (Capacity) progress saved');
+      
+      // Also save to onboarding progress tracking
+      try {
+        await restaurantOnboardingProgressService.completeStep(userId, 'capacity', restaurantId);
+      } catch (onboardingError) {
+        console.error('⚠️ Failed to save onboarding progress for capacity:', onboardingError);
+      }
     } catch (progressError) {
       console.error('⚠️ Failed to save step 7 progress:', progressError);
       // Don't fail the request if progress save fails
@@ -760,8 +859,8 @@ router.post('/tax-legal', authenticateToken, upload.fields([
       });
     }
 
-    // Check step access (Step 8: Tax & Legal)
-    const accessCheck = await restaurantSetupProgressService.canAccessStep(restaurantId, userId, 8);
+    // Check step access (Step 7: Tax & Legal)
+    const accessCheck = await restaurantSetupProgressService.canAccessStep(restaurantId, userId, 7);
     if (!accessCheck.allowed) {
       return res.status(403).json({
         success: false,
@@ -866,7 +965,7 @@ router.post('/tax-legal', authenticateToken, upload.fields([
       );
     }
 
-    // Save step progress (Step 8 - Tax & Legal)
+    // Save step progress (Step 7 - Tax & Legal)
     try {
       const stepData = {
         taxIdentificationNumber,
@@ -877,8 +976,15 @@ router.post('/tax-legal', authenticateToken, upload.fields([
         hasBusinessLicense: !!(files.businessLicenseFile && files.businessLicenseFile[0]),
         hasTaxCertificate: !!(files.taxRegistrationCertificateFile && files.taxRegistrationCertificateFile[0])
       };
-      await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 8, true, stepData);
-      console.log('✅ Step 8 (Tax & Legal) progress saved');
+      await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 7, true, stepData);
+      console.log('✅ Step 7 (Tax & Legal) progress saved');
+      
+      // Also save to onboarding progress tracking
+      try {
+        await restaurantOnboardingProgressService.completeStep(userId, 'tax-legal', restaurantId);
+      } catch (onboardingError) {
+        console.error('⚠️ Failed to save onboarding progress for tax-legal:', onboardingError);
+      }
     } catch (progressError) {
       console.error('⚠️ Failed to save step 8 progress:', progressError);
       // Don't fail the request if progress save fails
@@ -900,7 +1006,7 @@ router.post('/tax-legal', authenticateToken, upload.fields([
 });
 
 /**
- * Step 5 (Setup): Save Menu Setup
+ * Step 6 (Setup): Save Menu Setup
  * POST /api/eating-out/setup/menu
  */
 router.post('/menu', authenticateToken, upload.any(), async (req, res) => {
@@ -1028,11 +1134,11 @@ router.post('/menu', authenticateToken, upload.any(), async (req, res) => {
           // Insert new item
           itemId = uuidv4();
           isUpdate = false;
-          // Determine availability boolean with clear defaults
-          const availabilityValueNew = (item.availability || 'available').toString();
+          // Determine availability boolean with clear defaults - default to available for new items
+          const availabilityValueNew = (item.availability || 'available').toString().trim();
           const isAvailableFlagNew = (typeof item.available !== 'undefined')
             ? (item.available ? 1 : 0)
-            : (availabilityValueNew.toLowerCase() === 'available' ? 1 : 0);
+            : (availabilityValueNew.toLowerCase() === 'available' || availabilityValueNew === '' ? 1 : 0);
 
           await pool.execute(
             `INSERT INTO menu_items 
@@ -1112,15 +1218,22 @@ router.post('/menu', authenticateToken, upload.any(), async (req, res) => {
       }
     }
 
-    // Save step progress (Step 9 - Menu)
+    // Save step progress (Step 8 - Menu)
     try {
       const stepData = {
         categoriesCount: categoriesData ? categoriesData.length : 0,
         menuItemsCount: menuItemsData ? menuItemsData.length : 0,
         hasMenuItems: !!(menuItemsData && menuItemsData.length > 0)
       };
-      await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 9, true, stepData);
-      console.log('✅ Step 9 (Menu) progress saved');
+      await restaurantSetupProgressService.updateStepProgress(restaurantId, userId, 8, true, stepData);
+      console.log('✅ Step 8 (Menu) progress saved');
+      
+      // Also save to onboarding progress tracking
+      try {
+        await restaurantOnboardingProgressService.completeStep(userId, 'menu', restaurantId);
+      } catch (onboardingError) {
+        console.error('⚠️ Failed to save onboarding progress for menu:', onboardingError);
+      }
     } catch (progressError) {
       console.error('⚠️ Failed to save step 9 progress:', progressError);
       // Don't fail the request if progress save fails
@@ -1331,6 +1444,74 @@ router.post('/save-step', authenticateToken, async (req, res) => {
 });
 
 /**
+ * Complete Setup (without agreement step)
+ * POST /api/eating-out/setup/complete
+ */
+router.post('/complete', authenticateToken, async (req, res) => {
+  try {
+    const { restaurantId } = req.body;
+    const userId = req.user.id || req.user.userId || req.user.user_id;
+
+    if (!restaurantId) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Restaurant ID is required' 
+      });
+    }
+
+    // Verify restaurant belongs to user
+    const [checkRows] = await pool.execute(
+      'SELECT * FROM restaurants WHERE id = ? AND user_id = ?',
+      [restaurantId, userId]
+    );
+
+    if (checkRows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Restaurant not found or access denied' 
+      });
+    }
+
+    // Update restaurant to mark setup as complete
+    // Set status to 'pending' - waiting for admin approval
+    await pool.execute(
+      `UPDATE restaurants SET
+       setup_completed = ?,
+       status = ?
+       WHERE id = ? AND user_id = ?`,
+      [
+        1,
+        'pending', // Requires admin approval
+        restaurantId,
+        userId
+      ]
+    );
+
+    // Also save to onboarding progress tracking
+    try {
+      await restaurantOnboardingProgressService.completeStep(userId, 'review', restaurantId);
+      // Mark complete step as well
+      await restaurantOnboardingProgressService.completeStep(userId, 'complete', restaurantId);
+    } catch (onboardingError) {
+      console.error('⚠️ Failed to save onboarding progress:', onboardingError);
+    }
+
+    res.json({
+      success: true,
+      message: 'Setup completed successfully',
+      data: { restaurantId }
+    });
+  } catch (error) {
+    console.error('Error completing setup:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to complete setup',
+      error: error.message 
+    });
+  }
+});
+
+/**
  * Step 7: Save Agreement Acceptance
  * POST /api/eating-out/setup/agreement
  */
@@ -1388,6 +1569,15 @@ router.post('/agreement', authenticateToken, async (req, res) => {
         userId
       ]
     );
+
+    // Also save to onboarding progress tracking
+    try {
+      await restaurantOnboardingProgressService.completeStep(userId, 'agreement', restaurantId);
+      // Mark complete step as well
+      await restaurantOnboardingProgressService.completeStep(userId, 'complete', restaurantId);
+    } catch (onboardingError) {
+      console.error('⚠️ Failed to save onboarding progress for agreement:', onboardingError);
+    }
 
     res.json({
       success: true,

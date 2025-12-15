@@ -18,13 +18,20 @@ export default function ListYourPropertyStep2() {
     };
   }, []);
 
+  // Scroll to top when component mounts or location changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
+
   const [formData, setFormData] = useState({
     propertyName: '',
     propertyType: '',
     numberOfRooms: '',
     legalName: '',
     partOfChain: 'no',
-    bookingComUrl: ''
+    bookingComUrl: '',
+    wantsNotifications: 'no',
+    notificationReceiver: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -46,7 +53,9 @@ export default function ListYourPropertyStep2() {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: value,
+      // Clear notification receiver email if user selects "no"
+      ...(name === 'wantsNotifications' && value === 'no' ? { notificationReceiver: '' } : {})
     }));
     // Clear error for this field
     if (errors[name]) {
@@ -128,7 +137,7 @@ export default function ListYourPropertyStep2() {
             {/* Property name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Property name <span className="text-gray-400">(optional)</span>
+                Property name
               </label>
               <input
                 type="text"
@@ -143,7 +152,7 @@ export default function ListYourPropertyStep2() {
             {/* Property type */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Property type <span className="text-gray-400">(optional)</span>
+                Property type
               </label>
               <select
                 name="propertyType"
@@ -161,7 +170,7 @@ export default function ListYourPropertyStep2() {
             {/* Number of rooms/units */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Number of rooms/units <span className="text-gray-400">(optional)</span>
+                Number of rooms/units
               </label>
               <input
                 type="number"
@@ -177,7 +186,7 @@ export default function ListYourPropertyStep2() {
             {/* Legal name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Legal name of your property <span className="text-gray-400">(optional)</span>
+                Legal name of your property
               </label>
               <input
                 type="text"
@@ -223,6 +232,58 @@ export default function ListYourPropertyStep2() {
               </div>
             </div>
 */}
+
+            {/* Notification Receiver Section */}
+            <div className="bg-gray-50 rounded-lg p-5 border" style={{ borderColor: '#e5e7eb' }}>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Do you want to receive notifications from travooz.com?
+              </label>
+              <div className="flex gap-6 mb-4">
+                <label className="flex items-center cursor-pointer group">
+                  <input
+                    type="radio"
+                    name="wantsNotifications"
+                    value="yes"
+                    checked={formData.wantsNotifications === 'yes'}
+                    onChange={handleChange}
+                    className="w-4 h-4 mr-2 cursor-pointer"
+                    style={{ accentColor: '#3CAF54' }}
+                  />
+                  <span className="text-gray-700 group-hover:text-[#3CAF54] transition-colors">Yes</span>
+                </label>
+                <label className="flex items-center cursor-pointer group">
+                  <input
+                    type="radio"
+                    name="wantsNotifications"
+                    value="no"
+                    checked={formData.wantsNotifications === 'no'}
+                    onChange={handleChange}
+                    className="w-4 h-4 mr-2 cursor-pointer"
+                    style={{ accentColor: '#3CAF54' }}
+                  />
+                  <span className="text-gray-700 group-hover:text-[#3CAF54] transition-colors">No</span>
+                </label>
+              </div>
+              {formData.wantsNotifications === 'yes' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Notification Receiver Email *
+                  </label>
+                  <input
+                    type="email"
+                    name="notificationReceiver"
+                    value={formData.notificationReceiver}
+                    onChange={handleChange}
+                    placeholder="Enter email address for notifications"
+                    className="w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 placeholder-gray-400 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    This email will receive important notifications and updates from travooz.com
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Booking.com URL Section */}
             {/* <div className="p-5 rounded-lg border-2" style={{ backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }}>
               <h3 className="text-base font-semibold text-gray-900 mb-2">

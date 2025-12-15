@@ -56,7 +56,7 @@ export default function TaxLegalStep() {
     businessLicensePreview: null,
     taxRegistrationCertificateFile: null,
     taxRegistrationCertificatePreview: null,
-    vatTaxRate: '',
+    vatTaxRate: '18', // Fixed at 18%
     pricesVatInclusive: '',
     taxType: ''
   });
@@ -73,22 +73,49 @@ export default function TaxLegalStep() {
 
       setIsLoadingProgress(true);
       try {
-        const progress = await restaurantSetupService.getSetupProgress(restaurantId);
-        
-        if (progress && progress.step_data && progress.step_data.step_8) {
-          const savedStep8Data = progress.step_data.step_8;
+        // First, try to get the actual restaurant data from the database
+        try {
+          const restaurantData = await restaurantSetupService.getRestaurant(restaurantId);
           
-          setFormData(prev => ({
-            ...prev,
-            taxIdentificationNumber: savedStep8Data.taxIdentificationNumber || prev.taxIdentificationNumber,
-            registeredBusinessName: savedStep8Data.registeredBusinessName || prev.registeredBusinessName,
-            vatTaxRate: savedStep8Data.vatTaxRate || prev.vatTaxRate,
-            pricesVatInclusive: savedStep8Data.pricesVatInclusive || prev.pricesVatInclusive,
-            taxType: savedStep8Data.taxType || prev.taxType
-          }));
+          if (restaurantData && restaurantData.taxLegal) {
+            const taxLegal = restaurantData.taxLegal;
+            
+            // Map database fields to form fields
+            setFormData(prev => ({
+              ...prev,
+              taxIdentificationNumber: taxLegal.tax_identification_number || prev.taxIdentificationNumber,
+              registeredBusinessName: taxLegal.registered_business_name || prev.registeredBusinessName,
+              vatTaxRate: '18', // Fixed at 18%
+              pricesVatInclusive: taxLegal.prices_vat_inclusive || prev.pricesVatInclusive,
+              taxType: taxLegal.tax_type || prev.taxType
+            }));
+          }
+        } catch (restaurantError) {
+          console.log('Could not fetch restaurant data, trying progress data:', restaurantError);
+        }
+        
+        // Also try to get progress from API as fallback
+        try {
+          const progress = await restaurantSetupService.getSetupProgress(restaurantId);
+          
+          if (progress && progress.step_data && progress.step_data.step_8) {
+            const savedStep8Data = progress.step_data.step_8;
+            
+            // Only update fields that weren't already set from restaurant data
+            setFormData(prev => ({
+              ...prev,
+              taxIdentificationNumber: prev.taxIdentificationNumber || savedStep8Data.taxIdentificationNumber,
+              registeredBusinessName: prev.registeredBusinessName || savedStep8Data.registeredBusinessName,
+              vatTaxRate: '18', // Fixed at 18%
+              pricesVatInclusive: prev.pricesVatInclusive || savedStep8Data.pricesVatInclusive,
+              taxType: prev.taxType || savedStep8Data.taxType
+            }));
+          }
+        } catch (progressError) {
+          console.log('No saved progress found:', progressError);
         }
       } catch (error) {
-        console.log('No saved progress found or error loading:', error);
+        console.log('Error loading saved data:', error);
       } finally {
         setIsLoadingProgress(false);
       }
@@ -215,11 +242,9 @@ export default function TaxLegalStep() {
       newErrors.taxType = 'Please select tax type';
     }
     
-    // If tax type is not "none", require VAT/tax rate and VAT inclusive/exclusive
+    // If tax type is not "none", require VAT inclusive/exclusive (rate is fixed at 18%)
     if (formData.taxType && formData.taxType !== 'none') {
-      if (!formData.vatTaxRate.trim()) {
-        newErrors.vatTaxRate = 'VAT/Tax rate is required';
-      }
+      // VAT/Tax rate is fixed at 18%, no validation needed
       if (!formData.pricesVatInclusive) {
         newErrors.pricesVatInclusive = 'Please specify if prices are VAT inclusive or exclusive';
       }
@@ -281,7 +306,7 @@ export default function TaxLegalStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-3xl w-full mx-auto">
           {/* Progress Indicator */}
-          <SetupProgressIndicator currentStep={8} totalSteps={11} />
+          <SetupProgressIndicator currentStepKey="tax-legal" currentStepNumber={7} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>
@@ -397,31 +422,18 @@ export default function TaxLegalStep() {
                   {formData.taxType && formData.taxType !== 'none' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label htmlFor="vatTaxRate" className="block text-sm font-medium text-gray-700 mb-2">
-                          VAT or Tax Rate (%) *
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          VAT or Tax Rate (%)
                         </label>
                         <div className="relative">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <Percent className="h-5 w-5 text-gray-400" />
                           </div>
-                          <input
-                            type="number"
-                            id="vatTaxRate"
-                            name="vatTaxRate"
-                            value={formData.vatTaxRate}
-                            onChange={handleChange}
-                            placeholder="e.g., 18"
-                            min="0"
-                            max="100"
-                            step="0.01"
-                            className={`w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
-                              errors.vatTaxRate ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
-                            }`}
-                          />
+                          <div className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg bg-gray-50">
+                            <span className="text-gray-700 font-medium">18%</span>
+                            <span className="text-sm text-gray-500 ml-2">(Fixed rate)</span>
+                          </div>
                         </div>
-                        {errors.vatTaxRate && (
-                          <p className="mt-1 text-sm text-red-600">{errors.vatTaxRate}</p>
-                        )}
                       </div>
 
                       <div>

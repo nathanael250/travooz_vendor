@@ -50,7 +50,7 @@ export default function PromoteListingStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-4xl mx-auto">
           {/* Progress Indicator */}
-          <ProgressIndicator currentStep={7} totalSteps={10} />
+          <ProgressIndicator currentStep={4} totalSteps={10} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border mb-8" style={{ borderColor: '#dcfce7' }}>

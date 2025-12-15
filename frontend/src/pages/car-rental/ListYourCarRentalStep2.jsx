@@ -20,11 +20,13 @@ export default function ListYourCarRentalStep2() {
 
   const [formData, setFormData] = useState({
     carRentalBusinessName: '',
-    carType: '',
-    carTypeName: '',
-    subcategoryId: '',
+    carTypes: [], // Changed to array for multiple selections
+    carTypeNames: [], // Array to store selected car type names
+    subcategoryIds: [], // Array to store selected subcategory IDs
     description: '',
     phone: '',
+    wantsNotifications: 'no',
+    notificationReceiver: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -46,21 +48,28 @@ export default function ListYourCarRentalStep2() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     
-    // If car type changes, also update subcategoryId and name
-    if (name === 'carType') {
-      const selectedType = carTypes.find(type => type.subcategory_id.toString() === value);
+    // Clear notification receiver email if user selects "no"
+    if (name === 'wantsNotifications' && value === 'no') {
       setFormData(prev => ({
         ...prev,
         [name]: value,
-        subcategoryId: selectedType ? selectedType.subcategory_id : '',
-        carTypeName: selectedType ? selectedType.name : ''
+        notificationReceiver: ''
       }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
+      // Clear error for this field
+      if (errors[name]) {
+        setErrors(prev => ({
+          ...prev,
+          [name]: ''
+        }));
+      }
+      return;
     }
+    
+    // Handle other fields normally
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
     
     // Clear error for this field
     if (errors[name]) {
@@ -79,8 +88,8 @@ export default function ListYourCarRentalStep2() {
     if (!formData.carRentalBusinessName.trim()) {
       newErrors.carRentalBusinessName = 'Business name is required';
     }
-    if (!formData.subcategoryId) {
-      newErrors.carType = 'Car type is required';
+    if (!formData.subcategoryIds || formData.subcategoryIds.length === 0) {
+      newErrors.carTypes = 'At least one car type is required';
     }
     if (!formData.description.trim()) {
       newErrors.description = 'Description is required';
@@ -186,27 +195,65 @@ export default function ListYourCarRentalStep2() {
               </div>
 
               <div>
-                <label htmlFor="carType" className="block text-sm font-medium text-gray-700 mb-2">
-                  Primary Car Type *
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Car Types * (Select all that apply)
                 </label>
-                <select
-                  id="carType"
-                  name="carType"
-                  value={formData.carType}
-                  onChange={handleChange}
-                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
-                    errors.carType ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
-                  }`}
-                >
-                  <option value="">-- Select Type --</option>
-                  {carTypes.map(type => (
-                    <option key={type.subcategory_id} value={type.subcategory_id.toString()}>
-                      {type.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.carType && (
-                  <p className="mt-1 text-sm text-red-600">{errors.carType}</p>
+                <div className={`border-2 rounded-lg p-4 ${
+                  errors.carTypes ? 'border-red-500' : 'border-gray-300'
+                }`}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {carTypes.map(type => {
+                      const isChecked = formData.subcategoryIds.includes(type.subcategory_id);
+                      return (
+                        <label
+                          key={type.subcategory_id}
+                          className="flex items-center cursor-pointer group p-2 rounded hover:bg-green-50 transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setFormData(prev => {
+                                if (checked) {
+                                  // Add to arrays
+                                  return {
+                                    ...prev,
+                                    subcategoryIds: [...prev.subcategoryIds, type.subcategory_id],
+                                    carTypeNames: [...prev.carTypeNames, type.name],
+                                    carTypes: [...prev.carTypes, type.subcategory_id.toString()]
+                                  };
+                                } else {
+                                  // Remove from arrays
+                                  return {
+                                    ...prev,
+                                    subcategoryIds: prev.subcategoryIds.filter(id => id !== type.subcategory_id),
+                                    carTypeNames: prev.carTypeNames.filter(name => name !== type.name),
+                                    carTypes: prev.carTypes.filter(id => id !== type.subcategory_id.toString())
+                                  };
+                                }
+                              });
+                              // Clear error when user makes a selection
+                              if (errors.carTypes) {
+                                setErrors(prev => ({
+                                  ...prev,
+                                  carTypes: ''
+                                }));
+                              }
+                            }}
+                            className="w-4 h-4 mr-3 cursor-pointer"
+                            style={{ accentColor: '#3CAF54' }}
+                          />
+                          <span className="text-gray-700 group-hover:text-[#3CAF54] transition-colors">
+                            {type.name}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+                {errors.carTypes && (
+                  <p className="mt-1 text-sm text-red-600">{errors.carTypes}</p>
                 )}
               </div>
 
@@ -258,6 +305,57 @@ export default function ListYourCarRentalStep2() {
                   <p className="text-sm text-green-700">{locationData.formatted_address}</p>
                 </div>
               )}
+
+              {/* Notification Receiver Section */}
+              <div className="bg-gray-50 rounded-lg p-5 border" style={{ borderColor: '#e5e7eb' }}>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Do you want to receive notifications from travooz.com?
+                </label>
+                <div className="flex gap-6 mb-4">
+                  <label className="flex items-center cursor-pointer group">
+                    <input
+                      type="radio"
+                      name="wantsNotifications"
+                      value="yes"
+                      checked={formData.wantsNotifications === 'yes'}
+                      onChange={handleChange}
+                      className="w-4 h-4 mr-2 cursor-pointer"
+                      style={{ accentColor: '#3CAF54' }}
+                    />
+                    <span className="text-gray-700 group-hover:text-[#3CAF54] transition-colors">Yes</span>
+                  </label>
+                  <label className="flex items-center cursor-pointer group">
+                    <input
+                      type="radio"
+                      name="wantsNotifications"
+                      value="no"
+                      checked={formData.wantsNotifications === 'no'}
+                      onChange={handleChange}
+                      className="w-4 h-4 mr-2 cursor-pointer"
+                      style={{ accentColor: '#3CAF54' }}
+                    />
+                    <span className="text-gray-700 group-hover:text-[#3CAF54] transition-colors">No</span>
+                  </label>
+                </div>
+                {formData.wantsNotifications === 'yes' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Notification Receiver Email *
+                    </label>
+                    <input
+                      type="email"
+                      name="notificationReceiver"
+                      value={formData.notificationReceiver}
+                      onChange={handleChange}
+                      placeholder="Enter email address for notifications"
+                      className="w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 placeholder-gray-400 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      This email will receive important notifications and updates from travooz.com
+                    </p>
+                  </div>
+                )}
+              </div>
 
               <div className="flex gap-4">
                 <button

@@ -180,7 +180,7 @@ export default function PaymentsPricingStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-3xl w-full mx-auto">
           {/* Progress Indicator */}
-          <SetupProgressIndicator currentStep={6} totalSteps={11} />
+          <SetupProgressIndicator currentStepKey="payments-pricing" currentStepNumber={6} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>

@@ -1,4 +1,5 @@
 const staysPropertyService = require('../../services/stays/staysProperty.service');
+const onboardingProgressService = require('../../services/stays/onboardingProgress.service');
 const { validationSchemas, validate } = require('../../utils/validation');
 const { sendSuccess, sendError, sendValidationError, sendNotFound } = require('../../utils/response.utils');
 const jwt = require('jsonwebtoken');
@@ -162,6 +163,9 @@ const createProperty = async (req, res) => {
         }
 
         const property = await staysPropertyService.createProperty(req.body);
+        
+        // Don't initialize progress tracking here - let it be created when user starts first setup step
+        // Progress tracking will be initialized when user completes email verification and starts setup
         
         // Generate JWT token for the newly created user
         let token = null;
@@ -534,6 +538,23 @@ const updateRoomImage = async (req, res) => {
     }
 };
 
+const getPropertyRooms = async (req, res) => {
+    try {
+        const userId = getUserIdFromRequest(req);
+        const { propertyId } = req.params;
+
+        if (!propertyId) {
+            return sendError(res, 'Property ID is required', 400);
+        }
+
+        const rooms = await staysPropertyService.getPropertyRooms(propertyId, userId);
+        return sendSuccess(res, rooms, 'Rooms retrieved successfully');
+    } catch (error) {
+        console.error('Error getting property rooms:', error);
+        return sendError(res, error.message || 'Failed to get property rooms', error.statusCode || 500);
+    }
+};
+
 module.exports = {
     createProperty,
     getPropertyById,
@@ -548,6 +569,7 @@ module.exports = {
     updatePropertyImage,
     uploadRoomImages,
     deleteRoomImage,
-    updateRoomImage
+    updateRoomImage,
+    getPropertyRooms
 };
 

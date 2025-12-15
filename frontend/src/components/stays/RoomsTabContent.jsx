@@ -196,7 +196,6 @@ const RoomsTabContent = ({ property, onUpdate }) => {
                 >
                   <option value="non-smoking">Non-Smoking</option>
                   <option value="smoking">Smoking Allowed</option>
-                  <option value="both">Both Available</option>
                 </select>
               </div>
             </div>

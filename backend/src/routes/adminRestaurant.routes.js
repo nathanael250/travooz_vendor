@@ -41,12 +41,19 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
     let query = `
       SELECT 
         r.*,
-        p.email as owner_email,
-        u.name as owner_name,
+        ru.email as owner_email,
+        ru.name as owner_name,
+        ru.phone as owner_phone,
         (SELECT COUNT(*) FROM menu_items WHERE restaurant_id = r.id) as menu_items_count,
         (SELECT COUNT(*) FROM images WHERE entity_type = 'restaurant' AND entity_id = r.id) as images_count
       FROM restaurants r
-      LEFT JOIN users u ON r.user_id = u.user_id
+      LEFT JOIN restaurant_users ru ON (
+        r.user_id IS NOT NULL AND (
+          (r.user_id REGEXP '^[0-9]+$' AND CAST(r.user_id AS UNSIGNED) = ru.user_id)
+          OR 
+          (r.user_id NOT REGEXP '^[0-9]+$' AND CAST(r.user_id AS CHAR) = CAST(ru.user_id AS CHAR))
+        )
+      )
       WHERE 1=1
     `;
     const params = [];
@@ -57,7 +64,7 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
     }
     
     if (search) {
-      query += ' AND (r.name LIKE ? OR r.description LIKE ? OR p.email LIKE ?)';
+      query += ' AND (r.name LIKE ? OR r.description LIKE ? OR ru.email LIKE ?)';
       const searchTerm = `%${search}%`;
       params.push(searchTerm, searchTerm, searchTerm);
     }
@@ -71,7 +78,13 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
     let countQuery = `
       SELECT COUNT(*) as total
       FROM restaurants r
-      LEFT JOIN users u ON r.user_id = u.user_id
+      LEFT JOIN restaurant_users ru ON (
+        r.user_id IS NOT NULL AND (
+          (r.user_id REGEXP '^[0-9]+$' AND CAST(r.user_id AS UNSIGNED) = ru.user_id)
+          OR 
+          (r.user_id NOT REGEXP '^[0-9]+$' AND CAST(r.user_id AS CHAR) = CAST(ru.user_id AS CHAR))
+        )
+      )
       WHERE 1=1
     `;
     const countParams = [];
@@ -82,7 +95,7 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
     }
     
     if (search) {
-      countQuery += ' AND (r.name LIKE ? OR r.description LIKE ? OR p.email LIKE ?)';
+      countQuery += ' AND (r.name LIKE ? OR r.description LIKE ? OR ru.email LIKE ?)';
       const searchTerm = `%${search}%`;
       countParams.push(searchTerm, searchTerm, searchTerm);
     }
@@ -167,11 +180,17 @@ router.get('/:id', authenticateToken, requireAdmin, async (req, res) => {
     const [restaurants] = await pool.execute(`
       SELECT 
         r.*,
-        p.email as owner_email,
-        u.name as owner_name,
-        p.phone as owner_phone
+        ru.email as owner_email,
+        ru.name as owner_name,
+        ru.phone as owner_phone
       FROM restaurants r
-      LEFT JOIN users u ON r.user_id = u.user_id
+      LEFT JOIN restaurant_users ru ON (
+        r.user_id IS NOT NULL AND (
+          (r.user_id REGEXP '^[0-9]+$' AND CAST(r.user_id AS UNSIGNED) = ru.user_id)
+          OR 
+          (r.user_id NOT REGEXP '^[0-9]+$' AND CAST(r.user_id AS CHAR) = CAST(ru.user_id AS CHAR))
+        )
+      )
       WHERE r.id = ?
     `, [id]);
     

@@ -278,10 +278,26 @@ class RestaurantOrderService {
           } catch (userErr) {
             // Fallback: try as string id
             try {
-              const [users2] = await pool.execute('SELECT email, name FROM restaurant_users WHERE CAST(user_id AS CHAR) = ? LIMIT 1', [String(r.user_id)]);
-              if (users2 && users2.length > 0) {
-                vendorEmail = users2[0].email;
-                vendorName = users2[0].name || vendorName;
+              // Get vendor email and notification preferences from restaurants table
+              const [restaurantInfo] = await pool.execute(
+                `SELECT 
+                   ru.email as vendor_email, 
+                   ru.name as vendor_name,
+                   r.wants_notifications,
+                   r.notification_receiver
+                 FROM restaurants r
+                 LEFT JOIN restaurant_users ru ON CAST(r.user_id AS CHAR) = CAST(ru.user_id AS CHAR)
+                 WHERE r.restaurant_id = ? LIMIT 1`,
+                [r.restaurant_id]
+              );
+              
+              if (restaurantInfo && restaurantInfo.length > 0) {
+                // Use notification_receiver if wants_notifications is 'yes', otherwise use vendor email
+                const wantsNotifications = restaurantInfo[0].wants_notifications === 'yes';
+                vendorEmail = wantsNotifications && restaurantInfo[0].notification_receiver 
+                  ? restaurantInfo[0].notification_receiver 
+                  : restaurantInfo[0].vendor_email;
+                vendorName = restaurantInfo[0].vendor_name || vendorName;
               }
             } catch (err2) {
               console.error('Error querying restaurant_users for vendor email:', err2.message || err2);

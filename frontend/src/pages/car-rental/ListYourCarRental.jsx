@@ -153,40 +153,70 @@ export default function ListYourCarRental() {
 
   // Initialize Google Places Autocomplete
   const initializeAutocomplete = () => {
-    if (!inputRef.current || !window.google || !window.google.maps || !window.google.maps.places) {
+    if (!inputRef.current) {
+      console.warn('Input ref not ready for autocomplete initialization');
+      // Retry after a short delay
+      setTimeout(() => {
+        if (inputRef.current && window.google && window.google.maps && window.google.maps.places) {
+          initializeAutocomplete();
+        }
+      }, 100);
       return;
     }
 
-    const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
-      types: ['establishment', 'geocode'],
-      fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components']
-    });
+    if (!window.google || !window.google.maps || !window.google.maps.places) {
+      console.warn('Google Maps Places API not loaded yet');
+      return;
+    }
 
-    autocompleteRef.current = autocomplete;
+    // Clean up existing autocomplete if any
+    if (autocompleteRef.current) {
+      window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      autocompleteRef.current = null;
+    }
 
-    // Listen for place selection
-    autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace();
-      
-      if (!place.geometry) {
-        setError('Please select a valid location from the suggestions');
-        return;
-      }
+    try {
+      const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
+        types: ['establishment', 'geocode'],
+        fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components']
+      });
 
-      // Store location data
-      const locationInfo = {
-        name: place.name || place.formatted_address,
-        formatted_address: place.formatted_address,
-        place_id: place.place_id,
-        lat: place.geometry.location.lat(),
-        lng: place.geometry.location.lng(),
-        address_components: place.address_components
-      };
+      autocompleteRef.current = autocomplete;
+      console.log('Google Places Autocomplete initialized successfully');
 
-      setLocationData(locationInfo);
-      setLocation(place.name || place.formatted_address);
-      setError('');
-    });
+      // Listen for place selection
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        
+        if (!place.geometry) {
+          setError('Please select a valid location from the suggestions');
+          return;
+        }
+
+        // Store location data
+        const locationInfo = {
+          name: place.name || place.formatted_address,
+          formatted_address: place.formatted_address,
+          place_id: place.place_id,
+          lat: place.geometry.location.lat(),
+          lng: place.geometry.location.lng(),
+          geometry: {
+            location: {
+              lat: place.geometry.location.lat(),
+              lng: place.geometry.location.lng()
+            }
+          },
+          address_components: place.address_components
+        };
+
+        setLocationData(locationInfo);
+        setLocation(place.name || place.formatted_address);
+        setError('');
+      });
+    } catch (error) {
+      console.error('Error initializing autocomplete:', error);
+      setError('Failed to initialize location autocomplete. Please refresh the page.');
+    }
   };
 
   // We rely on the native Google Places Autocomplete UI for suggestions to match other services
@@ -250,15 +280,24 @@ export default function ListYourCarRental() {
     const handleInputFocus = () => {
       try {
         if (!autocompleteRef.current && window.google && window.google.maps && window.google.maps.places) {
+          console.log('Re-initializing autocomplete on focus');
           initializeAutocomplete();
         }
       } catch (err) {
         console.error('Error re-initializing autocomplete on focus:', err);
       }
     };
-    if (inputRef.current) {
-      inputRef.current.addEventListener('focus', handleInputFocus);
-    }
+    
+    // Set up focus listener with a slight delay to ensure inputRef is set
+    const setupFocusListener = () => {
+      if (inputRef.current) {
+        inputRef.current.addEventListener('focus', handleInputFocus);
+      } else {
+        // Retry if inputRef is not ready yet
+        setTimeout(setupFocusListener, 100);
+      }
+    };
+    setupFocusListener();
 
     // Wait for Google Maps to load (it's loaded in index.html)
     let checkInterval = setInterval(() => {
@@ -286,8 +325,43 @@ export default function ListYourCarRental() {
       if (inputRef.current) {
         inputRef.current.removeEventListener('focus', handleInputFocus);
       }
+      // Clean up autocomplete
+      if (autocompleteRef.current && window.google && window.google.maps) {
+        window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
+        autocompleteRef.current = null;
+      }
     };
   }, []);
+
+  // Additional useEffect to ensure autocomplete is initialized when inputRef becomes available
+  useEffect(() => {
+    if (!isGoogleMapsLoaded) return;
+    
+    // Check periodically if inputRef is ready and autocomplete needs initialization
+    const checkAndInit = () => {
+      if (inputRef.current && window.google && window.google.maps && window.google.maps.places && !autocompleteRef.current) {
+        console.log('Initializing autocomplete from additional useEffect');
+        initializeAutocomplete();
+        return true;
+      }
+      return false;
+    };
+    
+    // Try immediately
+    if (checkAndInit()) return;
+    
+    // If not ready, check every 100ms for up to 2 seconds
+    let attempts = 0;
+    const maxAttempts = 20;
+    const interval = setInterval(() => {
+      attempts++;
+      if (checkAndInit() || attempts >= maxAttempts) {
+        clearInterval(interval);
+      }
+    }, 100);
+    
+    return () => clearInterval(interval);
+  }, [isGoogleMapsLoaded]);
 
   // Handle map click to select location
   const initializeMap = () => {
@@ -587,6 +661,10 @@ export default function ListYourCarRental() {
                   onChange={(e) => {
                     setLocation(e.target.value);
                     setError('');
+                    // Ensure autocomplete is initialized when user starts typing
+                    if (!autocompleteRef.current && window.google && window.google.maps && window.google.maps.places) {
+                      initializeAutocomplete();
+                    }
                   }}
                   placeholder="Enter business name or address..."
                   className={`w-full pl-12 pr-4 py-4 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 placeholder-gray-400 ${

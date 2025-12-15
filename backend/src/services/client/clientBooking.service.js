@@ -23,7 +23,7 @@ class ClientBookingService {
           INDEX idx_status (status),
           INDEX idx_booking_reference (booking_reference)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-      `);
+      `); image.png
     } catch (error) {
       console.error('Error ensuring bookings table:', error);
       // Table might already exist, continue
@@ -266,31 +266,43 @@ class ClientBookingService {
       // Get vendor email and send notification (non-blocking)
       try {
         const vendorInfo = await executeQuery(
-          `SELECT u.email as vendor_email, u.name as vendor_name 
+          `SELECT 
+             u.email as vendor_email, 
+             u.name as vendor_name,
+             p.wants_notifications,
+             p.notification_receiver
            FROM stays_properties p
            LEFT JOIN stays_users u ON p.user_id = u.user_id
            WHERE p.property_id = ? LIMIT 1`,
           [property_id]
         );
 
-        if (vendorInfo && vendorInfo.length > 0 && vendorInfo[0].vendor_email) {
-          this.sendStayBookingVendorNotification({
-            vendor_email: vendorInfo[0].vendor_email,
-            vendor_name: vendorInfo[0].vendor_name,
-            property_name: property.property_name,
-            room_name: room.room_name,
-            booking_reference: bookingReference,
-            check_in_date,
-            check_out_date,
-            total_amount: totalAmount,
-            number_of_adults,
-            number_of_children,
-            guest_name,
-            guest_email,
-            guest_phone,
-            special_requests,
-            nights
-          });
+        if (vendorInfo && vendorInfo.length > 0) {
+          // Use notification_receiver if wants_notifications is 'yes', otherwise use vendor email
+          const wantsNotifications = vendorInfo[0].wants_notifications === 'yes';
+          const notificationEmail = wantsNotifications && vendorInfo[0].notification_receiver 
+            ? vendorInfo[0].notification_receiver 
+            : vendorInfo[0].vendor_email;
+
+          if (notificationEmail) {
+            this.sendStayBookingVendorNotification({
+              vendor_email: notificationEmail,
+              vendor_name: vendorInfo[0].vendor_name,
+              property_name: property.property_name,
+              room_name: room.room_name,
+              booking_reference: bookingReference,
+              check_in_date,
+              check_out_date,
+              total_amount: totalAmount,
+              number_of_adults,
+              number_of_children,
+              guest_name,
+              guest_email,
+              guest_phone,
+              special_requests,
+              nights
+            });
+          }
         }
       } catch (vendorEmailError) {
         console.error('⚠️ Failed to send vendor notification for stay booking:', vendorEmailError.message);
@@ -564,26 +576,39 @@ class ClientBookingService {
       // Get vendor email and send notification (non-blocking)
       try {
         const vendorInfo = await executeQuery(
-          `SELECT email as vendor_email, CONCAT(first_name, ' ', last_name) as vendor_name 
-           FROM tours_business_owner_info 
-           WHERE tour_business_id = ? LIMIT 1`,
+          `SELECT 
+             tboi.email as vendor_email, 
+             CONCAT(tboi.first_name, ' ', tboi.last_name) as vendor_name,
+             tb.wants_notifications,
+             tb.notification_receiver
+           FROM tours_business_owner_info tboi
+           LEFT JOIN tours_businesses tb ON tboi.tour_business_id = tb.tour_business_id
+           WHERE tboi.tour_business_id = ? LIMIT 1`,
           [tourBusinessId]
         );
 
-        if (vendorInfo && vendorInfo.length > 0 && vendorInfo[0].vendor_email) {
-          this.sendTourBookingVendorNotification({
-            vendor_email: vendorInfo[0].vendor_email,
-            vendor_name: vendorInfo[0].vendor_name,
-            package_name: tour.name,
-            booking_reference: bookingReference,
-            tour_date,
-            number_of_participants,
-            total_amount: totalAmount,
-            customer_name,
-            customer_email,
-            customer_phone,
-            special_requests
-          });
+        if (vendorInfo && vendorInfo.length > 0) {
+          // Use notification_receiver if wants_notifications is 'yes', otherwise use vendor email
+          const wantsNotifications = vendorInfo[0].wants_notifications === 'yes';
+          const notificationEmail = wantsNotifications && vendorInfo[0].notification_receiver 
+            ? vendorInfo[0].notification_receiver 
+            : vendorInfo[0].vendor_email;
+
+          if (notificationEmail) {
+            this.sendTourBookingVendorNotification({
+              vendor_email: notificationEmail,
+              vendor_name: vendorInfo[0].vendor_name,
+              package_name: tour.name,
+              booking_reference: bookingReference,
+              tour_date,
+              number_of_participants,
+              total_amount: totalAmount,
+              customer_name,
+              customer_email,
+              customer_phone,
+              special_requests
+            });
+          }
         }
       } catch (vendorEmailError) {
         console.error('⚠️ Failed to send vendor notification for tour booking:', vendorEmailError.message);
@@ -736,18 +761,44 @@ class ClientBookingService {
         let vendorEmail = restaurantData?.email_address;
         let vendorName = restaurantData?.name || restaurantData?.restaurant_name;
 
-        // If email_address is not available, try to get from restaurant_users table
-        if (!vendorEmail && restaurantData?.user_id) {
-          const vendorInfo = await executeQuery(
+        // Get notification preferences from restaurants table
+        // First try to get from restaurants table directly
+        const restaurantIdForQuery = restaurantData?.restaurant_id || restaurantData?.id || restaurant_id;
+        const vendorInfo = await executeQuery(
+          `SELECT 
+             ru.email as vendor_email, 
+             ru.name as vendor_name,
+             r.wants_notifications,
+             r.notification_receiver
+           FROM restaurants r
+           LEFT JOIN restaurant_users ru ON r.user_id = ru.user_id
+           WHERE r.id = ? OR r.restaurant_id = ? LIMIT 1`,
+          [restaurantIdForQuery, restaurantIdForQuery]
+        );
+
+        if (vendorInfo && vendorInfo.length > 0) {
+          // Use notification_receiver if wants_notifications is 'yes', otherwise use vendor email or email_address
+          const wantsNotifications = vendorInfo[0].wants_notifications === 'yes';
+          const notificationEmail = wantsNotifications && vendorInfo[0].notification_receiver 
+            ? vendorInfo[0].notification_receiver 
+            : (vendorInfo[0].vendor_email || restaurantData?.email_address);
+          
+          if (notificationEmail) {
+            vendorEmail = notificationEmail;
+            vendorName = vendorInfo[0].vendor_name || vendorName;
+          }
+        } else if (!vendorEmail && restaurantData?.user_id) {
+          // Fallback: try to get from restaurant_users table only
+          const fallbackVendorInfo = await executeQuery(
             `SELECT email as vendor_email, name as vendor_name 
              FROM restaurant_users 
              WHERE user_id = ? LIMIT 1`,
             [restaurantData.user_id]
           );
 
-          if (vendorInfo && vendorInfo.length > 0) {
-            vendorEmail = vendorInfo[0].vendor_email;
-            vendorName = vendorInfo[0].vendor_name || vendorName;
+          if (fallbackVendorInfo && fallbackVendorInfo.length > 0) {
+            vendorEmail = fallbackVendorInfo[0].vendor_email;
+            vendorName = fallbackVendorInfo[0].vendor_name || vendorName;
           }
         }
 
@@ -1084,7 +1135,11 @@ class ClientBookingService {
       // Get vendor email and send notification (non-blocking)
       try {
         const vendorInfo = await executeQuery(
-          `SELECT u.email as vendor_email, u.name as vendor_name 
+          `SELECT 
+             u.email as vendor_email, 
+             u.name as vendor_name,
+             crb.wants_notifications,
+             crb.notification_receiver
            FROM cars c
            JOIN car_rental_businesses crb ON c.vendor_id = crb.car_rental_business_id
            JOIN car_rental_users u ON crb.user_id = u.user_id
@@ -1092,23 +1147,31 @@ class ClientBookingService {
           [car_id]
         );
 
-        if (vendorInfo && vendorInfo.length > 0 && vendorInfo[0].vendor_email) {
-          this.sendCarRentalBookingVendorNotification({
-            vendor_email: vendorInfo[0].vendor_email,
-            vendor_name: vendorInfo[0].vendor_name,
-            car_name: carData.name || carData.model || carData.make,
-            booking_reference: bookingReference,
-            pickup_date,
-            return_date,
-            pickup_location,
-            return_location,
-            total_amount: totalAmount,
-            days,
-            customer_name: customer_first_name,
-            customer_email,
-            customer_phone,
-            special_requests: specialRequestsText
-          });
+        if (vendorInfo && vendorInfo.length > 0) {
+          // Use notification_receiver if wants_notifications is 'yes', otherwise use vendor email
+          const wantsNotifications = vendorInfo[0].wants_notifications === 'yes';
+          const notificationEmail = wantsNotifications && vendorInfo[0].notification_receiver 
+            ? vendorInfo[0].notification_receiver 
+            : vendorInfo[0].vendor_email;
+
+          if (notificationEmail) {
+            this.sendCarRentalBookingVendorNotification({
+              vendor_email: notificationEmail,
+              vendor_name: vendorInfo[0].vendor_name,
+              car_name: carData.name || carData.model || carData.make,
+              booking_reference: bookingReference,
+              pickup_date,
+              return_date,
+              pickup_location,
+              return_location,
+              total_amount: totalAmount,
+              days,
+              customer_name: customer_first_name,
+              customer_email,
+              customer_phone,
+              special_requests: specialRequestsText
+            });
+          }
         }
       } catch (vendorEmailError) {
         console.error('⚠️ Failed to send vendor notification for car rental booking:', vendorEmailError.message);

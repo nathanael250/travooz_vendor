@@ -277,7 +277,15 @@ const OrderFood = () => {
               <ArrowLeft className="h-5 w-5 mr-2" />
               Back
             </button>
-            <h1 className="text-xl font-bold text-gray-900">{restaurant.name || 'Restaurant'}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-bold text-gray-900">{restaurant.name || 'Restaurant'}</h1>
+              {typeof restaurant.is_open !== 'undefined' && (
+                <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${restaurant.is_open ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                  <Clock className="h-3 w-3 mr-1" />
+                  {restaurant.is_open ? 'Open now' : 'Closed'}
+                </span>
+              )}
+            </div>
             <button
               onClick={() => setShowCheckout(true)}
               className="relative flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"

@@ -676,6 +676,147 @@ class StaysPropertyService {
         return this.getPropertyImageLibrary(image.property_id, userId);
     }
 
+    async getPropertyRooms(propertyId, userId) {
+        try {
+            // Verify property ownership
+            const property = await executeQuery(
+                `SELECT property_id, user_id FROM stays_properties WHERE property_id = ?`,
+                [propertyId]
+            );
+
+            if (!property || property.length === 0) {
+                throw createErrorWithStatus('Property not found', 404);
+            }
+
+            if (Number(property[0].user_id) !== Number(userId)) {
+                throw createErrorWithStatus('Unauthorized access to this property', 403);
+            }
+
+            // Get all rooms for the property
+            const rooms = await executeQuery(
+                `SELECT * FROM stays_rooms WHERE property_id = ? ORDER BY created_at ASC`,
+                [propertyId]
+            );
+
+            // Get room details (beds, amenities)
+            const roomIds = rooms.map(r => r.room_id);
+            let roomBeds = [];
+            let roomAmenities = [];
+
+            if (roomIds.length > 0) {
+                [roomBeds, roomAmenities] = await Promise.all([
+                    executeQuery(
+                        `SELECT * FROM stays_room_beds WHERE room_id IN (${roomIds.map(() => '?').join(',')})`,
+                        roomIds
+                    ),
+                    executeQuery(
+                        `SELECT * FROM stays_room_amenities WHERE room_id IN (${roomIds.map(() => '?').join(',')})`,
+                        roomIds
+                    )
+                ]);
+            }
+
+            // Map beds and amenities to rooms
+            const roomsWithDetails = rooms.map(room => {
+                const beds = roomBeds.filter(b => b.room_id === room.room_id).map(b => ({
+                    bedType: b.bed_type,
+                    quantity: b.quantity
+                }));
+
+                const amenities = roomAmenities.find(a => a.room_id === room.room_id) || {};
+
+                // Parse JSON fields
+                const kitchenFacilities = amenities.kitchen_facilities 
+                    ? (typeof amenities.kitchen_facilities === 'string' ? JSON.parse(amenities.kitchen_facilities) : amenities.kitchen_facilities)
+                    : [];
+                const roomLayout = amenities.room_layout
+                    ? (typeof amenities.room_layout === 'string' ? JSON.parse(amenities.room_layout) : amenities.room_layout)
+                    : [];
+                const additionalAmenities = amenities.additional_amenities
+                    ? (typeof amenities.additional_amenities === 'string' ? JSON.parse(amenities.additional_amenities) : amenities.additional_amenities)
+                    : [];
+
+                // Preserve both database format (snake_case) and frontend format (camelCase) for compatibility
+                return {
+                    ...room,
+                    beds,
+                    amenities: {
+                        // Database format (snake_case) - preserved for RoomAmenitiesStep loading
+                        has_kitchen: amenities.has_kitchen,
+                        kitchen_facilities: amenities.kitchen_facilities,
+                        has_air_conditioning: amenities.has_air_conditioning,
+                        air_conditioning_type: amenities.air_conditioning_type,
+                        has_heating: amenities.has_heating,
+                        has_view: amenities.has_view,
+                        room_view: amenities.room_view,
+                        room_size_sqm: amenities.room_size_sqm,
+                        room_size_sqft: amenities.room_size_sqft,
+                        has_balcony: amenities.has_balcony,
+                        has_terrace: amenities.has_terrace,
+                        has_patio: amenities.has_patio,
+                        desk: amenities.desk,
+                        separate_sitting_area: amenities.separate_sitting_area,
+                        private_spa_tub: amenities.private_spa_tub,
+                        laptop_friendly_workspace: amenities.laptop_friendly_workspace,
+                        separate_dining_area: amenities.separate_dining_area,
+                        private_pool: amenities.private_pool,
+                        room_layout: amenities.room_layout,
+                        additional_amenities: amenities.additional_amenities,
+                        // Frontend format (camelCase) - for compatibility
+                        hasKitchen: amenities.has_kitchen === 1 ? 'yes' : 'no',
+                        kitchenFacilities: kitchenFacilities,
+                        kitchenAmenities: Array.isArray(kitchenFacilities) ? kitchenFacilities.reduce((acc, facility) => {
+                            acc[facility] = true;
+                            return acc;
+                        }, {
+                            cookware: false,
+                            stovetop: false,
+                            oven: false,
+                            microwave: false,
+                            refrigerator: false,
+                            dishwasher: false
+                        }) : {
+                            cookware: false,
+                            stovetop: false,
+                            oven: false,
+                            microwave: false,
+                            refrigerator: false,
+                            dishwasher: false
+                        },
+                        airConditioning: amenities.has_air_conditioning === 1,
+                        hasAirConditioning: amenities.has_air_conditioning === 1,
+                        airConditioningType: amenities.air_conditioning_type || 'in-room',
+                        hasHeating: amenities.has_heating === 1,
+                        hasView: amenities.has_view === 1 ? 'yes' : 'no',
+                        roomView: amenities.room_view,
+                        roomSizeSqm: amenities.room_size_sqm,
+                        roomSizeSqft: amenities.room_size_sqft,
+                        roomSize: amenities.room_size_sqft || amenities.room_size_sqm || '',
+                        roomSizeUnit: amenities.room_size_sqm ? 'square_meters' : 'square_feet',
+                        hasBalcony: amenities.has_balcony === 1,
+                        hasTerrace: amenities.has_terrace === 1,
+                        hasPatio: amenities.has_patio === 1,
+                        hasOutdoorSpace: (amenities.has_balcony === 1 || amenities.has_terrace === 1 || amenities.has_patio === 1) ? 'yes' : 'no',
+                        desk: amenities.desk === 1,
+                        separateSittingArea: amenities.separate_sitting_area === 1,
+                        privateSpaTub: amenities.private_spa_tub === 1,
+                        laptopFriendlyWorkspace: amenities.laptop_friendly_workspace === 1,
+                        separateDiningArea: amenities.separate_dining_area === 1,
+                        privatePool: amenities.private_pool === 1,
+                        roomLayout: roomLayout,
+                        additionalAmenities: additionalAmenities
+                    },
+                    roomSetupComplete: true // All rooms from database are complete
+                };
+            });
+
+            return roomsWithDetails;
+        } catch (error) {
+            console.error('Error getting property rooms:', error);
+            throw error;
+        }
+    }
+
     async updateRoomImage(imageId, userId, updates = {}) {
         const imageRecords = await executeQuery(
             `SELECT sri.*, sp.user_id, sr.property_id 

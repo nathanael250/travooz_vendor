@@ -186,13 +186,27 @@ export default function MenuSetupStep() {
             // Category - backend returns as 'category' field (name) or category_id
             const category = item.category || item.category_name || '';
 
+            // Determine availability - default to 'available' for new items or items without explicit status
+            let itemAvailability = item.availability;
+            if (!itemAvailability) {
+              if (item.available === 1 || item.available === true) {
+                itemAvailability = 'available';
+              } else if (item.available === 0 || item.available === false) {
+                itemAvailability = 'out_of_stock';
+              } else {
+                // If neither availability nor available is set, default to 'available'
+                itemAvailability = 'available';
+              }
+            }
+            
             const processedItem = {
               name: item.name || '',
               description: item.description || '',
               category: category,
               price: parseFloat(item.price) || 0,
               discount: parseFloat(item.discount) || 0,
-              availability: item.availability || (item.available === 1 || item.available === true ? 'available' : 'out_of_stock'),
+              availability: itemAvailability,
+              available: item.available !== undefined ? (item.available === 1 || item.available === true) : (itemAvailability === 'available'),
               preparationTime: item.preparation_time || item.preparationTime || '',
               portionSize: item.portion_size || item.portionSize || '',
               photo: imageUrl, // Keep original URL for reference
@@ -490,11 +504,17 @@ export default function MenuSetupStep() {
         if (item.photo) {
           menuItemImages[tempId] = item.photo;
         }
+        // Ensure availability defaults to 'available' for new items
+        const itemAvailability = item.availability || 'available';
+        const itemAvailable = item.available !== undefined 
+          ? item.available 
+          : (itemAvailability === 'available' || itemAvailability === '' || !itemAvailability);
+        
         return {
           ...item,
           // Provide both representations to backend: string 'availability' and boolean 'available'
-          availability: item.availability || 'available',
-          available: item.available !== undefined ? item.available : (item.availability === 'available'),
+          availability: itemAvailability,
+          available: itemAvailable,
           id: tempId,
           tempId: tempId
         };
@@ -547,7 +567,7 @@ export default function MenuSetupStep() {
       <div className="flex-1 w-full py-4 sm:py-6 md:py-8 px-4 sm:px-6">
         <div className="max-w-6xl w-full mx-auto">
           {/* Progress Indicator */}
-          <SetupProgressIndicator currentStep={9} totalSteps={11} />
+          <SetupProgressIndicator currentStepKey="menu" currentStepNumber={8} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-4 sm:p-6 md:p-8 border" style={{ borderColor: '#dcfce7' }}>
@@ -968,7 +988,7 @@ export default function MenuSetupStep() {
                         {itemForm.addOns.map((addOn, index) => (
                           <div key={index} className="bg-white border-2 rounded-lg p-2.5 sm:p-3 flex items-center justify-between gap-2" style={{ borderColor: '#dcfce7' }}>
                             <span className="text-xs sm:text-sm font-medium text-gray-900 truncate flex-1">
-                              {addOn.name} {addOn.price > 0 && `(+$${addOn.price.toFixed(2)})`}
+                              {addOn.name} {addOn.price > 0 && `(+RWF ${addOn.price.toLocaleString()})`}
                             </span>
                             <button
                               type="button"
@@ -1125,7 +1145,7 @@ export default function MenuSetupStep() {
                                 <p className="text-xs sm:text-sm text-gray-600 mb-2 line-clamp-2">{item.description}</p>
                               )}
                               <div className="flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm">
-                                <span className="font-semibold text-gray-900">${item.price.toFixed(2)}</span>
+                                <span className="font-semibold text-gray-900">RWF {item.price.toLocaleString()}</span>
                                 {item.discount && (
                                   <span className="text-green-600">Discount: ${item.discount.toFixed(2)}</span>
                                 )}
@@ -1143,7 +1163,7 @@ export default function MenuSetupStep() {
                                   <div className="flex flex-wrap gap-2">
                                     {item.addOns.map((addOn, addOnIndex) => (
                                       <span key={addOnIndex} className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                                        {addOn.name} {addOn.price > 0 && `(+$${addOn.price.toFixed(2)})`}
+                                        {addOn.name} {addOn.price > 0 && `(+RWF ${addOn.price.toLocaleString()})`}
                                       </span>
                                     ))}
                                   </div>

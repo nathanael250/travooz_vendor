@@ -165,7 +165,9 @@ export default function ListYourRestaurantStep3() {
           phone: step2Data.phone,
           currency: step2Data.currency,
           location: location.state?.location || '',
-          locationData: locationData
+          locationData: locationData,
+          wantsNotifications: step2Data.wantsNotifications || 'no',
+          notificationReceiver: step2Data.notificationReceiver || ''
         });
 
         const restaurantId = result.restaurantId || result.data?.restaurantId;
@@ -263,7 +265,9 @@ export default function ListYourRestaurantStep3() {
         restaurantPhone: step2Data.phone,
         currency: step2Data.currency,
         location: location.state?.location || '',
-        locationData: locationData
+        locationData: locationData,
+        wantsNotifications: step2Data.wantsNotifications || 'no',
+        notificationReceiver: step2Data.notificationReceiver || ''
       });
 
       // Extract data from response

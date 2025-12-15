@@ -487,7 +487,7 @@ export default function ListYourProperty() {
           </h1>
           
           <p className="text-gray-600 text-center mb-8">
-            Start with your property name, like Hilton Downtown Los Angeles. This will make it easier to find your address.
+            Start with your property name or address, This will make it easier to find your address.
           </p>
 
           <form onSubmit={handleNext} className="space-y-6">

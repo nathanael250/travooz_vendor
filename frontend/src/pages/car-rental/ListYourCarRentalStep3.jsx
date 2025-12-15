@@ -183,7 +183,11 @@ export default function ListYourCarRentalStep3() {
             },
         location: selectedLocation,
         locationData: selectedLocationData,
-        business: step2Data,
+        business: {
+          ...step2Data,
+          wantsNotifications: step2Data.wantsNotifications || 'no',
+          notificationReceiver: step2Data.notificationReceiver || ''
+        },
         carRentalBusinessId: existingBusinessId || null
       };
 

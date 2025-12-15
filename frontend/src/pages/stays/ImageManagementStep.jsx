@@ -14,6 +14,7 @@ import {
   deleteRoomImage,
   updateRoomImage
 } from '../../services/staysService';
+import { handleStaysError } from '../../utils/staysErrorHandler';
 
 // Helper function to build image URLs for both development and production
 const buildImageUrl = (imageUrl) => {
@@ -64,6 +65,11 @@ export default function ImageManagementStep() {
     };
   }, []);
 
+  // Scroll to top when component mounts or location changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
+
   // Redirect if no user data
   useEffect(() => {
     if (!location.state?.userId) {
@@ -85,9 +91,21 @@ export default function ImageManagementStep() {
     setPropertyImages(library.propertyImages || []);
 
     if (Array.isArray(library.rooms) && library.rooms.length > 0) {
-      setRooms(library.rooms);
-      const mapped = {};
+      // Remove duplicates based on room_id - keep only unique rooms
+      const uniqueRooms = [];
+      const seenRoomIds = new Set();
+      
       library.rooms.forEach((room) => {
+        const roomId = room.room_id || room.id;
+        if (roomId && !seenRoomIds.has(roomId)) {
+          seenRoomIds.add(roomId);
+          uniqueRooms.push(room);
+        }
+      });
+      
+      setRooms(uniqueRooms);
+      const mapped = {};
+      uniqueRooms.forEach((room) => {
         const key = room.room_id || room.id;
         if (key) {
           mapped[key] = room.images || [];
@@ -113,15 +131,65 @@ export default function ImageManagementStep() {
       syncImageLibrary(library);
     } catch (error) {
       console.error('Error loading property images:', error);
+      
+      // Handle not found errors - clear localStorage and redirect to login
+      if (handleStaysError(error, navigate)) {
+        return; // Error was handled, don't show toast
+      }
+      
       toast.error(error?.message || 'Failed to load property images from server');
     } finally {
       setLoadingLibrary(false);
     }
-  }, [syncImageLibrary]);
+  }, [syncImageLibrary, navigate]);
 
   useEffect(() => {
-    const savedRooms = JSON.parse(localStorage.getItem('stays_rooms') || '[]');
-    setRooms(savedRooms.filter(room => room.roomSetupComplete));
+    const derivedPropertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0', 10);
+    
+    // Helper function to remove duplicate rooms
+    const removeDuplicateRooms = (roomsList) => {
+      const uniqueRooms = [];
+      const seenRoomIds = new Set();
+      
+      roomsList.forEach((room) => {
+        const roomId = room.room_id || room.id;
+        if (roomId && !seenRoomIds.has(roomId)) {
+          seenRoomIds.add(roomId);
+          uniqueRooms.push(room);
+        } else if (!roomId) {
+          // For rooms without ID, use a temporary key based on name and other attributes
+          const tempKey = `${room.roomName || room.room_name || 'room'}-${room.baseRate || 0}-${room.numberOfRooms || 1}`;
+          if (!seenRoomIds.has(tempKey)) {
+            seenRoomIds.add(tempKey);
+            uniqueRooms.push(room);
+          }
+        }
+      });
+      
+      return uniqueRooms;
+    };
+    
+    if (derivedPropertyId && !Number.isNaN(derivedPropertyId)) {
+      setPropertyId(derivedPropertyId);
+      
+      // First, try to load from API (this will set rooms via syncImageLibrary)
+      // The API response will override localStorage data
+      fetchImageLibrary(derivedPropertyId);
+      
+      // Fallback: Load from localStorage only as initial state
+      // Filter by property ID and remove duplicates
+      const savedRooms = JSON.parse(localStorage.getItem('stays_rooms') || '[]');
+      const propertyRooms = savedRooms.filter(room => {
+        // Only include rooms that:
+        // 1. Are complete (roomSetupComplete)
+        // 2. Belong to the current property (if property_id is stored)
+        // 3. Or are in the current session (no property_id means they're new)
+        const roomPropertyId = room.property_id || room.propertyId;
+        return room.roomSetupComplete && (!roomPropertyId || roomPropertyId === derivedPropertyId);
+      });
+      
+      const uniqueRooms = removeDuplicateRooms(propertyRooms);
+      setRooms(uniqueRooms);
     
     // Load saved images from localStorage (fallback if property not yet saved)
     const savedPropertyImages = JSON.parse(localStorage.getItem('stays_property_images') || '[]');
@@ -129,11 +197,18 @@ export default function ImageManagementStep() {
     
     const savedRoomImages = JSON.parse(localStorage.getItem('stays_room_images') || '{}');
     setRoomImages(savedRoomImages);
-
-    const derivedPropertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0', 10);
-    if (derivedPropertyId && !Number.isNaN(derivedPropertyId)) {
-      setPropertyId(derivedPropertyId);
-      fetchImageLibrary(derivedPropertyId);
+    } else {
+      // No property ID - only load from localStorage for new properties
+      const savedRooms = JSON.parse(localStorage.getItem('stays_rooms') || '[]');
+      const completeRooms = savedRooms.filter(room => room.roomSetupComplete);
+      const uniqueRooms = removeDuplicateRooms(completeRooms);
+      setRooms(uniqueRooms);
+      
+      const savedPropertyImages = JSON.parse(localStorage.getItem('stays_property_images') || '[]');
+      setPropertyImages(savedPropertyImages);
+      
+      const savedRoomImages = JSON.parse(localStorage.getItem('stays_room_images') || '{}');
+      setRoomImages(savedRoomImages);
     }
   }, [location.state, fetchImageLibrary]);
 
@@ -151,11 +226,17 @@ export default function ImageManagementStep() {
       toast.success('Property images saved successfully');
     } catch (error) {
       console.error('Error uploading property images:', error);
+      
+      // Handle not found errors - clear localStorage and redirect to login
+      if (handleStaysError(error, navigate)) {
+        return; // Error was handled, don't show toast
+      }
+      
       toast.error(error?.message || 'Failed to upload property images');
     } finally {
       setUploadingProperty(false);
     }
-  }, [propertyId, syncImageLibrary]);
+  }, [propertyId, syncImageLibrary, navigate]);
 
   const uploadRoomImagesToServer = useCallback(async (roomId, imageFiles) => {
     if (!roomId) {
@@ -171,11 +252,17 @@ export default function ImageManagementStep() {
       toast.success('Room images saved successfully');
     } catch (error) {
       console.error('Error uploading room images:', error);
+      
+      // Handle not found errors - clear localStorage and redirect to login
+      if (handleStaysError(error, navigate)) {
+        return; // Error was handled, don't show toast
+      }
+      
       toast.error(error?.message || 'Failed to upload room images');
     } finally {
       setRoomUploadStatus(prev => ({ ...prev, [roomId]: false }));
     }
-  }, [syncImageLibrary]);
+  }, [syncImageLibrary, navigate]);
 
   const handleImageUpload = async (files, type, roomId = null) => {
     const imageFiles = Array.from(files || []);
@@ -355,7 +442,7 @@ export default function ImageManagementStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-6xl mx-auto">
           {/* Progress Indicator */}
-          <ProgressIndicator currentStep={8} totalSteps={10} />
+          <ProgressIndicator currentStep={5} totalSteps={10} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border mb-8" style={{ borderColor: '#dcfce7' }}>

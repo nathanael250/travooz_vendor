@@ -4,10 +4,10 @@ import toast from 'react-hot-toast';
 import { 
   LogOut, Home, Settings, Building2, Mail, AlertCircle, 
   Menu, Bell, Calendar, DollarSign, BarChart3, 
-  ChevronDown, ChevronLeft, ChevronRight, User, LayoutDashboard, FileText, TrendingUp, BookOpen, Image as ImageIcon
+  ChevronDown, ChevronLeft, ChevronRight, User, LayoutDashboard, FileText, TrendingUp, BookOpen, Image as ImageIcon, Plus, Bed
 } from 'lucide-react';
 import logo from '../../assets/images/cdc_logo.jpg';
-import { staysAuthService, getMyPropertyListings, staysSetupService } from '../../services/staysService';
+import { staysAuthService, getMyPropertyListings, staysSetupService, staysOnboardingProgressService } from '../../services/staysService';
 import useTranslation from '../../hooks/useTranslation';
 import LanguageSelector from '../../components/common/LanguageSelector';
 
@@ -30,6 +30,7 @@ export default function StaysDashboard() {
   const [isPropertyLive, setIsPropertyLive] = useState(false);
   const [bookings, setBookings] = useState([]);
   const [rooms, setRooms] = useState([]);
+  const [isCheckingApproval, setIsCheckingApproval] = useState(true); // Add loading state for approval check
   const [dashboardStats, setDashboardStats] = useState({
     totalRevenue: 0,
     averageDailyRate: 0,
@@ -71,6 +72,7 @@ export default function StaysDashboard() {
 
     // Load user's properties first, then check setup status
     const initializeDashboard = async () => {
+      setIsCheckingApproval(true); // Start checking approval
       try {
         // Load properties for the authenticated user from backend
         const userProperties = await getMyPropertyListings();
@@ -82,12 +84,43 @@ export default function StaysDashboard() {
           const latestProperty = propertiesArray[0];
           setCurrentProperty(latestProperty);
           
+          // Get property status
+          const propertyStatus = latestProperty.status || latestProperty.property_status || 'pending';
+          
           // Check if property is live - check both is_live and status
           const propertyIsLive = 
             latestProperty.is_live === 1 || 
             latestProperty.isLive === true || 
             latestProperty.is_live === true ||
-            latestProperty.status === 'approved';
+            propertyStatus === 'approved';
+          
+          // If property is not approved, check if setup is complete and redirect immediately
+          if (propertyStatus !== 'approved' && !propertyIsLive) {
+            // Check if setup is complete first
+            try {
+              const propertyId = latestProperty.property_id || latestProperty.propertyId;
+              if (propertyId) {
+                const status = await staysSetupService.getSetupStatus(propertyId);
+                const setupComplete = status.setupComplete || status.allComplete;
+                
+                // If setup is complete but not approved, redirect to waiting screen immediately
+                if (setupComplete) {
+                  console.log('⏳ Setup complete but property not approved, redirecting to waiting screen');
+                  setIsCheckingApproval(false);
+                  navigate('/stays/setup/complete', { replace: true });
+                  return;
+                }
+              }
+            } catch (statusError) {
+              console.error('[Dashboard] Error checking setup status:', statusError);
+              // If we can't check, assume not approved and redirect to waiting screen
+              setIsCheckingApproval(false);
+              navigate('/stays/setup/complete', { replace: true });
+              return;
+            }
+          }
+          
+          // Only set property as live and continue if approved
           setIsPropertyLive(propertyIsLive);
           
           // Store property ID in localStorage for persistence
@@ -153,7 +186,15 @@ export default function StaysDashboard() {
         // Fallback to localStorage check
         const setupCompleteLocal = localStorage.getItem('stays_setup_complete') === 'true';
         setSetupComplete(setupCompleteLocal);
+        
+        // If there's an error and setup is complete, redirect to waiting screen
+        if (setupCompleteLocal) {
+          setIsCheckingApproval(false);
+          navigate('/stays/setup/complete', { replace: true });
+          return;
+        }
       } finally {
+        setIsCheckingApproval(false);
         setLoading(false);
       }
     };
@@ -195,7 +236,21 @@ export default function StaysDashboard() {
     };
   };
 
-  const handleContinueSetup = () => {
+  const handleCreateNewRoom = () => {
+    // Get propertyId from state or localStorage (exact same structure as RoomsAndRatesStep.handleAddRoomType)
+    const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
+    
+    // Use the exact same navigation structure as in RoomsAndRatesStep.handleAddRoomType
+    navigate('/stays/setup/room-setup', {
+      state: {
+        ...location.state,
+        propertyId: propertyId > 0 ? propertyId : location.state?.propertyId,
+        roomSetupStep: 1
+      }
+    });
+  };
+
+  const handleContinueSetup = async () => {
     const currentUser = user || staysAuthService.getCurrentUser();
     const normalizedUser = normalizeUser(currentUser);
 
@@ -223,6 +278,31 @@ export default function StaysDashboard() {
       return;
     }
 
+    // Check onboarding progress first (after first 3 steps)
+    try {
+      const progressData = await staysOnboardingProgressService.getProgress();
+      if (progressData && progressData.progress) {
+        const progress = progressData.progress;
+        const stepMapping = progressData.stepMapping || {};
+        const currentStep = stepMapping[progress.current_step];
+        
+        if (currentStep && currentStep.route) {
+          navigate(currentStep.route, {
+            state: {
+              userId: normalizedUser.userId,
+              email: normalizedUser.email,
+              userName: normalizedUser.name,
+              propertyId
+            }
+          });
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Error checking onboarding progress:', error);
+      // Continue with fallback logic
+    }
+
     // Redirect to appropriate setup step based on what's incomplete
     if (!normalizedUser.emailVerified) {
       navigate('/stays/list-your-property/verify-email', {
@@ -237,16 +317,7 @@ export default function StaysDashboard() {
       // Use backend status to determine next step
       const { steps } = setupStatus;
       
-      if (!steps.step2_contract) {
-        navigate('/stays/setup/contract', {
-          state: {
-            userId: normalizedUser.userId,
-            email: normalizedUser.email,
-            userName: normalizedUser.name,
-            propertyId
-          }
-        });
-      } else if (!steps.step3_policies) {
+      if (!steps.step3_policies) {
         navigate('/stays/setup/policies', {
           state: {
             userId: normalizedUser.userId,
@@ -312,27 +383,15 @@ export default function StaysDashboard() {
         });
       }
     } else {
-      // Fallback to localStorage check
-      const contractAccepted = localStorage.getItem('stays_contract_accepted');
-      if (!contractAccepted) {
-        navigate('/stays/setup/contract', {
-          state: {
-            userId: normalizedUser.userId,
-            email: normalizedUser.email,
-            userName: normalizedUser.name,
-            propertyId
-          }
-        });
-      } else {
-        navigate('/stays/setup/policies', {
-          state: {
-            userId: normalizedUser.userId,
-            email: normalizedUser.email,
-            userName: normalizedUser.name,
-            propertyId
-          }
-        });
-      }
+      // Fallback: Start with images step
+      navigate('/stays/setup/images', {
+        state: {
+          userId: normalizedUser.userId,
+          email: normalizedUser.email,
+          userName: normalizedUser.name,
+          propertyId
+        }
+      });
     }
   };
 
@@ -394,7 +453,8 @@ export default function StaysDashboard() {
     }
   }, [bookings, rooms, currentProperty]);
 
-  if (loading) {
+  // Show loading while checking approval status - don't show dashboard content until approved
+  if (loading || isCheckingApproval) {
     return (
       <div className="flex h-screen bg-gray-100">
         <div className="flex-1 flex items-center justify-center">
@@ -410,34 +470,32 @@ export default function StaysDashboard() {
   // Show setup incomplete message if needed
   if (!setupComplete) {
     return (
-      <div className="flex h-screen bg-gray-100">
-        <div className="flex-1 flex items-center justify-center p-4">
-          <div className="max-w-md w-full">
-            <div className="bg-white rounded-lg shadow-xl p-8 border text-center">
-              <AlertCircle className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Setup Incomplete</h2>
-              <p className="text-gray-600 mb-6">
-                Please complete your property setup to access the dashboard.
-              </p>
-              <button
-                onClick={handleContinueSetup}
-                className="w-full px-6 py-3 text-white font-semibold rounded-lg transition-colors shadow-md hover:shadow-lg"
-                style={{ backgroundColor: '#3CAF54' }}
-                onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
-                onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
-              >
-                Continue Setup
-              </button>
-            </div>
-            {/* Logout link below the card */}
-            <div className="text-center mt-4">
-              <button
-                onClick={handleLogout}
-                className="text-gray-600 hover:text-gray-900 text-sm underline"
-              >
-                Having trouble? Logout and sign in again
-              </button>
-            </div>
+      <div className="flex h-screen bg-gray-100 items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          <div className="bg-white rounded-lg shadow-xl p-8 border text-center">
+            <AlertCircle className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Setup Incomplete</h2>
+            <p className="text-gray-600 mb-6">
+              Please complete your property setup to access the dashboard.
+            </p>
+            <button
+              onClick={handleContinueSetup}
+              className="w-full px-6 py-3 text-white font-semibold rounded-lg transition-colors shadow-md hover:shadow-lg"
+              style={{ backgroundColor: '#3CAF54' }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
+            >
+              Continue Setup
+            </button>
+          </div>
+          {/* Logout link below the card */}
+          <div className="text-center mt-4">
+            <button
+              onClick={handleLogout}
+              className="text-gray-600 hover:text-gray-900 text-sm underline"
+            >
+              Having trouble? Logout and sign in again
+            </button>
           </div>
         </div>
       </div>
@@ -605,17 +663,29 @@ export default function StaysDashboard() {
             </div>
           </div>
 
+          {/* Quick Actions */}
+          <div className="bg-white rounded-lg shadow p-3 sm:p-4 md:p-6 mb-3 sm:mb-4 md:mb-6">
+            <h2 className="text-sm sm:text-base md:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Quick Actions</h2>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={handleCreateNewRoom}
+                className="flex items-center gap-2 px-4 py-2 text-white font-medium rounded-lg transition-colors shadow-md hover:shadow-lg"
+                style={{ backgroundColor: '#3CAF54' }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
+              >
+                <Plus className="h-4 w-4" />
+                <Bed className="h-4 w-4" />
+                <span>Create New Room</span>
+              </button>
+            </div>
+          </div>
+
           {/* Property Setup Status */}
           <div className={`bg-white rounded-lg shadow p-3 sm:p-4 md:p-6 mb-3 sm:mb-4 md:mb-6 ${!isPropertyLive ? 'opacity-50 pointer-events-none' : ''}`}>
             <h2 className="text-sm sm:text-base md:text-lg font-semibold text-gray-900 mb-2 sm:mb-3 md:mb-4">Property Setup Status</h2>
             {setupStatus && setupStatus.steps ? (
               <div className="space-y-2 sm:space-y-2.5 md:space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm text-gray-700">Contract Accepted</span>
-                  <span className={`text-xs sm:text-sm font-semibold ${setupStatus.steps.step2_contract ? 'text-green-600' : 'text-gray-400'}`}>
-                    {setupStatus.steps.step2_contract ? '✓ Complete' : 'Pending'}
-                  </span>
-                </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs sm:text-sm text-gray-700">Policies & Settings</span>
                   <span className={`text-xs sm:text-sm font-semibold ${setupStatus.steps.step3_policies ? 'text-green-600' : 'text-gray-400'}`}>

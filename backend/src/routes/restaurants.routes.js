@@ -109,9 +109,23 @@ router.get('/:id', authenticateToken, async (req, res) => {
       ['restaurant', restaurant.id]
     );
     
+    // Fetch operating schedules for this restaurant
+    const [scheduleRows] = await pool.execute(
+      'SELECT * FROM restaurant_schedules WHERE restaurant_id = ? ORDER BY day_of_week ASC',
+      [restaurant.id]
+    );
+    
+    // Fetch tax & legal information for this restaurant
+    const [taxLegalRows] = await pool.execute(
+      'SELECT * FROM restaurant_tax_legal WHERE restaurant_id = ?',
+      [restaurant.id]
+    );
+    
     res.json({
       ...restaurant,
-      images: imageRows
+      images: imageRows,
+      schedules: scheduleRows,
+      taxLegal: taxLegalRows[0] || null
     });
   } catch (error) {
     console.error('Error fetching restaurant:', error);

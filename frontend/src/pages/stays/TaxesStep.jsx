@@ -18,6 +18,11 @@ export default function TaxesStep() {
     };
   }, []);
 
+  // Scroll to top when component mounts or location changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
+
   // Redirect if no user data
   useEffect(() => {
     if (!location.state?.userId) {
@@ -139,7 +144,7 @@ export default function TaxesStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-4xl mx-auto">
           {/* Progress Indicator */}
-          <ProgressIndicator currentStep={9} totalSteps={10} />
+          <ProgressIndicator currentStep={6} totalSteps={10} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border mb-8" style={{ borderColor: '#dcfce7' }}>

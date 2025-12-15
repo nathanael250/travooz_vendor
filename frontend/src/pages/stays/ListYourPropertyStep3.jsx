@@ -17,6 +17,11 @@ export default function ListYourPropertyStep3() {
     };
   }, []);
 
+  // Scroll to top when component mounts or location changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
+
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -158,6 +163,8 @@ export default function ListYourPropertyStep3() {
       channelManager: 'no', // Default channel manager
       partOfChain: step2Data.partOfChain || 'no',
       bookingComUrl: step2Data.bookingComUrl || '',
+      wantsNotifications: step2Data.wantsNotifications || 'no',
+      notificationReceiver: step2Data.notificationReceiver || '',
       
       // Step 3: User account
       firstName: formData.firstName || '',

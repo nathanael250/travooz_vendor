@@ -70,7 +70,7 @@ export default function PricingModelStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-6xl mx-auto">
           {/* Progress Indicator */}
-          <ProgressIndicator currentStep={5} totalSteps={10} />
+          <ProgressIndicator currentStep={4} totalSteps={10} />
 
           {/* Navigation Link */}
           <button

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Plus, MoreVertical, Info, Copy, CheckCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import ProgressIndicator from '../../components/stays/ProgressIndicator';
+import { staysSetupService, getPropertyRooms } from '../../services/staysService';
 
 export default function RoomsAndRatesStep() {
   const navigate = useNavigate();
@@ -17,6 +19,11 @@ export default function RoomsAndRatesStep() {
     };
   }, []);
 
+  // Scroll to top when component mounts or location changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
+
   // Redirect if no user data
   useEffect(() => {
     if (!location.state?.userId) {
@@ -28,29 +35,75 @@ export default function RoomsAndRatesStep() {
   const [showToast, setShowToast] = useState(false);
   const [showMoreActions, setShowMoreActions] = useState(null);
 
-  // Load rooms from localStorage
+  // Load rooms from database (primary source) with localStorage as fallback
   useEffect(() => {
-    // Check if this is a NEW property (no propertyId or propertyId is 0)
-    const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
-    const isNewProperty = !propertyId || propertyId === 0;
-    
-    if (isNewProperty) {
-      // For NEW properties, start with empty rooms (ignore old localStorage data)
-      console.log('🆕 New property detected - clearing old room data');
-      localStorage.removeItem('stays_rooms');
-      setRooms([]);
-    } else {
-      // For EXISTING properties, load saved rooms
-      console.log('📂 Existing property - loading saved rooms from localStorage');
-      const savedRooms = JSON.parse(localStorage.getItem('stays_rooms') || '[]');
-      setRooms(savedRooms);
-    }
+    const loadRooms = async () => {
+      // Check if this is a NEW property (no propertyId or propertyId is 0)
+      const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
+      const isNewProperty = !propertyId || propertyId === 0;
+      
+      if (isNewProperty) {
+        // For NEW properties, start with empty rooms (ignore old localStorage data)
+        console.log('🆕 New property detected - clearing old room data');
+        localStorage.removeItem('stays_rooms');
+        setRooms([]);
+      } else {
+        // For EXISTING properties, load from database first
+        try {
+          console.log('📂 Existing property - loading rooms from database...');
+          const dbRooms = await getPropertyRooms(propertyId);
+          
+          // Transform database rooms to match frontend format
+          // IMPORTANT: Preserve all amenities data (both formats) for editing
+          const transformedRooms = dbRooms.map(room => ({
+            id: room.room_id,
+            room_id: room.room_id,
+            roomId: room.room_id,
+            roomName: room.room_name,
+            room_name: room.room_name,
+            roomType: room.room_type,
+            room_type: room.room_type,
+            roomClass: room.room_class,
+            room_class: room.room_class,
+            smokingPolicy: room.smoking_policy,
+            smoking_policy: room.smoking_policy,
+            numberOfRooms: room.number_of_rooms,
+            number_of_rooms: room.number_of_rooms,
+            recommendedOccupancy: room.recommended_occupancy,
+            recommended_occupancy: room.recommended_occupancy,
+            baseRate: parseFloat(room.base_rate) || 0,
+            base_rate: parseFloat(room.base_rate) || 0,
+            peopleIncluded: room.people_included,
+            people_included: room.people_included,
+            beds: room.beds || [],
+            // CRITICAL: Preserve amenities object as-is (includes both database and frontend formats)
+            amenities: room.amenities || null,
+            roomSetupComplete: true,
+            property_id: room.property_id,
+            propertyId: room.property_id
+          }));
+          
+          setRooms(transformedRooms);
+          
+          // Update localStorage as cache (but database is source of truth)
+          localStorage.setItem('stays_rooms', JSON.stringify(transformedRooms));
+          console.log('✅ Loaded', transformedRooms.length, 'rooms from database');
+        } catch (error) {
+          console.error('❌ Error loading rooms from database, falling back to localStorage:', error);
+          // Fallback to localStorage if database fails
+          const savedRooms = JSON.parse(localStorage.getItem('stays_rooms') || '[]');
+          setRooms(savedRooms);
+        }
+      }
 
-    // Show toast if coming from room setup completion
-    if (location.state?.roomAdded) {
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 5000);
-    }
+      // Show toast if coming from room setup completion
+      if (location.state?.roomAdded) {
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 5000);
+      }
+    };
+
+    loadRooms();
   }, [location.state]);
 
   // Calculate totals
@@ -103,16 +156,147 @@ export default function RoomsAndRatesStep() {
     });
   };
 
-  const handleCopyRoom = (room) => {
-    const newRoom = {
-      ...room,
-      id: Date.now().toString(),
-      roomName: `${room.roomName} (Copy)`,
-      createdAt: new Date().toISOString()
-    };
-    const updatedRooms = [...rooms, newRoom];
-    setRooms(updatedRooms);
-    localStorage.setItem('stays_rooms', JSON.stringify(updatedRooms));
+  const handleCopyRoom = async (room) => {
+    // Get propertyId from state or localStorage
+    const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
+    
+    if (!propertyId || propertyId === 0) {
+      alert('Property ID is missing. Please complete property setup first.');
+      return;
+    }
+
+    try {
+      // Prepare copied room data (remove ALL ID fields to create new room)
+      const copiedRoomName = room.room_name ? `${room.room_name} (Copy)` : room.roomName ? `${room.roomName} (Copy)` : 'Room (Copy)';
+      
+      // Helper function to convert undefined to null
+      const nullIfUndefined = (value) => value === undefined ? null : value;
+      
+      // Clean beds array
+      const cleanBeds = (room.beds || room.room_beds || room.numberOfBeds || []).map(bed => ({
+        bedType: nullIfUndefined(bed.bedType || bed.bed_type) || 'queen',
+        quantity: nullIfUndefined(bed.quantity) ?? 1
+      })).filter(bed => bed.bedType !== null);
+
+      // Transform room data for backend API
+      const roomDataForAPI = {
+        // No roomId - this will create a new room
+        roomName: copiedRoomName,
+        roomType: nullIfUndefined(room.room_type || room.roomType) || 'standard',
+        roomClass: nullIfUndefined(room.room_class || room.roomClass) || 'standard',
+        smokingPolicy: nullIfUndefined(room.smoking_policy || room.smokingPolicy) || 'non-smoking',
+        numberOfRooms: nullIfUndefined(room.number_of_rooms || room.numberOfRooms) ?? 1,
+        recommendedOccupancy: nullIfUndefined(room.recommended_occupancy || room.recommendedOccupancy) || 2,
+        pricingModel: nullIfUndefined(room.pricing_model || room.pricingModel) || 'per-day',
+        baseRate: nullIfUndefined(room.base_rate || room.baseRate) || 0,
+        peopleIncluded: nullIfUndefined(room.people_included || room.peopleIncluded) || 2,
+        beds: cleanBeds,
+        bathroomType: nullIfUndefined(room.bathroom_type || room.bathroomType) || 'private',
+        numberOfBathrooms: nullIfUndefined(room.number_of_bathrooms || room.numberOfBathrooms) ?? 1,
+        bathroomAmenities: Array.isArray(room.bathroom_amenities || room.bathroomAmenities) ? (room.bathroom_amenities || room.bathroomAmenities) : [],
+        hasKitchen: room.amenities?.hasKitchen === 'yes' || room.amenities?.has_kitchen === 1 || false,
+        kitchenFacilities: Array.isArray(room.amenities?.kitchenAmenities || room.amenities?.kitchen_facilities) ? (room.amenities?.kitchenAmenities || room.amenities?.kitchen_facilities) : [],
+        hasAirConditioning: room.amenities?.airConditioning === true || room.amenities?.has_air_conditioning === 1 || false,
+        hasHeating: false,
+        hasView: nullIfUndefined(room.amenities?.hasView || room.amenities?.has_view) || 'no',
+        roomView: nullIfUndefined(room.amenities?.roomView || room.amenities?.room_view),
+        roomSizeSqm: nullIfUndefined(room.amenities?.roomSizeSqm || room.amenities?.room_size_sqm),
+        roomSizeSqft: nullIfUndefined(room.amenities?.roomSizeSqft || room.amenities?.room_size_sqft),
+        hasBalcony: room.amenities?.hasBalcony === true || room.amenities?.has_balcony === 1 || false,
+        hasTerrace: room.amenities?.hasTerrace === true || room.amenities?.has_terrace === 1 || false,
+        hasPatio: room.amenities?.hasPatio === true || room.amenities?.has_patio === 1 || false,
+        roomLayout: Array.isArray(room.amenities?.roomLayout || room.amenities?.room_layout) ? (room.amenities?.roomLayout || room.amenities?.room_layout) : [],
+        additionalAmenities: Array.isArray(room.amenities?.additionalAmenities || room.amenities?.additional_amenities) ? (room.amenities?.additionalAmenities || room.amenities?.additional_amenities) : [],
+        ratePlans: []
+      };
+
+      // Save the copied room to database immediately
+      console.log('[RoomsAndRatesStep] Saving copied room to database...');
+      const savedRoom = await staysSetupService.saveRoom(propertyId, roomDataForAPI);
+      console.log('[RoomsAndRatesStep] Copied room saved:', savedRoom);
+
+      // Prepare the copied room data with the saved room ID
+      const copiedRoomData = {
+        ...room,
+        // Set the NEW room_id from the saved room
+        room_id: savedRoom.roomId || savedRoom.room_id,
+        roomId: savedRoom.roomId || savedRoom.room_id,
+        id: savedRoom.roomId || savedRoom.room_id,
+        // Update room name
+        room_name: copiedRoomName,
+        roomName: copiedRoomName,
+        // Ensure amenities are included
+        amenities: room.amenities || room.roomAmenities || null,
+        // Ensure beds are included
+        beds: room.beds || room.room_beds || room.numberOfBeds || [],
+        room_beds: room.room_beds || room.beds || [],
+        // Mark as complete so it shows in the list
+        roomSetupComplete: true
+      };
+
+      // Reload rooms from database (source of truth) instead of just updating localStorage
+      try {
+        const dbRooms = await getPropertyRooms(propertyId);
+        
+        // Transform database rooms to match frontend format
+        const transformedRooms = dbRooms.map(room => ({
+          id: room.room_id,
+          room_id: room.room_id,
+          roomId: room.room_id,
+          roomName: room.room_name,
+          room_name: room.room_name,
+          roomType: room.room_type,
+          room_type: room.room_type,
+          roomClass: room.room_class,
+          room_class: room.room_class,
+          smokingPolicy: room.smoking_policy,
+          smoking_policy: room.smoking_policy,
+          numberOfRooms: room.number_of_rooms,
+          number_of_rooms: room.number_of_rooms,
+          recommendedOccupancy: room.recommended_occupancy,
+          recommended_occupancy: room.recommended_occupancy,
+          baseRate: parseFloat(room.base_rate) || 0,
+          base_rate: parseFloat(room.base_rate) || 0,
+          peopleIncluded: room.people_included,
+          people_included: room.people_included,
+          beds: room.beds || [],
+          amenities: room.amenities || null,
+          roomSetupComplete: true,
+          property_id: room.property_id,
+          propertyId: room.property_id
+        }));
+        
+        // Update state from database
+        setRooms(transformedRooms);
+        
+        // Update localStorage as cache
+        localStorage.setItem('stays_rooms', JSON.stringify(transformedRooms));
+      } catch (error) {
+        console.error('[RoomsAndRatesStep] Error reloading rooms after copy:', error);
+        // Fallback: update localStorage manually
+        const savedRooms = JSON.parse(localStorage.getItem('stays_rooms') || '[]');
+        const roomToSave = {
+          ...copiedRoomData,
+          id: savedRoom.roomId || savedRoom.room_id,
+          roomId: savedRoom.roomId || savedRoom.room_id,
+          room_id: savedRoom.roomId || savedRoom.room_id,
+          createdAt: new Date().toISOString()
+        };
+        savedRooms.push(roomToSave);
+        localStorage.setItem('stays_rooms', JSON.stringify(savedRooms));
+        setRooms(savedRooms);
+      }
+      
+      // Show success message
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 5000);
+      
+      // Stay on the same page - don't navigate to edit
+      // User can click "Edit" on the copied room if they want to edit it
+    } catch (error) {
+      console.error('[RoomsAndRatesStep] Error copying room:', error);
+      alert(`Failed to copy room: ${error.message || 'Unknown error'}`);
+    }
   };
 
   const formatBeds = (beds) => {
@@ -150,7 +334,7 @@ export default function RoomsAndRatesStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-6xl mx-auto">
           {/* Progress Indicator */}
-          <ProgressIndicator currentStep={5} totalSteps={10} />
+          <ProgressIndicator currentStep={4} totalSteps={10} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>
@@ -283,12 +467,56 @@ export default function RoomsAndRatesStep() {
                                     // Get propertyId from state or localStorage
                                     const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
                                     
+                                    // CRITICAL: Get the actual database room_id from the room object
+                                    // Priority: room_id (database field) > roomId > id (but only if id is a valid small integer)
+                                    let actualRoomId = room.room_id || room.roomId;
+                                    
+                                    // Only use 'id' if it's a valid database ID (not Date.now() which is > 1e12)
+                                    if (!actualRoomId && room.id) {
+                                      const parsedId = parseInt(room.id, 10);
+                                      if (!isNaN(parsedId) && parsedId > 0 && parsedId < 1000000) {
+                                        actualRoomId = parsedId;
+                                      }
+                                    }
+                                    
+                                    // Ensure all room data is passed, including beds and amenities
+                                    // IMPORTANT: Preserve ALL ID fields so the backend knows to UPDATE, not CREATE
+                                    const roomDataToEdit = {
+                                      ...room,
+                                      // CRITICAL: Explicitly set all ID fields to the actual database room_id
+                                      room_id: actualRoomId,
+                                      roomId: actualRoomId,
+                                      id: actualRoomId, // Use database ID, not temporary Date.now()
+                                      // Ensure beds are included - could be beds, room_beds, or numberOfBeds
+                                      beds: room.beds || room.room_beds || room.numberOfBeds || [],
+                                      room_beds: room.room_beds || room.beds || [],
+                                      // Ensure amenities are included
+                                      amenities: room.amenities || room.roomAmenities || null,
+                                      // Map all possible field names
+                                      room_type: room.room_type || room.roomType,
+                                      room_class: room.room_class || room.roomClass,
+                                      smoking_policy: room.smoking_policy || room.smokingPolicy,
+                                      number_of_rooms: room.number_of_rooms || room.numberOfRooms,
+                                      recommended_occupancy: room.recommended_occupancy || room.recommendedOccupancy,
+                                      // Preserve base rate and people included if they exist
+                                      baseRate: room.base_rate || room.baseRate,
+                                      peopleIncluded: room.people_included || room.peopleIncluded
+                                    };
+                                    
+                                    console.log('[RoomsAndRatesStep] Editing room:', {
+                                      originalRoom: room,
+                                      actualRoomId,
+                                      roomDataToEdit
+                                    });
+                                    
                                     navigate('/stays/setup/room-setup', {
                                       state: {
                                         ...location.state,
                                         propertyId: propertyId > 0 ? propertyId : location.state?.propertyId,
-                                        roomData: room,
-                                        roomSetupStep: 1
+                                        roomData: roomDataToEdit,
+                                        roomSetupStep: 1,
+                                        isEdit: true, // Flag to indicate this is an edit
+                                        isCopy: false // Explicitly mark as NOT a copy
                                       }
                                     });
                                   }}
@@ -298,11 +526,39 @@ export default function RoomsAndRatesStep() {
                                 <button
                                   type="button"
                                   className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                                  onClick={() => {
-                                    const updatedRooms = rooms.filter(r => r.id !== room.id);
-                                    setRooms(updatedRooms);
-                                    localStorage.setItem('stays_rooms', JSON.stringify(updatedRooms));
-                                    setShowMoreActions(null);
+                                  onClick={async () => {
+                                    // Get propertyId and roomId
+                                    const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
+                                    const roomId = room.room_id || room.roomId || room.id;
+                                    
+                                    // Confirm deletion
+                                    if (!window.confirm(`Are you sure you want to delete "${room.roomName || room.room_name || 'this room'}"? This action cannot be undone.`)) {
+                                      return;
+                                    }
+                                    
+                                    try {
+                                      // If room has a database ID and property ID, delete from database
+                                      if (roomId && propertyId && roomId < 1000000) {
+                                        // Valid database room_id - delete from backend
+                                        await staysSetupService.deleteRoom(propertyId, roomId);
+                                        console.log('[RoomsAndRatesStep] Room deleted from database:', roomId);
+                                      }
+                                      
+                                      // Remove from local state and localStorage
+                                      const updatedRooms = rooms.filter(r => {
+                                        const rId = r.room_id || r.roomId || r.id;
+                                        return rId !== roomId;
+                                      });
+                                      setRooms(updatedRooms);
+                                      localStorage.setItem('stays_rooms', JSON.stringify(updatedRooms));
+                                      setShowMoreActions(null);
+                                      
+                                      // Show success message
+                                      toast.success('Room deleted successfully');
+                                    } catch (error) {
+                                      console.error('[RoomsAndRatesStep] Error deleting room:', error);
+                                      toast.error(error?.message || 'Failed to delete room. Please try again.');
+                                    }
                                   }}
                                 >
                                   Delete room

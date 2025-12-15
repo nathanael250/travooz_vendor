@@ -1017,6 +1017,92 @@ class ClientDiscoveryService {
       );
       restaurant.menu = menuItems;
 
+      // Get operating schedules (per weekday) and exceptions
+      try {
+        const schedules = await executeQuery(
+          `SELECT day_of_week, opens, closes, is_closed FROM restaurant_schedules WHERE restaurant_id = ? ORDER BY day_of_week`,
+          [restaurantId]
+        );
+        restaurant.operating_schedule = schedules || [];
+
+        const exceptions = await executeQuery(
+          `SELECT date, opens, closes, is_closed, note FROM restaurant_schedule_exceptions WHERE restaurant_id = ? AND date >= CURDATE() ORDER BY date LIMIT 14`,
+          [restaurantId]
+        );
+        restaurant.schedule_exceptions = exceptions || [];
+
+        // Compute whether restaurant is currently open
+        const now = new Date();
+        const pad = (v) => (String(v).length === 1 ? '0' + v : String(v));
+        const todayIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+        const toTimeString = (d) => {
+          const hh = pad(d.getHours());
+          const mm = pad(d.getMinutes());
+          const ss = pad(d.getSeconds());
+          return `${hh}:${mm}:${ss}`;
+        };
+        const currentTime = toTimeString(now);
+
+        const isTimeBetween = (current, start, end) => {
+          if (!start || !end) return false;
+          // handle overnight ranges where end <= start
+          if (end <= start) {
+            return (current >= start && current <= '23:59:59') || (current >= '00:00:00' && current <= end);
+          }
+          return current >= start && current <= end;
+        };
+
+        // Check exception for today first
+        const todayException = (restaurant.schedule_exceptions || []).find(e => e.date === todayIso);
+        let isOpen = false;
+        if (todayException) {
+          if (todayException.is_closed) {
+            isOpen = false;
+          } else if (todayException.opens && todayException.closes) {
+            isOpen = isTimeBetween(currentTime, todayException.opens, todayException.closes);
+          } else {
+            // If exception exists but no times, treat as closed unless other signals
+            isOpen = false;
+          }
+        }
+
+        // If no decisive exception result, check restaurant-level 24h or opening_time/closing_time or weekly schedule
+        if (typeof isOpen === 'boolean' && todayException) {
+          // already decided by exception
+        } else {
+          // If restaurant has is_24_hours set, treat as open
+          if (restaurant.is_24_hours || restaurant.is_24_hours === 1) {
+            isOpen = true;
+          } else if (restaurant.opening_time && restaurant.closing_time) {
+            isOpen = isTimeBetween(currentTime, restaurant.opening_time, restaurant.closing_time);
+          } else {
+            // Look up weekday schedule
+            const dow = now.getDay(); // 0-6
+            const todaySchedule = (restaurant.operating_schedule || []).find(s => Number(s.day_of_week) === Number(dow));
+            if (todaySchedule) {
+              if (todaySchedule.is_closed) {
+                isOpen = false;
+              } else if (todaySchedule.opens && todaySchedule.closes) {
+                isOpen = isTimeBetween(currentTime, todaySchedule.opens, todaySchedule.closes);
+              } else {
+                isOpen = false;
+              }
+            } else {
+              // No schedule data - default to true (fail-open) to avoid blocking orders
+              isOpen = true;
+            }
+          }
+        }
+
+        restaurant.is_open = !!isOpen;
+
+      } catch (schedErr) {
+        console.error('Error loading operating schedule:', schedErr);
+        restaurant.operating_schedule = restaurant.operating_schedule || [];
+        restaurant.schedule_exceptions = restaurant.schedule_exceptions || [];
+        restaurant.is_open = true; // fail-open
+      }
+
       // Capacity info is already in the restaurant object (capacity and available_seats columns)
       // Format it for API response - store original values first
       const totalCapacity = restaurant.capacity || 0;

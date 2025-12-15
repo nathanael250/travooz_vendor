@@ -5,6 +5,7 @@ const emailVerificationController = require('../controllers/stays/emailVerificat
 const propertySetupController = require('../controllers/stays/propertySetup.controller');
 const staysAuthController = require('../controllers/stays/staysAuth.controller');
 const staysBookingController = require('../controllers/stays/staysBooking.controller');
+const onboardingProgressController = require('../controllers/stays/onboardingProgress.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
 const multer = require('multer');
 const path = require('path');
@@ -43,6 +44,7 @@ router.get('/properties/my', authenticate, staysPropertyController.getMyProperti
 router.get('/properties/by-user/:userId', staysPropertyController.getPropertiesByUserId); // No auth required for setup flow
 router.get('/properties/:id', staysPropertyController.getPropertyById);
 router.get('/properties/:id/complete', authenticate, staysPropertyController.getPropertyWithAllData);
+router.get('/properties/:propertyId/rooms', authenticate, staysPropertyController.getPropertyRooms);
 router.put('/properties/:id', staysPropertyController.updateProperty);
 router.delete('/properties/:id', staysPropertyController.deleteProperty);
 router.get('/properties/:id/images', authenticate, staysPropertyController.getPropertyImages);
@@ -70,14 +72,26 @@ router.post('/email-verification/verify', emailVerificationController.verifyCode
 // Property Setup routes (all require authentication)
 router.post('/setup/contract', authenticate, propertySetupController.saveContract);
 router.post('/setup/policies', authenticate, propertySetupController.savePolicies);
+router.get('/setup/policies/:propertyId', authenticate, propertySetupController.getPolicies);
 router.post('/setup/amenities', authenticate, propertySetupController.saveAmenities);
+router.get('/setup/amenities/:propertyId', authenticate, propertySetupController.getAmenities);
 router.post('/setup/room', authenticate, propertySetupController.saveRoom);
+router.delete('/setup/room/:roomId', authenticate, propertySetupController.deleteRoom);
 router.post('/setup/promotions', authenticate, propertySetupController.savePromotions);
 router.post('/setup/images', authenticate, propertySetupController.saveImages);
 router.post('/setup/taxes', authenticate, propertySetupController.saveTaxDetails);
+router.get('/setup/taxes/:propertyId', authenticate, propertySetupController.getTaxDetails);
 router.post('/setup/connectivity', authenticate, propertySetupController.saveConnectivity);
+router.get('/setup/connectivity/:propertyId', authenticate, propertySetupController.getConnectivity);
 router.get('/setup/status/:propertyId', authenticate, propertySetupController.getSetupStatus);
 router.post('/setup/submit', authenticate, propertySetupController.submitListing);
+
+// Onboarding Progress Tracking routes
+router.get('/onboarding/progress', authenticate, onboardingProgressController.getProgress);
+router.post('/onboarding/progress', authenticate, onboardingProgressController.saveProgress);
+router.post('/onboarding/complete-step', authenticate, onboardingProgressController.completeStep);
+router.get('/onboarding/next-step', authenticate, onboardingProgressController.getNextStep);
+router.delete('/onboarding/progress', authenticate, onboardingProgressController.resetProgress);
 
 // Booking and Availability routes
 router.get('/bookings', authenticate, staysBookingController.getBookings);

@@ -4,7 +4,8 @@ import { Globe, Briefcase, Laptop, AlertCircle, ArrowRight, ArrowLeft } from 'lu
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import ProgressIndicator from '../../components/stays/ProgressIndicator';
-import { staysSetupService, getPropertiesByUserId } from '../../services/staysService';
+import { staysSetupService, getPropertiesByUserId, staysOnboardingProgressService } from '../../services/staysService';
+import { useStaysOnboardingProgress } from '../../hooks/useStaysOnboardingProgress';
 
 export default function ContractStep() {
   const navigate = useNavigate();
@@ -18,12 +19,35 @@ export default function ContractStep() {
     };
   }, []);
 
+  // Scroll to top when component mounts or location changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
+
+  // Contract step removed - redirect to policies step (first setup step)
+  useEffect(() => {
+    const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
+    const userId = location.state?.userId;
+    const email = location.state?.email;
+    const userName = location.state?.userName;
+    
+    navigate('/stays/setup/policies', {
+      state: {
+        userId,
+        email,
+        userName,
+        propertyId
+      },
+      replace: true
+    });
+  }, [navigate, location.state]);
+
   // Redirect if no user data
   useEffect(() => {
-    if (!location.state?.userId) {
+    if (!location.state?.userId && !progressLoading) {
       navigate('/stays/login');
     }
-  }, [location.state, navigate]);
+  }, [location.state, navigate, progressLoading]);
 
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState('');

@@ -15,7 +15,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { restaurantSetupService } from '../../services/eatingOutService';
+import { restaurantSetupService, restaurantOnboardingProgressService } from '../../services/eatingOutService';
 
 const RestaurantDashboardLayout = () => {
   const navigate = useNavigate();
@@ -164,41 +164,29 @@ const RestaurantDashboardLayout = () => {
         // Approved restaurants should always go to dashboard, regardless of setup progress
         if (!isRestaurantApproved) {
           try {
-            const progress = await restaurantSetupService.getSetupProgressByUser();
-            if (progress && progress.restaurant_id) {
-              // Check if setup is incomplete (not all steps complete)
-              const allStepsComplete = 
-                progress.step_1_3_complete &&
-                progress.step_4_complete &&
-                progress.step_5_complete &&
-                progress.step_6_complete &&
-                progress.step_7_complete &&
-                progress.step_8_complete &&
-                progress.step_9_complete &&
-                progress.step_10_complete &&
-                progress.step_11_complete;
-
-              if (!allStepsComplete && location.pathname !== '/restaurant/setup/complete') {
-                // Redirect to the appropriate step based on current_step
-                const stepRoutes = {
-                  4: '/restaurant/setup/business-details',
-                  5: '/restaurant/setup/media',
-                  6: '/restaurant/setup/payments-pricing',
-                  7: '/restaurant/setup/capacity',
-                  8: '/restaurant/setup/tax-legal',
-                  9: '/restaurant/setup/menu',
-                  10: '/restaurant/setup/review',
-                  11: '/restaurant/setup/agreement'
-                };
-
-                const targetRoute = stepRoutes[progress.current_step] || '/restaurant/setup/business-details';
+            // Use the new onboarding progress tracking system
+            const progressData = await restaurantOnboardingProgressService.getProgress();
+            if (progressData && progressData.progress) {
+              const progress = progressData.progress;
+              const stepMapping = progressData.stepMapping || {};
+              
+              // Check if setup is incomplete (not at 'complete' step)
+              const isComplete = progress.current_step === 'complete' || progress.is_complete;
+              
+              if (!isComplete) {
+                // Get the route for the current step from stepMapping
+                const currentStepInfo = stepMapping[progress.current_step];
+                const targetRoute = currentStepInfo?.route || '/restaurant/setup/business-details';
                 
                 // Store progress data in localStorage for restoration
                 localStorage.setItem('restaurant_setup_progress', JSON.stringify(progress));
-                localStorage.setItem('restaurant_id', progress.restaurant_id);
+                if (progress.restaurant_id) {
+                  localStorage.setItem('restaurant_id', progress.restaurant_id);
+                }
 
-                // Only redirect if not already on a setup page
-                if (!location.pathname.startsWith('/restaurant/setup/')) {
+                // Redirect if not already on the correct setup page
+                if (location.pathname !== targetRoute) {
+                  console.log('🔄 Redirecting to setup step:', progress.current_step, '->', targetRoute);
                   toast('Continuing your restaurant setup...', { icon: 'ℹ️' });
                   navigate(targetRoute, { 
                     replace: true,
@@ -211,7 +199,59 @@ const RestaurantDashboardLayout = () => {
               }
             }
           } catch (progressError) {
-            // If progress check fails, continue normally (might be a new user)
+            console.log('Error checking onboarding progress:', progressError);
+            // If progress check fails, try the old system as fallback
+            try {
+              const progress = await restaurantSetupService.getSetupProgressByUser();
+              if (progress && progress.restaurant_id) {
+                // Check if setup is incomplete (not all steps complete)
+                const allStepsComplete = 
+                  progress.step_1_3_complete &&
+                  progress.step_4_complete &&
+                  progress.step_5_complete &&
+                  progress.step_6_complete &&
+                  progress.step_7_complete &&
+                  progress.step_8_complete &&
+                  progress.step_9_complete &&
+                  progress.step_10_complete &&
+                  progress.step_11_complete;
+
+                if (!allStepsComplete && location.pathname !== '/restaurant/setup/complete') {
+                  // Redirect to the appropriate step based on current_step
+                  const stepRoutes = {
+                    4: '/restaurant/setup/business-details',
+                    5: '/restaurant/setup/media',
+                    6: '/restaurant/setup/payments-pricing',
+                    7: '/restaurant/setup/capacity',
+                    8: '/restaurant/setup/tax-legal',
+                    9: '/restaurant/setup/menu',
+                    10: '/restaurant/setup/review',
+                    11: '/restaurant/setup/agreement'
+                  };
+
+                  const targetRoute = stepRoutes[progress.current_step] || '/restaurant/setup/business-details';
+                  
+                  // Store progress data in localStorage for restoration
+                  localStorage.setItem('restaurant_setup_progress', JSON.stringify(progress));
+                  localStorage.setItem('restaurant_id', progress.restaurant_id);
+
+                  // Only redirect if not already on a setup page
+                  if (!location.pathname.startsWith('/restaurant/setup/')) {
+                    toast('Continuing your restaurant setup...', { icon: 'ℹ️' });
+                    navigate(targetRoute, { 
+                      replace: true,
+                      state: { 
+                        progress,
+                        restaurantId: progress.restaurant_id 
+                      }
+                    });
+                  }
+                }
+              }
+            } catch (fallbackError) {
+              console.log('Error checking fallback setup progress:', fallbackError);
+              // Continue normally - might be in setup process or no restaurant yet
+            }
             console.log('No incomplete setup found or error checking progress:', progressError);
           }
         }

@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Building2, FileText, Phone, Mail, Globe, Clock, FileEdit } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
-import { restaurantSetupService } from '../../services/eatingOutService';
+import { restaurantSetupService, restaurantOnboardingProgressService } from '../../services/eatingOutService';
 import SetupProgressIndicator from '../../components/restaurant/SetupProgressIndicator';
 
 export default function BusinessDetailsStep() {
@@ -137,30 +137,101 @@ export default function BusinessDetailsStep() {
 
       setIsLoadingProgress(true);
       try {
-        // Try to get progress from API
-        const progress = await restaurantSetupService.getSetupProgress(restaurantId);
-        
-        if (progress && progress.step_data && progress.step_data.step_4) {
-          const savedStep4Data = progress.step_data.step_4;
+        // First, try to get the actual restaurant data from the database
+        try {
+          const restaurantData = await restaurantSetupService.getRestaurant(restaurantId);
           
-          // Restore form data from saved progress
-          setFormData(prev => ({
-            ...prev,
-            restaurantName: savedStep4Data.restaurantName || prev.restaurantName,
-            businessRegistrationNumber: savedStep4Data.businessRegistrationNumber || prev.businessRegistrationNumber,
-            contactNumber: savedStep4Data.contactNumber || prev.contactNumber,
-            emailAddress: savedStep4Data.emailAddress || prev.emailAddress,
-            website: savedStep4Data.website || prev.website,
-            socialMediaLinks: savedStep4Data.socialMediaLinks || prev.socialMediaLinks,
-            is24Hours: savedStep4Data.is24Hours || prev.is24Hours,
-            openingTime: savedStep4Data.openingTime || prev.openingTime,
-            closingTime: savedStep4Data.closingTime || prev.closingTime,
-            shortDescription: savedStep4Data.shortDescription || prev.shortDescription,
-            operatingSchedule: savedStep4Data.operatingSchedule || prev.operatingSchedule,
-          }));
+          if (restaurantData) {
+            // Map database fields to form fields
+            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            let mappedSchedule = {};
+            
+            // If restaurant has schedules, map them
+            if (restaurantData.schedules && Array.isArray(restaurantData.schedules) && restaurantData.schedules.length > 0) {
+              restaurantData.schedules.forEach((schedule) => {
+                const dayIndex = schedule.day_of_week;
+                if (dayIndex >= 0 && dayIndex < dayNames.length) {
+                  const dayName = dayNames[dayIndex];
+                  mappedSchedule[dayName] = {
+                    open: schedule.opens || '',
+                    close: schedule.closes || '',
+                    closed: schedule.is_closed === 1 || schedule.is_closed === true
+                  };
+                }
+              });
+            }
+            
+            // Update form with restaurant data
+            setFormData(prev => {
+              // Map database schedules to form format
+              const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+              let mappedSchedule = {};
+              
+              // If restaurant has schedules, map them
+              if (restaurantData.schedules && Array.isArray(restaurantData.schedules) && restaurantData.schedules.length > 0) {
+                restaurantData.schedules.forEach((schedule) => {
+                  const dayIndex = schedule.day_of_week;
+                  if (dayIndex >= 0 && dayIndex < dayNames.length) {
+                    const dayName = dayNames[dayIndex];
+                    mappedSchedule[dayName] = {
+                      open: schedule.opens || '',
+                      close: schedule.closes || '',
+                      closed: schedule.is_closed === 1 || schedule.is_closed === true
+                    };
+                  }
+                });
+              }
+              
+              return {
+                ...prev,
+                restaurantName: restaurantData.name || prev.restaurantName,
+                businessRegistrationNumber: restaurantData.business_registration_number || prev.businessRegistrationNumber,
+                contactNumber: restaurantData.contact_number || prev.contactNumber,
+                emailAddress: restaurantData.email_address || prev.emailAddress,
+                website: restaurantData.website || prev.website,
+                socialMediaLinks: restaurantData.social_media_links || prev.socialMediaLinks,
+                is24Hours: restaurantData.is_24_hours === 1 || restaurantData.is_24_hours === true || prev.is24Hours,
+                openingTime: restaurantData.opening_time || prev.openingTime,
+                closingTime: restaurantData.closing_time || prev.closingTime,
+                shortDescription: restaurantData.description || prev.shortDescription,
+                operatingSchedule: Object.keys(mappedSchedule).length > 0 ? mappedSchedule : prev.operatingSchedule,
+              };
+            });
+          }
+        } catch (restaurantError) {
+          console.log('Could not fetch restaurant data, trying progress data:', restaurantError);
+        }
+        
+        // Also try to get progress from API as fallback
+        try {
+          const progress = await restaurantSetupService.getSetupProgress(restaurantId);
+          
+          if (progress && progress.step_data && progress.step_data.step_4) {
+            const savedStep4Data = progress.step_data.step_4;
+            
+            // Only update fields that weren't already set from restaurant data
+            setFormData(prev => ({
+              ...prev,
+              restaurantName: prev.restaurantName || savedStep4Data.restaurantName,
+              businessRegistrationNumber: prev.businessRegistrationNumber || savedStep4Data.businessRegistrationNumber,
+              contactNumber: prev.contactNumber || savedStep4Data.contactNumber,
+              emailAddress: prev.emailAddress || savedStep4Data.emailAddress,
+              website: prev.website || savedStep4Data.website,
+              socialMediaLinks: prev.socialMediaLinks || savedStep4Data.socialMediaLinks,
+              is24Hours: prev.is24Hours !== false ? (savedStep4Data.is24Hours || prev.is24Hours) : prev.is24Hours,
+              openingTime: prev.openingTime || savedStep4Data.openingTime,
+              closingTime: prev.closingTime || savedStep4Data.closingTime,
+              shortDescription: prev.shortDescription || savedStep4Data.shortDescription,
+              operatingSchedule: (prev.operatingSchedule && Object.keys(prev.operatingSchedule).length > 0) 
+                ? prev.operatingSchedule 
+                : (savedStep4Data.operatingSchedule || prev.operatingSchedule),
+            }));
+          }
+        } catch (progressError) {
+          console.log('No saved progress found:', progressError);
         }
       } catch (error) {
-        console.log('No saved progress found or error loading:', error);
+        console.log('Error loading saved data:', error);
         // Not an error - user might be filling this step for the first time
       } finally {
         setIsLoadingProgress(false);
@@ -267,6 +338,13 @@ export default function BusinessDetailsStep() {
     try {
       // Save business details via API
       await restaurantSetupService.saveBusinessDetails(restaurantId, formData);
+      // Persist operating schedule separately to backend table
+      try {
+        await restaurantSetupService.saveOperatingSchedule(restaurantId, { operatingSchedule: formData.operatingSchedule, exceptions: [] });
+      } catch (scheduleErr) {
+        // Don't block the flow if schedule save fails; log for debugging
+        console.warn('BusinessDetailsStep - Failed to save operating schedule:', scheduleErr);
+      }
       
       // Navigate to next setup step (Media)
       navigate('/restaurant/setup/media', {
@@ -309,7 +387,7 @@ export default function BusinessDetailsStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-3xl w-full mx-auto">
           {/* Progress Indicator */}
-          <SetupProgressIndicator currentStep={4} totalSteps={11} />
+          <SetupProgressIndicator currentStepKey="business-details" currentStepNumber={4} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>

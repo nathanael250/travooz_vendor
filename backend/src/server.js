@@ -222,6 +222,8 @@ const restaurantTableBookingsRoutes = require('./routes/restaurantTableBookings.
 // Service routes
 app.use('/api/v1/stays', staysRoutes);
 app.use('/api/v1/eating-out/setup', restaurantSetupRoutes);
+// Mount onboarding progress routes separately at /api/v1/eating-out/onboarding
+app.use('/api/v1/eating-out/onboarding', restaurantSetupRoutes);
 app.use('/api/v1/restaurants', restaurantsRoutes);
 app.use('/api/v1/restaurant', deliveryBoyRoutes);
 app.use('/api/v1/restaurant', restaurantOrdersRoutes);

@@ -34,155 +34,103 @@ class PropertySetupService {
             );
             console.log(`[savePolicies] Existing policies found: ${existing.length}`);
 
-            const languagesJson = policiesData.languages ? JSON.stringify(policiesData.languages) : null;
-            const cardTypesJson = policiesData.cardTypes ? JSON.stringify(policiesData.cardTypes) : null;
-            const depositTypesJson = policiesData.depositTypes ? JSON.stringify(policiesData.depositTypes) : null;
-            const otherPaymentTypesJson = policiesData.otherPaymentTypes ? JSON.stringify(policiesData.otherPaymentTypes) : null;
+            // Prepare data to match ACTUAL database table structure
+            // Database columns: languages, accept_credit_debit_cards, accept_travooz_card, 
+            // accept_mobile_money, accept_airtel_money, require_deposits, cancellation_window,
+            // cancellation_fee, vat_percentage, tourism_tax_percentage, taxes_included_in_rate,
+            // request_tax_team_assistance
+            
+            // Convert languages array to JSON
+            const languagesJson = policiesData.languages && Array.isArray(policiesData.languages) 
+                ? JSON.stringify(policiesData.languages) 
+                : null;
+            
+            // Map frontend boolean values to database tinyint (0 or 1)
+            const acceptCreditDebitCards = policiesData.acceptCreditDebitCards ? 1 : 0;
+            const acceptTravoozCard = policiesData.acceptTravoozCard ? 1 : 0;
+            const acceptMobileMoney = policiesData.acceptMobileMoney ? 1 : 0;
+            const acceptAirtelMoney = policiesData.acceptAirtelMoney ? 1 : 0;
+            
+            // Map other fields
+            const requireDeposits = policiesData.requireDeposits || 'no';
+            const cancellationWindow = policiesData.cancellationWindow || '24_hour';
+            const cancellationFee = policiesData.cancellationFee || 'first_night_plus_tax';
+            const vatPercentage = nullIfUndefined(policiesData.vatPercentage);
+            const tourismTaxPercentage = nullIfUndefined(policiesData.tourismTaxPercentage);
+            const taxesIncludedInRate = policiesData.taxesIncludedInRate ? 1 : 0;
+            const requestTaxTeamAssistance = policiesData.requestTaxTeamAssistance ? 1 : 0;
 
-            // Check if other_payment_types column exists, if not we'll use accept_cash only
-            // Try to update/insert with other_payment_types, fallback to accept_cash if column doesn't exist
-            try {
-                if (existing.length > 0) {
-                    // Update existing - try with other_payment_types first
-                    await executeQuery(
-                        `UPDATE stays_property_policies SET
-                            languages = ?, accept_cash = ?, accept_credit_debit_cards = ?,
-                            card_types = ?, other_payment_types = ?, installments_at_front_desk = ?,
-                            require_deposits = ?, deposit_types = ?, incidentals_payment_form = ?,
-                            property_time_zone = ?, cancellation_window = ?, cancellation_fee = ?,
-                            cut_off_time = ?, vat_percentage = ?, tourism_tax_percentage = ?,
-                            taxes_included_in_rate = ?, request_tax_team_assistance = ?,
-                            billing_currency = ?, updated_at = NOW()
-                        WHERE property_id = ?`,
-                        [
-                            languagesJson,
-                            nullIfUndefined(policiesData.acceptOtherPayment) ? 1 : 0,
-                            nullIfUndefined(policiesData.acceptCreditDebitCards) ? 1 : 0,
-                            cardTypesJson,
-                            otherPaymentTypesJson,
-                            nullIfUndefined(policiesData.installmentsAtFrontDesk) ? 1 : 0,
-                            nullIfUndefined(policiesData.requireDeposits) || 'no',
-                            depositTypesJson,
-                            nullIfUndefined(policiesData.incidentalsPaymentForm) || 'cash_only',
-                            null, // property_time_zone - removed from frontend, set to null
-                            nullIfUndefined(policiesData.cancellationWindow) || '24_hour',
-                            nullIfUndefined(policiesData.cancellationFee) || 'first_night_plus_tax',
-                            nullIfUndefined(policiesData.cutOffTime) || '18:00:00',
-                            nullIfUndefined(policiesData.vatPercentage),
-                            nullIfUndefined(policiesData.tourismTaxPercentage),
-                            nullIfUndefined(policiesData.taxesIncludedInRate) ? 1 : 0,
-                            nullIfUndefined(policiesData.requestTaxTeamAssistance) ? 1 : 0,
-                            null, // billing_currency - removed from frontend, set to null
-                            propertyIdInt
-                        ]
-                    );
-                    console.log(`[savePolicies] Updated existing policy for propertyId ${propertyIdInt}`);
-                } else {
-                    // Insert new - try with other_payment_types first
-                    await executeQuery(
-                        `INSERT INTO stays_property_policies (
-                            property_id, languages, accept_cash, accept_credit_debit_cards,
-                            card_types, other_payment_types, installments_at_front_desk, require_deposits,
-                            deposit_types, incidentals_payment_form, property_time_zone,
-                            cancellation_window, cancellation_fee, cut_off_time,
-                            vat_percentage, tourism_tax_percentage, taxes_included_in_rate,
-                            request_tax_team_assistance, billing_currency
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [
-                            propertyIdInt,
-                            languagesJson,
-                            nullIfUndefined(policiesData.acceptOtherPayment) ? 1 : 0,
-                            nullIfUndefined(policiesData.acceptCreditDebitCards) ? 1 : 0,
-                            cardTypesJson,
-                            otherPaymentTypesJson,
-                            nullIfUndefined(policiesData.installmentsAtFrontDesk) ? 1 : 0,
-                            nullIfUndefined(policiesData.requireDeposits) || 'no',
-                            depositTypesJson,
-                            nullIfUndefined(policiesData.incidentalsPaymentForm) || 'cash_only',
-                            null, // property_time_zone - removed from frontend, set to null
-                            nullIfUndefined(policiesData.cancellationWindow) || '24_hour',
-                            nullIfUndefined(policiesData.cancellationFee) || 'first_night_plus_tax',
-                            nullIfUndefined(policiesData.cutOffTime) || '18:00:00',
-                            nullIfUndefined(policiesData.vatPercentage),
-                            nullIfUndefined(policiesData.tourismTaxPercentage),
-                            nullIfUndefined(policiesData.taxesIncludedInRate) ? 1 : 0,
-                            nullIfUndefined(policiesData.requestTaxTeamAssistance) ? 1 : 0,
-                            null // billing_currency - removed from frontend, set to null
-                        ]
-                    );
-                    console.log(`[savePolicies] Inserted new policy for propertyId ${propertyIdInt}`);
-                }
-            } catch (error) {
-                // If column doesn't exist, fallback to using accept_cash only
-                if (error.message && error.message.includes('Unknown column')) {
-                    console.log(`[savePolicies] other_payment_types column not found, using accept_cash only`);
+            // Build query to match ACTUAL database table structure
             if (existing.length > 0) {
+                // Update existing policy
                 await executeQuery(
                     `UPDATE stays_property_policies SET
-                        languages = ?, accept_cash = ?, accept_credit_debit_cards = ?,
-                        card_types = ?, installments_at_front_desk = ?,
-                        require_deposits = ?, deposit_types = ?, incidentals_payment_form = ?,
-                        property_time_zone = ?, cancellation_window = ?, cancellation_fee = ?,
-                        cut_off_time = ?, vat_percentage = ?, tourism_tax_percentage = ?,
-                        taxes_included_in_rate = ?, request_tax_team_assistance = ?,
-                        billing_currency = ?, updated_at = NOW()
+                        languages = ?,
+                        accept_credit_debit_cards = ?,
+                        accept_travooz_card = ?,
+                        accept_mobile_money = ?,
+                        accept_airtel_money = ?,
+                        require_deposits = ?,
+                        cancellation_window = ?,
+                        cancellation_fee = ?,
+                        vat_percentage = ?,
+                        tourism_tax_percentage = ?,
+                        taxes_included_in_rate = ?,
+                        request_tax_team_assistance = ?,
+                        updated_at = NOW()
                     WHERE property_id = ?`,
                     [
                         languagesJson,
-                                nullIfUndefined(policiesData.acceptOtherPayment) ? 1 : 0,
-                                nullIfUndefined(policiesData.acceptCreditDebitCards) ? 1 : 0,
-                        cardTypesJson,
-                                nullIfUndefined(policiesData.installmentsAtFrontDesk) ? 1 : 0,
-                                nullIfUndefined(policiesData.requireDeposits) || 'no',
-                        depositTypesJson,
-                                nullIfUndefined(policiesData.incidentalsPaymentForm) || 'cash_only',
-                                null,
-                                nullIfUndefined(policiesData.cancellationWindow) || '24_hour',
-                                nullIfUndefined(policiesData.cancellationFee) || 'first_night_plus_tax',
-                                nullIfUndefined(policiesData.cutOffTime) || '18:00:00',
-                                nullIfUndefined(policiesData.vatPercentage),
-                                nullIfUndefined(policiesData.tourismTaxPercentage),
-                                nullIfUndefined(policiesData.taxesIncludedInRate) ? 1 : 0,
-                                nullIfUndefined(policiesData.requestTaxTeamAssistance) ? 1 : 0,
-                                null,
+                        acceptCreditDebitCards,
+                        acceptTravoozCard,
+                        acceptMobileMoney,
+                        acceptAirtelMoney,
+                        requireDeposits,
+                        cancellationWindow,
+                        cancellationFee,
+                        vatPercentage,
+                        tourismTaxPercentage,
+                        taxesIncludedInRate,
+                        requestTaxTeamAssistance,
                         propertyIdInt
                     ]
                 );
+                console.log(`[savePolicies] Updated existing policy for propertyId ${propertyIdInt}`);
             } else {
+                // Insert new policy
                 await executeQuery(
                     `INSERT INTO stays_property_policies (
-                        property_id, languages, accept_cash, accept_credit_debit_cards,
-                        card_types, installments_at_front_desk, require_deposits,
-                        deposit_types, incidentals_payment_form, property_time_zone,
-                        cancellation_window, cancellation_fee, cut_off_time,
-                        vat_percentage, tourism_tax_percentage, taxes_included_in_rate,
-                        request_tax_team_assistance, billing_currency
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        property_id,
+                        languages,
+                        accept_credit_debit_cards,
+                        accept_travooz_card,
+                        accept_mobile_money,
+                        accept_airtel_money,
+                        require_deposits,
+                        cancellation_window,
+                        cancellation_fee,
+                        vat_percentage,
+                        tourism_tax_percentage,
+                        taxes_included_in_rate,
+                        request_tax_team_assistance
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         propertyIdInt,
                         languagesJson,
-                                nullIfUndefined(policiesData.acceptOtherPayment) ? 1 : 0,
-                                nullIfUndefined(policiesData.acceptCreditDebitCards) ? 1 : 0,
-                        cardTypesJson,
-                                nullIfUndefined(policiesData.installmentsAtFrontDesk) ? 1 : 0,
-                                nullIfUndefined(policiesData.requireDeposits) || 'no',
-                        depositTypesJson,
-                                nullIfUndefined(policiesData.incidentalsPaymentForm) || 'cash_only',
-                                null,
-                                nullIfUndefined(policiesData.cancellationWindow) || '24_hour',
-                                nullIfUndefined(policiesData.cancellationFee) || 'first_night_plus_tax',
-                                nullIfUndefined(policiesData.cutOffTime) || '18:00:00',
-                                nullIfUndefined(policiesData.vatPercentage),
-                                nullIfUndefined(policiesData.tourismTaxPercentage),
-                                nullIfUndefined(policiesData.taxesIncludedInRate) ? 1 : 0,
-                                nullIfUndefined(policiesData.requestTaxTeamAssistance) ? 1 : 0,
-                                null
+                        acceptCreditDebitCards,
+                        acceptTravoozCard,
+                        acceptMobileMoney,
+                        acceptAirtelMoney,
+                        requireDeposits,
+                        cancellationWindow,
+                        cancellationFee,
+                        vatPercentage,
+                        tourismTaxPercentage,
+                        taxesIncludedInRate,
+                        requestTaxTeamAssistance
                     ]
                 );
-                    }
-                } else {
-                    throw error;
-                }
+                console.log(`[savePolicies] Inserted new policy for propertyId ${propertyIdInt}`);
             }
             console.log(`[savePolicies] Policies saved successfully for propertyId ${propertyIdInt}`);
             return { success: true };
@@ -200,39 +148,25 @@ class PropertySetupService {
                 [propertyId]
             );
 
-            const additionalAmenitiesJson = amenitiesData.additionalAmenities ? JSON.stringify(amenitiesData.additionalAmenities) : null;
-            const themesJson = amenitiesData.themes ? JSON.stringify(amenitiesData.themes) : null;
+            // Convert themes array to JSON (only field that exists in actual table)
+            const themesJson = amenitiesData.themes && Array.isArray(amenitiesData.themes) 
+                ? JSON.stringify(amenitiesData.themes) 
+                : null;
 
+            // Build amenityFields to match ACTUAL database table structure
+            // Actual columns: min_check_in_age, check_in_time, check_in_ends, has_front_desk,
+            // offer_breakfast, breakfast_type, offer_internet, offer_parking, has_pool, pool_type,
+            // has_spa, has_fitness_center, has_restaurant, has_bar, has_concierge, has_laundry,
+            // has_business_center, pets_allowed, themes
             const amenityFields = {
-                min_check_in_age: amenitiesData.minCheckInAge || null,
+                min_check_in_age: amenitiesData.minCheckInAge ? parseInt(amenitiesData.minCheckInAge) : null,
                 check_in_time: amenitiesData.checkInTime || null,
                 check_in_ends: amenitiesData.checkInEnds || null,
-                check_out_time: amenitiesData.checkOutTime || null,
                 has_front_desk: amenitiesData.hasFrontDesk || 'no',
-                front_desk_24_hours: amenitiesData.frontDesk24Hours ? 1 : 0,
-                self_check_in_available: amenitiesData.selfCheckInAvailable || 'no',
-                guest_access_method: amenitiesData.guestAccessMethod || null,
-                late_check_in_available: amenitiesData.lateCheckInAvailable || 'no',
-                late_check_in_cost: amenitiesData.lateCheckInCost || null,
-                late_check_in_charge_type: amenitiesData.lateCheckInChargeType || null,
-                late_check_in_amount: amenitiesData.lateCheckInAmount || null,
-                advance_notice_required: amenitiesData.advanceNoticeRequired ? 1 : 0,
-                advance_notice_hours: amenitiesData.advanceNoticeHours || null,
-                late_check_in_different_location: amenitiesData.lateCheckInDifferentLocation ? 1 : 0,
-                late_check_in_address: amenitiesData.lateCheckInAddress || null,
                 offer_breakfast: amenitiesData.offerBreakfast || 'no',
                 breakfast_type: amenitiesData.breakfastType || null,
                 offer_internet: amenitiesData.offerInternet || 'no',
-                wifi_in_guestrooms: amenitiesData.wifiInGuestrooms ? 1 : 0,
-                wifi_guestrooms_min_speed: amenitiesData.wifiGuestroomsMinSpeed || null,
-                wifi_in_public_areas: amenitiesData.wifiInPublicAreas ? 1 : 0,
-                wired_internet: amenitiesData.wiredInternet ? 1 : 0,
-                wired_internet_in_guestrooms: amenitiesData.wiredInternetInGuestrooms ? 1 : 0,
                 offer_parking: amenitiesData.offerParking || 'no',
-                self_parking: amenitiesData.selfParking ? 1 : 0,
-                valet_parking: amenitiesData.valetParking ? 1 : 0,
-                electric_car_charging: amenitiesData.electricCarCharging ? 1 : 0,
-                parking_fee: amenitiesData.parkingFee || null,
                 has_pool: amenitiesData.hasPool ? 1 : 0,
                 pool_type: amenitiesData.poolType || null,
                 has_spa: amenitiesData.hasSpa ? 1 : 0,
@@ -243,15 +177,6 @@ class PropertySetupService {
                 has_laundry: amenitiesData.hasLaundry ? 1 : 0,
                 has_business_center: amenitiesData.hasBusinessCenter ? 1 : 0,
                 pets_allowed: amenitiesData.petsAllowed || 'no',
-                has_pet_surcharge: amenitiesData.hasPetSurcharge || 'no',
-                pet_surcharge_amount: amenitiesData.petSurchargeAmount || null,
-                pet_surcharge_currency: amenitiesData.petSurchargeCurrency || 'USD',
-                pet_surcharge_unit: amenitiesData.petSurchargeUnit || 'per_pet',
-                pet_surcharge_period: amenitiesData.petSurchargePeriod || 'per_night',
-                pet_surcharge_max_fee_per_stay: amenitiesData.petSurchargeMaxFeePerStay ? 1 : 0,
-                pet_surcharge_max_fee_amount: amenitiesData.petSurchargeMaxFeeAmount || null,
-                pet_fee_varies_by_stay_length: amenitiesData.petFeeVariesByStayLength ? 1 : 0,
-                additional_amenities: additionalAmenitiesJson,
                 themes: themesJson
             };
 
@@ -296,6 +221,19 @@ class PropertySetupService {
             try {
                 // Insert or update room
                 let roomId = nullIfUndefined(roomData.roomId);
+                
+                // Parse and validate roomId - must be a valid positive integer
+                if (roomId) {
+                    const parsedId = parseInt(roomId, 10);
+                    // Only use if it's a valid positive integer and not a temporary ID (Date.now() would be > 1e12)
+                    // Valid room IDs from database should be reasonable integers (typically < 1e6)
+                    if (isNaN(parsedId) || parsedId <= 0 || parsedId > 1000000) {
+                        console.warn('[PropertySetupService] Invalid roomId detected, treating as new room:', roomId);
+                        roomId = null;
+                    } else {
+                        roomId = parsedId;
+                    }
+                }
                 
                 if (roomId) {
                     // Update existing room
@@ -356,75 +294,200 @@ class PropertySetupService {
                 }
 
                 // Update or insert room amenities
+                // Check which columns exist in the database table
+                const [columnCheck] = await connection.execute(
+                    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+                     WHERE TABLE_SCHEMA = DATABASE() 
+                     AND TABLE_NAME = 'stays_room_amenities'`
+                );
+                const existingColumns = columnCheck.map(col => col.COLUMN_NAME);
+                
                 const [existingAmenities] = await connection.execute(
                     `SELECT room_amenity_id FROM stays_room_amenities WHERE room_id = ?`,
                     [roomId]
                 );
 
-                const bathroomAmenitiesJson = roomData.bathroomAmenities ? JSON.stringify(roomData.bathroomAmenities) : null;
-                const kitchenFacilitiesJson = roomData.kitchenFacilities ? JSON.stringify(roomData.kitchenFacilities) : null;
-                const roomLayoutJson = roomData.roomLayout ? JSON.stringify(roomData.roomLayout) : null;
-                const additionalAmenitiesJson = roomData.additionalAmenities ? JSON.stringify(roomData.additionalAmenities) : null;
+                // Prepare JSON fields (only if columns exist)
+                console.log('[PropertySetupService] kitchenFacilities received:', roomData.kitchenFacilities);
+                console.log('[PropertySetupService] kitchen_facilities column exists:', existingColumns.includes('kitchen_facilities'));
+                const kitchenFacilitiesJson = (existingColumns.includes('kitchen_facilities') && roomData.kitchenFacilities && Array.isArray(roomData.kitchenFacilities) && roomData.kitchenFacilities.length > 0)
+                    ? JSON.stringify(roomData.kitchenFacilities)
+                    : null;
+                console.log('[PropertySetupService] kitchenFacilitiesJson:', kitchenFacilitiesJson);
+
+                const roomLayoutJson = (existingColumns.includes('room_layout') && roomData.roomLayout && Array.isArray(roomData.roomLayout) && roomData.roomLayout.length > 0)
+                    ? JSON.stringify(roomData.roomLayout)
+                    : null;
+
+                const additionalAmenitiesJson = (existingColumns.includes('additional_amenities') && roomData.additionalAmenities && Array.isArray(roomData.additionalAmenities) && roomData.additionalAmenities.length > 0)
+                    ? JSON.stringify(roomData.additionalAmenities)
+                    : null;
+
+                // Build dynamic SQL based on existing columns
+                const updateFields = [];
+                const updateValues = [];
+                const insertFields = [];
+                const insertValues = [];
+
+                // Always include these base columns
+                if (existingColumns.includes('has_kitchen')) {
+                    updateFields.push('has_kitchen = ?');
+                    updateValues.push((roomData.hasKitchen === true) ? 1 : 0);
+                    insertFields.push('has_kitchen');
+                    insertValues.push((roomData.hasKitchen === true) ? 1 : 0);
+                }
+
+                if (existingColumns.includes('kitchen_facilities')) {
+                    updateFields.push('kitchen_facilities = ?');
+                    updateValues.push(kitchenFacilitiesJson);
+                    insertFields.push('kitchen_facilities');
+                    insertValues.push(kitchenFacilitiesJson);
+                }
+
+                if (existingColumns.includes('has_air_conditioning')) {
+                    updateFields.push('has_air_conditioning = ?');
+                    updateValues.push((roomData.hasAirConditioning === true) ? 1 : 0);
+                    insertFields.push('has_air_conditioning');
+                    insertValues.push((roomData.hasAirConditioning === true) ? 1 : 0);
+                }
+
+                if (existingColumns.includes('air_conditioning_type')) {
+                    updateFields.push('air_conditioning_type = ?');
+                    updateValues.push(nullIfUndefined(roomData.airConditioningType));
+                    insertFields.push('air_conditioning_type');
+                    insertValues.push(nullIfUndefined(roomData.airConditioningType));
+                }
+
+                if (existingColumns.includes('has_heating')) {
+                    updateFields.push('has_heating = ?');
+                    updateValues.push((roomData.hasHeating === true) ? 1 : 0);
+                    insertFields.push('has_heating');
+                    insertValues.push((roomData.hasHeating === true) ? 1 : 0);
+                }
+
+                if (existingColumns.includes('has_view')) {
+                    updateFields.push('has_view = ?');
+                    updateValues.push(nullIfUndefined(roomData.hasView) || 'no');
+                    insertFields.push('has_view');
+                    insertValues.push(nullIfUndefined(roomData.hasView) || 'no');
+                }
+
+                if (existingColumns.includes('room_view')) {
+                    updateFields.push('room_view = ?');
+                    updateValues.push(nullIfUndefined(roomData.roomView));
+                    insertFields.push('room_view');
+                    insertValues.push(nullIfUndefined(roomData.roomView));
+                }
+
+                if (existingColumns.includes('room_size_sqm')) {
+                    updateFields.push('room_size_sqm = ?');
+                    updateValues.push(nullIfUndefined(roomData.roomSizeSqm));
+                    insertFields.push('room_size_sqm');
+                    insertValues.push(nullIfUndefined(roomData.roomSizeSqm));
+                }
+
+                if (existingColumns.includes('room_size_sqft')) {
+                    updateFields.push('room_size_sqft = ?');
+                    updateValues.push(nullIfUndefined(roomData.roomSizeSqft));
+                    insertFields.push('room_size_sqft');
+                    insertValues.push(nullIfUndefined(roomData.roomSizeSqft));
+                }
+
+                if (existingColumns.includes('has_balcony')) {
+                    updateFields.push('has_balcony = ?');
+                    updateValues.push((roomData.hasBalcony === true) ? 1 : 0);
+                    insertFields.push('has_balcony');
+                    insertValues.push((roomData.hasBalcony === true) ? 1 : 0);
+                }
+
+                if (existingColumns.includes('has_terrace')) {
+                    updateFields.push('has_terrace = ?');
+                    updateValues.push((roomData.hasTerrace === true) ? 1 : 0);
+                    insertFields.push('has_terrace');
+                    insertValues.push((roomData.hasTerrace === true) ? 1 : 0);
+                }
+
+                if (existingColumns.includes('has_patio')) {
+                    updateFields.push('has_patio = ?');
+                    updateValues.push((roomData.hasPatio === true) ? 1 : 0);
+                    insertFields.push('has_patio');
+                    insertValues.push((roomData.hasPatio === true) ? 1 : 0);
+                }
+
+                // Optional columns (may not exist yet)
+                if (existingColumns.includes('desk')) {
+                    updateFields.push('desk = ?');
+                    updateValues.push((roomData.desk === true) ? 1 : 0);
+                    insertFields.push('desk');
+                    insertValues.push((roomData.desk === true) ? 1 : 0);
+                }
+
+                if (existingColumns.includes('separate_sitting_area')) {
+                    updateFields.push('separate_sitting_area = ?');
+                    updateValues.push((roomData.separateSittingArea === true) ? 1 : 0);
+                    insertFields.push('separate_sitting_area');
+                    insertValues.push((roomData.separateSittingArea === true) ? 1 : 0);
+                }
+
+                if (existingColumns.includes('private_spa_tub')) {
+                    updateFields.push('private_spa_tub = ?');
+                    updateValues.push((roomData.privateSpaTub === true) ? 1 : 0);
+                    insertFields.push('private_spa_tub');
+                    insertValues.push((roomData.privateSpaTub === true) ? 1 : 0);
+                }
+
+                if (existingColumns.includes('laptop_friendly_workspace')) {
+                    updateFields.push('laptop_friendly_workspace = ?');
+                    updateValues.push((roomData.laptopFriendlyWorkspace === true) ? 1 : 0);
+                    insertFields.push('laptop_friendly_workspace');
+                    insertValues.push((roomData.laptopFriendlyWorkspace === true) ? 1 : 0);
+                }
+
+                if (existingColumns.includes('separate_dining_area')) {
+                    updateFields.push('separate_dining_area = ?');
+                    updateValues.push((roomData.separateDiningArea === true) ? 1 : 0);
+                    insertFields.push('separate_dining_area');
+                    insertValues.push((roomData.separateDiningArea === true) ? 1 : 0);
+                }
+
+                if (existingColumns.includes('private_pool')) {
+                    updateFields.push('private_pool = ?');
+                    updateValues.push((roomData.privatePool === true) ? 1 : 0);
+                    insertFields.push('private_pool');
+                    insertValues.push((roomData.privatePool === true) ? 1 : 0);
+                }
+
+                if (existingColumns.includes('room_layout')) {
+                    updateFields.push('room_layout = ?');
+                    updateValues.push(roomLayoutJson);
+                    insertFields.push('room_layout');
+                    insertValues.push(roomLayoutJson);
+                }
+
+                if (existingColumns.includes('additional_amenities')) {
+                    updateFields.push('additional_amenities = ?');
+                    updateValues.push(additionalAmenitiesJson);
+                    insertFields.push('additional_amenities');
+                    insertValues.push(additionalAmenitiesJson);
+                }
+
+                // Always add updated_at for UPDATE
+                updateFields.push('updated_at = NOW()');
 
                 if (existingAmenities.length > 0) {
+                    // UPDATE existing amenities
+                    updateValues.push(roomId);
                     await connection.execute(
-                        `UPDATE stays_room_amenities SET
-                            bathroom_type = ?, number_of_bathrooms = ?, bathroom_amenities = ?,
-                            has_kitchen = ?, kitchen_facilities = ?,
-                            has_air_conditioning = ?, has_heating = ?,
-                            has_view = ?, room_view = ?,
-                            room_size_sqm = ?, room_size_sqft = ?,
-                            has_balcony = ?, has_terrace = ?, has_patio = ?,
-                            room_layout = ?, additional_amenities = ?,
-                            updated_at = NOW()
-                        WHERE room_id = ?`,
-                        [
-                            nullIfUndefined(roomData.bathroomType) || 'private',
-                            nullIfUndefined(roomData.numberOfBathrooms) ?? 1,
-                            bathroomAmenitiesJson,
-                            (roomData.hasKitchen === true) ? 1 : 0,
-                            kitchenFacilitiesJson,
-                            (roomData.hasAirConditioning === true) ? 1 : 0,
-                            (roomData.hasHeating === true) ? 1 : 0,
-                            nullIfUndefined(roomData.hasView) || 'no',
-                            nullIfUndefined(roomData.roomView),
-                            nullIfUndefined(roomData.roomSizeSqm),
-                            nullIfUndefined(roomData.roomSizeSqft),
-                            (roomData.hasBalcony === true) ? 1 : 0,
-                            (roomData.hasTerrace === true) ? 1 : 0,
-                            (roomData.hasPatio === true) ? 1 : 0,
-                            roomLayoutJson,
-                            additionalAmenitiesJson,
-                            roomId
-                        ]
+                        `UPDATE stays_room_amenities SET ${updateFields.join(', ')} WHERE room_id = ?`,
+                        updateValues
                     );
                 } else {
+                    // INSERT new amenities
+                    insertFields.unshift('room_id');
+                    insertValues.unshift(roomId);
                     await connection.execute(
-                        `INSERT INTO stays_room_amenities (
-                            room_id, bathroom_type, number_of_bathrooms, bathroom_amenities,
-                            has_kitchen, kitchen_facilities, has_air_conditioning, has_heating,
-                            has_view, room_view, room_size_sqm, room_size_sqft,
-                            has_balcony, has_terrace, has_patio, room_layout, additional_amenities
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [
-                            roomId,
-                            nullIfUndefined(roomData.bathroomType) || 'private',
-                            nullIfUndefined(roomData.numberOfBathrooms) ?? 1,
-                            bathroomAmenitiesJson,
-                            (roomData.hasKitchen === true) ? 1 : 0,
-                            kitchenFacilitiesJson,
-                            (roomData.hasAirConditioning === true) ? 1 : 0,
-                            (roomData.hasHeating === true) ? 1 : 0,
-                            nullIfUndefined(roomData.hasView) || 'no',
-                            nullIfUndefined(roomData.roomView),
-                            nullIfUndefined(roomData.roomSizeSqm),
-                            nullIfUndefined(roomData.roomSizeSqft),
-                            (roomData.hasBalcony === true) ? 1 : 0,
-                            (roomData.hasTerrace === true) ? 1 : 0,
-                            (roomData.hasPatio === true) ? 1 : 0,
-                            roomLayoutJson,
-                            additionalAmenitiesJson
-                        ]
+                        `INSERT INTO stays_room_amenities (${insertFields.join(', ')}) VALUES (${insertFields.map(() => '?').join(', ')})`,
+                        insertValues
                     );
                 }
 
@@ -640,10 +703,9 @@ class PropertySetupService {
                 return { error: 'Property not found' };
             }
 
-            // Check each step
+            // Check each step (contract step removed)
             const steps = {
                 step1_email: true, // Email verification is separate
-                step2_contract: property[0].contract_accepted === 1,
                 step3_policies: false,
                 step4_amenities: false,
                 step5_rooms: false,
@@ -722,6 +784,169 @@ class PropertySetupService {
         }
     }
 
+    // Get Policies
+    async getPolicies(userId, propertyId) {
+        try {
+            const propertyIdInt = parseInt(propertyId);
+            const policies = await executeQuery(
+                `SELECT * FROM stays_property_policies WHERE property_id = ?`,
+                [propertyIdInt]
+            );
+
+            if (policies.length === 0) {
+                return null;
+            }
+
+            const policy = policies[0];
+            
+            // Parse languages JSON if it exists
+            let languages = [];
+            if (policy.languages) {
+                try {
+                    languages = typeof policy.languages === 'string' 
+                        ? JSON.parse(policy.languages) 
+                        : policy.languages;
+                } catch (e) {
+                    languages = [];
+                }
+            }
+
+            // Convert to frontend format
+            return {
+                languages: languages,
+                acceptCreditDebitCards: policy.accept_credit_debit_cards === 1,
+                acceptTravoozCard: policy.accept_travooz_card === 1,
+                acceptMobileMoney: policy.accept_mobile_money === 1,
+                acceptAirtelMoney: policy.accept_airtel_money === 1,
+                requireDeposits: policy.require_deposits || 'no',
+                cancellationWindow: policy.cancellation_window || '24_hour',
+                cancellationFee: policy.cancellation_fee || 'first_night_plus_tax',
+                vatPercentage: policy.vat_percentage || 18.00,
+                tourismTaxPercentage: policy.tourism_tax_percentage || 3.00,
+                taxesIncludedInRate: policy.taxes_included_in_rate === 1,
+                requestTaxTeamAssistance: policy.request_tax_team_assistance === 1
+            };
+        } catch (error) {
+            console.error('Error getting policies:', error);
+            throw error;
+        }
+    }
+
+    // Get Amenities
+    async getAmenities(userId, propertyId) {
+        try {
+            const propertyIdInt = parseInt(propertyId);
+            const amenities = await executeQuery(
+                `SELECT * FROM stays_property_amenities WHERE property_id = ?`,
+                [propertyIdInt]
+            );
+
+            if (amenities.length === 0) {
+                return null;
+            }
+
+            const amenity = amenities[0];
+            
+            // Parse themes JSON if it exists
+            let themes = [];
+            if (amenity.themes) {
+                try {
+                    themes = typeof amenity.themes === 'string' 
+                        ? JSON.parse(amenity.themes) 
+                        : amenity.themes;
+                } catch (e) {
+                    themes = [];
+                }
+            }
+
+            // Convert to frontend format
+            return {
+                minCheckInAge: amenity.min_check_in_age || '',
+                checkInTime: amenity.check_in_time || '',
+                checkInEnds: amenity.check_in_ends || '',
+                hasFrontDesk: amenity.has_front_desk || 'no',
+                offerBreakfast: amenity.offer_breakfast || 'no',
+                breakfastType: amenity.breakfast_type || '',
+                offerInternet: amenity.offer_internet || 'no',
+                offerParking: amenity.offer_parking || 'no',
+                hasPool: amenity.has_pool === 1,
+                poolType: amenity.pool_type || '',
+                hasSpa: amenity.has_spa === 1,
+                hasFitnessCenter: amenity.has_fitness_center === 1,
+                hasRestaurant: amenity.has_restaurant === 1,
+                hasBar: amenity.has_bar === 1,
+                hasConcierge: amenity.has_concierge === 1,
+                hasLaundry: amenity.has_laundry === 1,
+                hasBusinessCenter: amenity.has_business_center === 1,
+                petsAllowed: amenity.pets_allowed || 'no',
+                themes: themes
+            };
+        } catch (error) {
+            console.error('Error getting amenities:', error);
+            throw error;
+        }
+    }
+
+    // Get Tax Details
+    async getTaxDetails(userId, propertyId) {
+        try {
+            const propertyIdInt = parseInt(propertyId);
+            const taxes = await executeQuery(
+                `SELECT * FROM stays_property_tax_details WHERE property_id = ?`,
+                [propertyIdInt]
+            );
+
+            if (taxes.length === 0) {
+                return null;
+            }
+
+            const tax = taxes[0];
+            
+            // Convert to frontend format
+            return {
+                vatNumber: tax.vat_number || '',
+                tourismTaxNumber: tax.tourism_tax_number || '',
+                vatPercentage: tax.vat_percentage || 18.00,
+                tourismTaxPercentage: tax.tourism_tax_percentage || 3.00,
+                taxesIncludedInRate: tax.taxes_included_in_rate === 1,
+                requestTaxTeamAssistance: tax.request_tax_team_assistance === 1
+            };
+        } catch (error) {
+            console.error('Error getting tax details:', error);
+            throw error;
+        }
+    }
+
+    // Get Connectivity Settings
+    async getConnectivity(userId, propertyId) {
+        try {
+            const propertyIdInt = parseInt(propertyId);
+            const connectivity = await executeQuery(
+                `SELECT * FROM stays_property_connectivity WHERE property_id = ?`,
+                [propertyIdInt]
+            );
+
+            if (connectivity.length === 0) {
+                return null;
+            }
+
+            const conn = connectivity[0];
+            
+            // Convert to frontend format
+            return {
+                wifiAvailable: conn.wifi_available === 1,
+                wifiType: conn.wifi_type || '',
+                wifiSpeed: conn.wifi_speed || '',
+                wifiCost: conn.wifi_cost || 'free',
+                mobileNetwork: conn.mobile_network || '',
+                signalStrength: conn.signal_strength || ''
+            };
+        } catch (error) {
+            console.error('Error getting connectivity:', error);
+            throw error;
+        }
+    }
+
     // Submit final listing
     async submitListing(userId, propertyId) {
         try {
@@ -750,6 +975,66 @@ class PropertySetupService {
         } catch (error) {
             console.error('Error submitting listing:', error);
             throw error;
+        }
+    }
+
+    // Delete Room
+    async deleteRoom(userId, propertyId, roomId) {
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            // Verify the room belongs to the property and user
+            const [roomCheck] = await connection.execute(
+                `SELECT sr.room_id, sp.user_id, sp.property_id
+                 FROM stays_rooms sr
+                 INNER JOIN stays_properties sp ON sr.property_id = sp.property_id
+                 WHERE sr.room_id = ? AND sr.property_id = ?`,
+                [roomId, propertyId]
+            );
+
+            if (!roomCheck || roomCheck.length === 0) {
+                throw new Error('Room not found or does not belong to this property');
+            }
+
+            const room = roomCheck[0];
+            if (Number(room.user_id) !== Number(userId)) {
+                throw new Error('Unauthorized: You do not own this property');
+            }
+
+            // Delete related data first (foreign key constraints)
+            // Delete room images
+            await connection.execute(
+                `DELETE FROM stays_room_images WHERE room_id = ?`,
+                [roomId]
+            );
+
+            // Delete room beds
+            await connection.execute(
+                `DELETE FROM stays_room_beds WHERE room_id = ?`,
+                [roomId]
+            );
+
+            // Delete room amenities
+            await connection.execute(
+                `DELETE FROM stays_room_amenities WHERE room_id = ?`,
+                [roomId]
+            );
+
+            // Finally, delete the room itself
+            await connection.execute(
+                `DELETE FROM stays_rooms WHERE room_id = ? AND property_id = ?`,
+                [roomId, propertyId]
+            );
+
+            await connection.commit();
+            return { success: true, message: 'Room deleted successfully' };
+        } catch (error) {
+            await connection.rollback();
+            console.error('Error deleting room:', error);
+            throw error;
+        } finally {
+            connection.release();
         }
     }
 }

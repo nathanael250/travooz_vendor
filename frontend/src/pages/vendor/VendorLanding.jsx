@@ -220,12 +220,12 @@ export default function VendorLanding() {
 
           {/* Mobile Menu */}
           {mobileMenuOpen && (
-            <div className="md:hidden border-t border-gray-200 py-4 space-y-3">
+            <div className="md:hidden border-t border-gray-200 py-4 space-y-2 animate-fade-in">
               <button 
                 onClick={() => {
                   setMobileMenuOpen(false);
                 }}
-                className="block w-full text-left px-4 py-2 text-gray-700 hover:text-[#3CAF54] font-medium transition-colors"
+                className="block w-full text-left px-4 py-2.5 text-gray-700 hover:text-[#3CAF54] hover:bg-gray-50 font-medium transition-colors rounded-lg"
               >
                 Home
               </button>
@@ -233,7 +233,7 @@ export default function VendorLanding() {
                 onClick={() => {
                   setMobileMenuOpen(false);
                 }}
-                className="block w-full text-left px-4 py-2 text-gray-700 hover:text-[#3CAF54] font-medium transition-colors"
+                className="block w-full text-left px-4 py-2.5 text-gray-700 hover:text-[#3CAF54] hover:bg-gray-50 font-medium transition-colors rounded-lg"
               >
                 About
               </button>
@@ -241,7 +241,7 @@ export default function VendorLanding() {
                 onClick={() => {
                   setMobileMenuOpen(false);
                 }}
-                className="block w-full text-left px-4 py-2 text-gray-700 hover:text-[#3CAF54] font-medium transition-colors"
+                className="block w-full text-left px-4 py-2.5 text-gray-700 hover:text-[#3CAF54] hover:bg-gray-50 font-medium transition-colors rounded-lg"
               >
                 Services
               </button>
@@ -249,20 +249,22 @@ export default function VendorLanding() {
                 onClick={() => {
                   setMobileMenuOpen(false);
                 }}
-                className="block w-full text-left px-4 py-2 text-gray-700 hover:text-[#3CAF54] font-medium transition-colors"
+                className="block w-full text-left px-4 py-2.5 text-gray-700 hover:text-[#3CAF54] hover:bg-gray-50 font-medium transition-colors rounded-lg"
               >
                 Contact
               </button>
-              <button
-                onClick={() => {
-                  navigate('/auth/service-selection');
-                  setMobileMenuOpen(false);
-                }}
-                className="block w-full mx-4 px-6 py-3 rounded-lg text-white text-base font-medium transition-all duration-300"
-                style={{ backgroundColor: '#3CAF54' }}
-              >
-                Get Started
-              </button>
+              <div className="pt-2 px-4">
+                <button
+                  onClick={() => {
+                    navigate('/auth/service-selection');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="block w-full px-6 py-3 rounded-lg text-white text-base font-medium transition-all duration-300 hover:scale-105 hover:shadow-md active:scale-95"
+                  style={{ backgroundColor: '#3CAF54' }}
+                >
+                  Login
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -299,13 +301,13 @@ export default function VendorLanding() {
                     <button
                       key={category.id}
                       onClick={() => handleCategoryClick(category.route)}
-                      className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl transition-all duration-300 hover:shadow-md active:scale-95 min-h-[60px] sm:min-h-[70px]"
-                      style={{ backgroundColor: '#E8F5E9' }}
+                      className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl transition-all duration-300 hover:shadow-lg hover:scale-[1.02] active:scale-95 min-h-[60px] sm:min-h-[70px] border border-transparent hover:border-[#3CAF54] group"
+                      style={{ backgroundColor: '#dcfce7' }}
                     >
                       <div className="flex-shrink-0">
-                        <IconComponent className="h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8" style={{ color: '#3CAF54' }} />
+                        <IconComponent className="h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 transition-transform group-hover:scale-110" style={{ color: '#3CAF54' }} />
                       </div>
-                      <span className="text-sm sm:text-base md:text-lg font-medium text-gray-900 text-left flex-1">
+                      <span className="text-sm sm:text-base md:text-lg font-medium text-gray-900 text-left flex-1 group-hover:text-[#3CAF54] transition-colors">
                         {category.name}
                       </span>
                     </button>

@@ -123,7 +123,7 @@ export default function AgreementStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-3xl w-full mx-auto">
           {/* Progress Indicator */}
-          <SetupProgressIndicator currentStep={11} totalSteps={11} />
+          <SetupProgressIndicator currentStepKey="agreement" currentStepNumber={11} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>

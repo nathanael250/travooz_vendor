@@ -472,13 +472,19 @@ export default function CreateMenu() {
         if (item.photo) {
           menuItemImages[tempId] = item.photo;
         }
+        // Ensure availability defaults to 'available' for new items
+        const itemAvailability = item.availability || 'available';
+        const itemAvailable = item.available !== undefined 
+          ? item.available 
+          : (itemAvailability === 'available' || itemAvailability === '' || !itemAvailability);
+        
         return {
           ...item,
           // Ensure backend-friendly availability fields: include both the string `availability`
           // and a boolean `available` so different endpoints that expect either form will behave
           // consistently. This prevents new items from being treated as unavailable by default.
-          availability: item.availability || 'available',
-          available: item.available !== undefined ? item.available : (item.availability === 'available'),
+          availability: itemAvailability,
+          available: itemAvailable,
           id: tempId,
           tempId: tempId
         };
@@ -908,7 +914,7 @@ export default function CreateMenu() {
                     {itemForm.addOns.map((addOn, index) => (
                       <div key={index} className="bg-white border-2 border-gray-200 rounded-lg p-3 flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-900">
-                          {addOn.name} {addOn.price > 0 && `(+$${addOn.price.toFixed(2)})`}
+                          {addOn.name} {addOn.price > 0 && `(+RWF ${addOn.price.toLocaleString()})`}
                         </span>
                         <button
                           type="button"
@@ -1058,7 +1064,7 @@ export default function CreateMenu() {
                             <p className="text-sm text-gray-600 mb-2">{item.description}</p>
                           )}
                           <div className="flex flex-wrap gap-4 text-sm">
-                            <span className="font-semibold text-gray-900">${item.price.toFixed(2)}</span>
+                            <span className="font-semibold text-gray-900">RWF {item.price.toLocaleString()}</span>
                             {item.discount && (
                               <span className="text-green-600">Discount: ${item.discount.toFixed(2)}</span>
                             )}
@@ -1076,7 +1082,7 @@ export default function CreateMenu() {
                               <div className="flex flex-wrap gap-2">
                                 {item.addOns.map((addOn, addOnIndex) => (
                                   <span key={addOnIndex} className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                                    {addOn.name} {addOn.price > 0 && `(+$${addOn.price.toFixed(2)})`}
+                                    {addOn.name} {addOn.price > 0 && `(+RWF ${addOn.price.toLocaleString()})`}
                                   </span>
                                 ))}
                               </div>

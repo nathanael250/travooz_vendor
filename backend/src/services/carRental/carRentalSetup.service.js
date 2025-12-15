@@ -26,6 +26,8 @@ const ensureTables = async () => {
       short_description TEXT,
       location VARCHAR(255),
       location_data LONGTEXT,
+      latitude DECIMAL(10,8) DEFAULT NULL,
+      longitude DECIMAL(11,8) DEFAULT NULL,
       car_type VARCHAR(100),
       car_type_name VARCHAR(150),
       subcategory_id INT,
@@ -43,7 +45,7 @@ const ensureTables = async () => {
       car_rental_business_id INT NOT NULL,
       tin VARCHAR(100) NOT NULL,
       legal_business_name VARCHAR(255) NOT NULL,
-      payment_method VARCHAR(100) NOT NULL,
+      payment_method VARCHAR(100) DEFAULT NULL,
       documents LONGTEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -99,6 +101,55 @@ const ensureTables = async () => {
 
   for (const statement of tableStatements) {
     await pool.execute(statement);
+  }
+
+  // Update payment_method column to allow NULL (for existing tables)
+  try {
+    const [columns] = await pool.execute(`
+      SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_DEFAULT
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'car_rental_tax_info' 
+      AND COLUMN_NAME = 'payment_method'
+    `);
+    
+    if (columns.length > 0 && columns[0].IS_NULLABLE === 'NO') {
+      await pool.execute(`ALTER TABLE car_rental_tax_info MODIFY COLUMN payment_method VARCHAR(100) DEFAULT NULL`);
+    }
+  } catch (alterError) {
+    console.warn('Could not update payment_method column:', alterError.message);
+  }
+
+  // Add latitude and longitude columns if they don't exist (for existing tables)
+  try {
+    await pool.execute(`
+      ALTER TABLE car_rental_businesses 
+      ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,8) DEFAULT NULL,
+      ADD COLUMN IF NOT EXISTS longitude DECIMAL(11,8) DEFAULT NULL
+    `);
+  } catch (error) {
+    // MySQL doesn't support IF NOT EXISTS for ALTER TABLE, so we need to check first
+    try {
+      const [columns] = await pool.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'car_rental_businesses' 
+        AND COLUMN_NAME IN ('latitude', 'longitude')
+      `);
+      
+      const columnNames = columns.map(col => col.COLUMN_NAME);
+      
+      if (!columnNames.includes('latitude')) {
+        await pool.execute(`ALTER TABLE car_rental_businesses ADD COLUMN latitude DECIMAL(10,8) DEFAULT NULL`);
+      }
+      
+      if (!columnNames.includes('longitude')) {
+        await pool.execute(`ALTER TABLE car_rental_businesses ADD COLUMN longitude DECIMAL(11,8) DEFAULT NULL`);
+      }
+    } catch (alterError) {
+      console.warn('Could not add latitude/longitude columns (they may already exist):', alterError.message);
+    }
   }
 
   tablesInitialized = true;
@@ -158,6 +209,29 @@ class CarRentalSetupService {
       throw new Error('businessDetails are required');
     }
 
+    // Get the existing business to ensure it exists and get its userId
+    const [existingBusiness] = await pool.execute(
+      `SELECT user_id FROM car_rental_businesses WHERE car_rental_business_id = ?`,
+      [carRentalBusinessId]
+    );
+
+    if (!existingBusiness || existingBusiness.length === 0) {
+      throw new Error('Car rental business not found');
+    }
+
+    // Use the existing business's userId to ensure foreign key constraint is satisfied
+    const existingUserId = existingBusiness[0].user_id;
+
+    // Verify the user exists in car_rental_users
+    const [userCheck] = await pool.execute(
+      `SELECT user_id FROM car_rental_users WHERE user_id = ?`,
+      [existingUserId]
+    );
+
+    if (!userCheck || userCheck.length === 0) {
+      throw new Error(`User with ID ${existingUserId} does not exist in car_rental_users. Please ensure the user account is properly created.`);
+    }
+
     await pool.execute(
       `UPDATE car_rental_businesses
         SET business_name = ?, business_type = ?, short_description = ?, updated_at = CURRENT_TIMESTAMP
@@ -170,7 +244,8 @@ class CarRentalSetupService {
       ]
     );
 
-    await this.#updateProgress(carRentalBusinessId, userId, 4, 'in_progress');
+    // Use existingUserId for progress update
+    await this.#updateProgress(carRentalBusinessId, existingUserId, 4, 'in_progress');
 
     return {
       carRentalBusinessId,
@@ -207,7 +282,7 @@ class CarRentalSetupService {
         carRentalBusinessId,
         taxPayment.tin,
         taxPayment.legalBusinessName,
-        taxPayment.paymentMethod,
+        taxPayment.paymentMethod || null,
         documentsJson
       ]
     );
@@ -358,8 +433,19 @@ class CarRentalSetupService {
   }
 
   async #getOrCreateUser(user = {}, business = {}) {
+    // If user.id is provided, verify it exists in car_rental_users
     if (user.id) {
-      return user.id;
+      const [userCheck] = await pool.execute(
+        `SELECT user_id FROM car_rental_users WHERE user_id = ?`,
+        [user.id]
+      );
+
+      if (userCheck && userCheck.length > 0) {
+        return userCheck[0].user_id;
+      }
+
+      // If user.id doesn't exist in car_rental_users, try to find by email or create new
+      // Don't just return user.id as it might be from a different table
     }
 
     if (!user.email) {
@@ -375,11 +461,18 @@ class CarRentalSetupService {
       return existingUsers[0].user_id;
     }
 
-    if (!user.password) {
-      throw new Error('Password is required to create a new user account');
+    // If no password is provided (e.g., for vendors from other services),
+    // generate a random password that they'll need to reset later
+    let passwordToHash = user.password;
+    if (!passwordToHash) {
+      // Generate a random password for vendors who don't provide one
+      // They'll need to reset it via forgot password flow
+      const crypto = require('crypto');
+      passwordToHash = crypto.randomBytes(16).toString('hex');
+      console.log(`Generated temporary password for vendor: ${user.email}`);
     }
 
-    const hashedPassword = await bcrypt.hash(user.password, 10);
+    const hashedPassword = await bcrypt.hash(passwordToHash, 10);
 
     const fullName = [user.firstName || '', user.lastName || '']
       .filter(Boolean)
@@ -408,6 +501,28 @@ class CarRentalSetupService {
   async #createOrUpdateBusiness({ userId, location, locationData, business, existingBusinessId }) {
     const locationString = location && location.trim() ? location.trim() : 'Kigali, Rwanda';
     const locationDataJson = safeJsonStringify(locationData);
+    
+    // Extract latitude and longitude from locationData
+    const latitude = locationData?.geometry?.location?.lat || 
+                     locationData?.lat || 
+                     locationData?.latitude || 
+                     null;
+    const longitude = locationData?.geometry?.location?.lng || 
+                      locationData?.lng || 
+                      locationData?.longitude || 
+                      null;
+
+    // Verify userId exists in car_rental_users before proceeding
+    if (userId) {
+      const [userCheck] = await pool.execute(
+        `SELECT user_id FROM car_rental_users WHERE user_id = ?`,
+        [userId]
+      );
+
+      if (!userCheck || userCheck.length === 0) {
+        throw new Error(`User with ID ${userId} does not exist in car_rental_users. Please ensure the user account is properly created.`);
+      }
+    }
 
     let targetBusinessId = existingBusinessId;
 
@@ -428,18 +543,30 @@ class CarRentalSetupService {
       await pool.execute(
         `UPDATE car_rental_businesses
           SET business_name = ?, business_type = ?, short_description = ?, location = ?, location_data = ?,
-              car_type = ?, car_type_name = ?, subcategory_id = ?, description = ?, phone = ?, currency = ?,
+              latitude = ?, longitude = ?, car_type = ?, car_type_name = ?, subcategory_id = ?, description = ?, phone = ?, currency = ?,
               status = 'in_progress', updated_at = CURRENT_TIMESTAMP
         WHERE car_rental_business_id = ?`,
         [
           business.carRentalBusinessName || business.businessName || 'Car Rental Business',
-          business.carType || null,
+          business.carTypes && business.carTypes.length > 0 
+            ? business.carTypes.join(',') 
+            : (business.carType || null),
           business.shortDescription || business.description || null,
           locationString,
           locationDataJson,
-          business.carType || null,
-          business.carTypeName || null,
-          business.subcategoryId || null,
+          latitude,
+          longitude,
+          // Handle multiple car types - store as comma-separated string
+          business.carTypes && business.carTypes.length > 0 
+            ? business.carTypes.join(',') 
+            : (business.carType || null),
+          business.carTypeNames && business.carTypeNames.length > 0
+            ? business.carTypeNames.join(', ')
+            : (business.carTypeName || null),
+          // Store first subcategory_id for backward compatibility
+          business.subcategoryIds && business.subcategoryIds.length > 0
+            ? business.subcategoryIds[0]
+            : (business.subcategoryId || null),
           business.description || null,
           businessPhone,
           business.currency || 'RWF',
@@ -457,19 +584,31 @@ class CarRentalSetupService {
 
     const insertResult = await pool.execute(
       `INSERT INTO car_rental_businesses (
-        user_id, business_name, business_type, short_description, location, location_data, car_type,
-        car_type_name, subcategory_id, description, phone, currency, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress')`,
+        user_id, business_name, business_type, short_description, location, location_data, latitude, longitude,
+        car_type, car_type_name, subcategory_id, description, phone, currency, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress')`,
       [
         userId,
         business.carRentalBusinessName || business.businessName || 'Car Rental Business',
-        business.carType || null,
+        business.carTypes && business.carTypes.length > 0 
+          ? business.carTypes.join(',') 
+          : (business.carType || null),
         business.shortDescription || business.description || null,
         locationString,
         locationDataJson,
-        business.carType || null,
-        business.carTypeName || null,
-        business.subcategoryId || null,
+        latitude,
+        longitude,
+        // Handle multiple car types - store as comma-separated string or JSON
+        business.carTypes && business.carTypes.length > 0 
+          ? business.carTypes.join(',') 
+          : (business.carType || null),
+        business.carTypeNames && business.carTypeNames.length > 0
+          ? business.carTypeNames.join(', ')
+          : (business.carTypeName || null),
+        // Store first subcategory_id for backward compatibility, or store as JSON
+        business.subcategoryIds && business.subcategoryIds.length > 0
+          ? business.subcategoryIds[0]
+          : (business.subcategoryId || null),
         business.description || null,
         businessPhone,
         business.currency || 'RWF'

@@ -149,43 +149,51 @@ apiClient.interceptors.response.use(
     
     // Handle restaurant not found or access denied errors
     // BUT skip auto-logout during setup flow (let setup pages handle their own errors)
+    // NOTE: tighten the conditions so generic 404/403/401 (e.g. order-not-found, transient auth) don't force a logout
     if ((isRestaurantRequest || isRestaurantRoute) && !isSetupFlow) {
       const errorMessage = response?.data?.message || 
                           response?.data?.error || 
                           error?.message || '';
-      const lowerMessage = errorMessage.toLowerCase();
-      
-      // Check for restaurant not found, access denied, or authentication errors
-      if (response && (
-          response.status === 404 || 
-          response.status === 403 ||
-          response.status === 401 ||
-          lowerMessage.includes('restaurant not found') ||
-          lowerMessage.includes('access denied') ||
-          lowerMessage.includes('access token is required') ||
-          lowerMessage.includes('token is required') ||
-          lowerMessage.includes('authentication required')
-        )) {
-        // Only handle if it's actually a restaurant-related error
-        if (lowerMessage.includes('restaurant') || 
-            lowerMessage.includes('access denied') ||
-            lowerMessage.includes('access token is required') ||
-            lowerMessage.includes('token is required') ||
-            lowerMessage.includes('authentication required') ||
-            response.status === 404 ||
-            (response.status === 401 && isRestaurantRequest)) {
-          console.log('🚪 Restaurant error (not found/access denied/auth error) - logging out');
-          
-          // Import and use the logout handler
-          const { handleRestaurantNotFound } = await import('../utils/restaurantAuth');
-          
-          // Call logout handler - it will redirect, so we don't need to reject
-          handleRestaurantNotFound();
-          
-          // Return a rejected promise to stop further processing
-          // But the redirect will happen, so this is just to prevent error propagation
-          return Promise.reject(new Error('Restaurant access denied - redirecting to login'));
+      const lowerMessage = (errorMessage || '').toLowerCase();
+
+      // Decide explicitly whether this error should trigger a logout/redirect
+      let shouldLogout = false;
+
+      // 1) Explicit restaurant-not-found: logout only when message clearly indicates the restaurant entity is missing
+      if (response?.status === 404) {
+        if (lowerMessage.includes('restaurant not found') || lowerMessage.includes('no restaurant found') || config?.url?.includes('/restaurant')) {
+          shouldLogout = true;
+        } else {
+          // If it's a 404 for something else (e.g. order not found), do NOT logout
+          shouldLogout = false;
         }
+      }
+
+      // 2) Access denied (403): logout only when the message indicates restaurant access problems
+      if (!shouldLogout && response?.status === 403) {
+        if (lowerMessage.includes('access denied') && (lowerMessage.includes('restaurant') || config?.url?.includes('/restaurant'))) {
+          shouldLogout = true;
+        }
+      }
+
+      // 3) Authentication/token errors: only logout when the message indicates token is missing/required/invalid
+      if (!shouldLogout && response?.status === 401) {
+        const isTokenError = lowerMessage.includes('access token is required') ||
+                             lowerMessage.includes('token is required') ||
+                             lowerMessage.includes('authentication required') ||
+                             lowerMessage.includes('invalid token') ||
+                             lowerMessage.includes('token expired');
+
+        if (isTokenError && (isRestaurantRequest || config?.url?.includes('/restaurant'))) {
+          shouldLogout = true;
+        }
+      }
+
+      if (shouldLogout) {
+        console.log('🚪 Restaurant error (explicit conditions) - logging out');
+        const { handleRestaurantNotFound } = await import('../utils/restaurantAuth');
+        handleRestaurantNotFound();
+        return Promise.reject(new Error('Restaurant access denied - redirecting to login'));
       }
     }
     

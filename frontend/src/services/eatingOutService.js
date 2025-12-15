@@ -200,6 +200,33 @@ export const restaurantSetupService = {
       throw error.response?.data || error;
     }
   },
+  
+  /**
+   * Step 4.5 (Setup): Save operating schedule (weekly + exceptions)
+   */
+  async saveOperatingSchedule(restaurantId, { operatingSchedule = {}, exceptions = [] } = {}) {
+    try {
+      // Convert operatingSchedule object (monday, tuesday..) to array with day_of_week numbers
+      const dayMap = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+      const scheduleArray = Object.entries(operatingSchedule || {}).map(([dayName, hours]) => ({
+        day_of_week: dayMap[dayName.toLowerCase()],
+        opens: hours.open || null,
+        closes: hours.close || null,
+        is_closed: !!hours.closed,
+      }));
+
+      const response = await apiClient.post('/eating-out/setup/operating-schedule', {
+        restaurantId,
+        operatingSchedule: scheduleArray,
+        exceptions: Array.isArray(exceptions) ? exceptions : []
+      });
+
+      return response.data.data || response.data;
+    } catch (error) {
+      console.error('Error saving operating schedule:', error);
+      throw error.response?.data || error;
+    }
+  },
 
   /**
    * Step 5 (Setup): Save Tax & Legal Information
@@ -270,6 +297,20 @@ export const restaurantSetupService = {
   },
 
   /**
+   * Complete Setup (without agreement step)
+   */
+  async completeSetup(restaurantId) {
+    try {
+      const response = await apiClient.post('/eating-out/setup/complete', {
+        restaurantId,
+      });
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
    * Step 7: Save Agreement Acceptance
    */
   async saveAgreement(restaurantId, agreementData) {
@@ -333,7 +374,8 @@ export const restaurantSetupService = {
    */
   async getRestaurant(restaurantId) {
     try {
-      const response = await apiClient.get(`/eating-out/${restaurantId}`);
+      // Use the restaurants route for fetching a restaurant by id (requires authentication)
+      const response = await apiClient.get(`/restaurants/${restaurantId}`);
       return response.data.data || response.data;
     } catch (error) {
       throw error.response?.data || error;
@@ -374,4 +416,74 @@ export const restaurantSetupService = {
       throw error.response?.data || error;
     }
   },
+};
+
+// Restaurant Onboarding Progress Tracking API functions
+export const restaurantOnboardingProgressService = {
+  /**
+   * Get current onboarding progress
+   */
+  async getProgress() {
+    try {
+      const response = await apiClient.get('/eating-out/onboarding/progress');
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Save or update onboarding progress
+   */
+  async saveProgress(stepKey, restaurantId = null, isComplete = false) {
+    try {
+      const response = await apiClient.post('/eating-out/onboarding/progress', {
+        stepKey,
+        restaurantId,
+        isComplete
+      });
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Mark a step as complete and move to next step
+   */
+  async completeStep(stepKey, restaurantId = null) {
+    try {
+      const response = await apiClient.post('/eating-out/onboarding/complete-step', {
+        stepKey,
+        restaurantId
+      });
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Get the next step the user should be on
+   */
+  async getNextStep() {
+    try {
+      const response = await apiClient.get('/eating-out/onboarding/next-step');
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Reset progress (for testing)
+   */
+  async resetProgress() {
+    try {
+      const response = await apiClient.delete('/eating-out/onboarding/progress');
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  }
 };

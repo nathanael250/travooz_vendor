@@ -126,16 +126,16 @@ export default function EmailVerification() {
           localStorage.setItem('stays_property_id', finalPropertyId.toString());
         }
         
-        console.log('EmailVerification - Navigating to ContractStep with:', {
+        console.log('EmailVerification - Navigating to Images step with:', {
           userId,
           propertyId: finalPropertyId,
           email,
           userName
         });
         
-        // Redirect to contract step (Step 2 of setup) after 2 seconds
+        // Redirect to policies step (first setup step after account creation) after 2 seconds
         setTimeout(() => {
-          navigate('/stays/setup/contract', {
+          navigate('/stays/setup/policies', {
             state: {
               userId,
               email,

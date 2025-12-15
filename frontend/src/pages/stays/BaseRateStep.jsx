@@ -4,7 +4,7 @@ import { ArrowRight, ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import ProgressIndicator from '../../components/stays/ProgressIndicator';
-import { staysSetupService } from '../../services/staysService';
+import { staysSetupService, getPropertyRooms } from '../../services/staysService';
 
 export default function BaseRateStep() {
   const navigate = useNavigate();
@@ -17,6 +17,11 @@ export default function BaseRateStep() {
       document.body.classList.remove('auth-page');
     };
   }, []);
+
+  // Scroll to top when component mounts or location changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
 
   // Redirect if no user data
   useEffect(() => {
@@ -32,8 +37,23 @@ export default function BaseRateStep() {
   const recommendedOccupancy = roomData.recommendedOccupancy || roomData.numberOfBeds?.reduce((sum, bed) => sum + (parseInt(bed.quantity) || 0), 0) || 2;
   const maxOccupancy = Math.max(recommendedOccupancy, 2);
 
-  const [baseRate, setBaseRate] = useState(roomData.baseRate || '');
-  const [peopleIncluded, setPeopleIncluded] = useState(roomData.peopleIncluded || maxOccupancy.toString());
+  // Load base rate and people included from roomData, preserving user changes
+  const [baseRate, setBaseRate] = useState(() => {
+    return roomData.baseRate || roomData.base_rate || '';
+  });
+  const [peopleIncluded, setPeopleIncluded] = useState(() => {
+    return roomData.peopleIncluded || roomData.people_included || maxOccupancy.toString();
+  });
+
+  // Update form when roomData changes (e.g., when navigating back)
+  useEffect(() => {
+    if (roomData.baseRate || roomData.base_rate) {
+      setBaseRate(roomData.baseRate || roomData.base_rate);
+    }
+    if (roomData.peopleIncluded || roomData.people_included) {
+      setPeopleIncluded(roomData.peopleIncluded || roomData.people_included);
+    }
+  }, [roomData.baseRate, roomData.base_rate, roomData.peopleIncluded, roomData.people_included]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   
@@ -63,12 +83,19 @@ export default function BaseRateStep() {
 
     try {
     // Update room data with base rate information
+    // IMPORTANT: Preserve all ID fields explicitly before spreading
     const updatedRoomData = {
       ...roomData,
       baseRate: parseFloat(baseRate),
       peopleIncluded: parseInt(peopleIncluded),
-        step: 4,
-        roomSetupComplete: true
+      step: 4,
+      roomSetupComplete: true,
+      // Explicitly preserve ID fields (room_id and roomId are the real database IDs)
+      // Only use 'id' if room_id and roomId are not present
+      room_id: roomData.room_id || roomData.roomId || (roomData.id && roomData.id < 1000000 ? roomData.id : null),
+      roomId: roomData.roomId || roomData.room_id || (roomData.id && roomData.id < 1000000 ? roomData.id : null),
+      // Only set id to room_id if it exists, otherwise keep original (but don't use Date.now() if we have room_id)
+      id: roomData.room_id || roomData.roomId || roomData.id
     };
 
       // Helper function to convert undefined to null
@@ -80,9 +107,95 @@ export default function BaseRateStep() {
         quantity: nullIfUndefined(bed.quantity) ?? 1
       })).filter(bed => bed.bedType !== null);
       
+      // Check if this is an update (editing existing room) or create (new room)
+      // PRIORITIZE room_id and roomId (database IDs) over id (which might be temporary Date.now())
+      let existingRoomId = updatedRoomData.room_id || updatedRoomData.roomId;
+      
+      // Only check 'id' if room_id and roomId are not present, and only if it's a valid small integer
+      if (!existingRoomId && updatedRoomData.id) {
+        const parsedId = parseInt(updatedRoomData.id, 10);
+        // Only use if it's a reasonable integer (not Date.now() which is > 1e12)
+        if (!isNaN(parsedId) && parsedId > 0 && parsedId < 1000000) {
+          existingRoomId = parsedId;
+        }
+      }
+      
+      console.log('[BaseRateStep] Room ID check:', {
+        room_id: updatedRoomData.room_id,
+        roomId: updatedRoomData.roomId,
+        id: updatedRoomData.id,
+        existingRoomId,
+        isUpdate: !!existingRoomId
+      });
+      
+      // Parse and validate room_id - must be a positive integer (not a temporary ID like Date.now())
+      if (existingRoomId) {
+        const parsedId = parseInt(existingRoomId, 10);
+        // Only use if it's a valid positive integer and not a temporary ID (Date.now() would be > 1e12)
+        // Valid room IDs from database should be reasonable integers (typically < 1e6)
+        if (isNaN(parsedId) || parsedId <= 0 || parsedId > 1000000) {
+          console.warn('[BaseRateStep] Invalid room_id detected, treating as new room:', existingRoomId);
+          existingRoomId = null;
+        } else {
+          existingRoomId = parsedId;
+        }
+      }
+      
+      const isUpdate = !!existingRoomId;
+
+      // Get amenities from nested structure (amenities object from RoomAmenitiesStep)
+      const amenities = updatedRoomData.amenities || {};
+      
+      console.log('[BaseRateStep] Full amenities object:', amenities);
+      console.log('[BaseRateStep] kitchenAmenities:', amenities.kitchenAmenities);
+      
+      // Convert roomSize from form (string with unit) to roomSizeSqm or roomSizeSqft
+      let roomSizeSqm = null;
+      let roomSizeSqft = null;
+      if (amenities.roomSize) {
+        const roomSizeValue = parseFloat(amenities.roomSize);
+        if (!isNaN(roomSizeValue)) {
+          if (amenities.roomSizeUnit === 'square_meters') {
+            roomSizeSqm = roomSizeValue;
+          } else {
+            roomSizeSqft = roomSizeValue;
+          }
+        }
+      }
+      
+      // Convert hasKitchen from 'yes'/'no' string to boolean
+      const hasKitchen = amenities.hasKitchen === 'yes' || amenities.hasKitchen === true;
+      
+      // Convert hasView from 'yes'/'no' string to 'yes'/'no' (backend expects string)
+      const hasView = amenities.hasView === 'yes' ? 'yes' : 'no';
+      
+      // Convert hasOutdoorSpace to individual balcony/terrace/patio flags
+      // Note: The form has hasOutdoorSpace as 'yes'/'no', but we need individual flags
+      // For now, we'll check if any outdoor space is set, or use the individual flags if they exist
+      const hasBalcony = amenities.hasBalcony === true || amenities.hasBalcony === 1;
+      const hasTerrace = amenities.hasTerrace === true || amenities.hasTerrace === 1;
+      const hasPatio = amenities.hasPatio === true || amenities.hasPatio === 1;
+      
+      // Get kitchen facilities from kitchenAmenities object
+      let kitchenFacilities = [];
+      if (amenities.kitchenAmenities && typeof amenities.kitchenAmenities === 'object') {
+        // Extract keys where value is true
+        kitchenFacilities = Object.keys(amenities.kitchenAmenities).filter(key => amenities.kitchenAmenities[key] === true);
+        console.log('[BaseRateStep] Extracted kitchen facilities from kitchenAmenities:', kitchenFacilities);
+      } else if (Array.isArray(amenities.kitchenFacilities)) {
+        kitchenFacilities = amenities.kitchenFacilities;
+        console.log('[BaseRateStep] Using kitchenFacilities array:', kitchenFacilities);
+      } else {
+        console.warn('[BaseRateStep] No kitchen amenities found. amenities.kitchenAmenities:', amenities.kitchenAmenities);
+      }
+
       // Transform room data for backend API (convert undefined to null for SQL)
       const roomDataForAPI = {
-        roomName: nullIfUndefined(updatedRoomData.roomName) || updatedRoomData.roomType || 'Standard Room',
+        // Include roomId if updating existing room (as integer)
+        ...(isUpdate && { roomId: existingRoomId }),
+        // Use the roomName from ReviewRoomNameStep (user's edited name, without "(Copy)" suffix)
+        // If roomName exists, use it; otherwise fall back to roomType or default
+        roomName: (updatedRoomData.roomName && updatedRoomData.roomName.trim()) || updatedRoomData.roomType || 'Standard Room',
         roomType: nullIfUndefined(updatedRoomData.roomType) || 'standard',
         roomClass: nullIfUndefined(updatedRoomData.roomClass) || 'standard',
         smokingPolicy: nullIfUndefined(updatedRoomData.smokingPolicy) || 'non-smoking',
@@ -95,34 +208,59 @@ export default function BaseRateStep() {
         bathroomType: nullIfUndefined(updatedRoomData.bathroomType) || 'private',
         numberOfBathrooms: nullIfUndefined(updatedRoomData.numberOfBathrooms) ?? 1,
         bathroomAmenities: Array.isArray(updatedRoomData.bathroomAmenities) ? updatedRoomData.bathroomAmenities : [],
-        hasKitchen: updatedRoomData.hasKitchen === true || updatedRoomData.hasKitchen === 'yes',
-        kitchenFacilities: Array.isArray(updatedRoomData.kitchenFacilities) ? updatedRoomData.kitchenFacilities : [],
-        hasAirConditioning: updatedRoomData.airConditioning === true || updatedRoomData.hasAirConditioning === true,
+        // Amenities from RoomAmenitiesStep form
+        hasKitchen: hasKitchen,
+        kitchenFacilities: kitchenFacilities,
+        hasAirConditioning: amenities.airConditioning === true || amenities.hasAirConditioning === true,
+        airConditioningType: amenities.airConditioningType || null,
         hasHeating: false, // Not used in Rwanda
-        hasView: nullIfUndefined(updatedRoomData.hasView) || 'no',
-        roomView: nullIfUndefined(updatedRoomData.roomView),
-        roomSizeSqm: nullIfUndefined(updatedRoomData.roomSizeSqm),
-        roomSizeSqft: nullIfUndefined(updatedRoomData.roomSizeSqft),
-        hasBalcony: updatedRoomData.hasBalcony === true,
-        hasTerrace: updatedRoomData.hasTerrace === true,
-        hasPatio: updatedRoomData.hasPatio === true,
-        roomLayout: Array.isArray(updatedRoomData.roomLayout) ? updatedRoomData.roomLayout : [],
-        additionalAmenities: Array.isArray(updatedRoomData.additionalAmenities) ? updatedRoomData.additionalAmenities : [],
+        hasView: hasView,
+        roomView: nullIfUndefined(amenities.roomView) || null,
+        roomSizeSqm: roomSizeSqm,
+        roomSizeSqft: roomSizeSqft,
+        hasBalcony: hasBalcony,
+        hasTerrace: hasTerrace,
+        hasPatio: hasPatio,
+        desk: amenities.desk === true || amenities.desk === 1,
+        separateSittingArea: amenities.separateSittingArea === true || amenities.separateSittingArea === 1,
+        privateSpaTub: amenities.privateSpaTub === true || amenities.privateSpaTub === 1,
+        laptopFriendlyWorkspace: amenities.laptopFriendlyWorkspace === true || amenities.laptopFriendlyWorkspace === 1,
+        separateDiningArea: amenities.separateDiningArea === true || amenities.separateDiningArea === 1,
+        privatePool: amenities.privatePool === true || amenities.privatePool === 1,
+        roomLayout: Array.isArray(amenities.roomLayout) ? amenities.roomLayout : [],
+        additionalAmenities: Array.isArray(amenities.additionalAmenities) ? amenities.additionalAmenities : [],
         ratePlans: [] // No rate plans
       };
 
-      // Save room to database via API
+      // Save room to database via API (will update if roomId is provided, create if not)
       const savedRoom = await staysSetupService.saveRoom(propertyId, roomDataForAPI);
       
-      // Also save to localStorage as backup
+      // Update localStorage - replace existing room if updating, add new if creating
       const savedRooms = JSON.parse(localStorage.getItem('stays_rooms') || '[]');
       const roomToSave = {
         ...updatedRoomData,
-        id: savedRoom.roomId || savedRoom.room_id || Date.now().toString(),
-        roomId: savedRoom.roomId || savedRoom.room_id,
-        createdAt: new Date().toISOString()
+        id: savedRoom.roomId || savedRoom.room_id || existingRoomId || Date.now().toString(),
+        roomId: savedRoom.roomId || savedRoom.room_id || existingRoomId,
+        room_id: savedRoom.roomId || savedRoom.room_id || existingRoomId,
+        createdAt: updatedRoomData.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
-      savedRooms.push(roomToSave);
+
+      if (isUpdate) {
+        // Update existing room in localStorage
+        const roomIndex = savedRooms.findIndex(r => 
+          (r.room_id === existingRoomId || r.roomId === existingRoomId || r.id === existingRoomId)
+        );
+        if (roomIndex !== -1) {
+          savedRooms[roomIndex] = roomToSave;
+        } else {
+          // If not found, add it (shouldn't happen, but fallback)
+          savedRooms.push(roomToSave);
+        }
+      } else {
+        // Add new room to localStorage
+        savedRooms.push(roomToSave);
+      }
       localStorage.setItem('stays_rooms', JSON.stringify(savedRooms));
 
       // Navigate back to rooms overview with success flag
@@ -142,11 +280,19 @@ export default function BaseRateStep() {
   };
 
   const handleBack = () => {
-    // Go back to step 3 (Review Room Name) with room data
+    // Preserve current form data in roomData when going back
+    const updatedRoomData = {
+      ...roomData,
+      baseRate: baseRate ? parseFloat(baseRate) : null,
+      peopleIncluded: parseInt(peopleIncluded) || maxOccupancy,
+      step: 4
+    };
+    
+    // Go back to step 3 with updated room data (preserving base rate changes)
     navigate('/stays/setup/review-room-name', {
       state: {
         ...location.state,
-        roomData: roomData,
+        roomData: updatedRoomData,
         roomSetupStep: 3
       }
     });
@@ -165,7 +311,7 @@ export default function BaseRateStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-4xl mx-auto">
           {/* Progress Indicator */}
-          <ProgressIndicator currentStep={5} totalSteps={10} />
+          <ProgressIndicator currentStep={4} totalSteps={10} />
 
           {/* Navigation Link */}
           <button

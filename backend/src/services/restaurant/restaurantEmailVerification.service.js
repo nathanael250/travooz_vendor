@@ -213,8 +213,22 @@ class RestaurantEmailVerificationService {
             // Store code in database
             await this.storeVerificationCode(userId, email, code);
 
-            // Send email
-            await this.sendVerificationCode(email, code, userName);
+            // Send email - if sending fails, in development return the code so the flow can continue
+            try {
+                await this.sendVerificationCode(email, code, userName);
+            } catch (emailErr) {
+                console.error('Warning: failed to send verification email:', emailErr.message || emailErr);
+                // In development return the code so frontend can proceed using the code shown in server logs
+                if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev') {
+                    return {
+                        message: 'Verification code generated (email sending failed in development)',
+                        expiresIn: 300,
+                        code: code
+                    };
+                }
+                // In production rethrow
+                throw emailErr;
+            }
 
             return {
                 message: 'Verification code sent successfully',

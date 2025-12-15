@@ -17,6 +17,11 @@ export default function ReviewRoomNameStep() {
     };
   }, []);
 
+  // Scroll to top when component mounts or location changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
+
   // Redirect if no user data
   useEffect(() => {
     if (!location.state?.userId) {
@@ -26,6 +31,27 @@ export default function ReviewRoomNameStep() {
 
   // Get room data from previous steps
   const roomData = location.state?.roomData || {};
+
+  // Validate that room data exists - redirect if no valid room data
+  useEffect(() => {
+    // Check if roomData has minimum required fields (roomType is required to create a room)
+    const hasValidRoomData = roomData && (
+      roomData.roomType || 
+      roomData.room_type || 
+      roomData.room_id || 
+      roomData.roomId || 
+      roomData.id
+    );
+
+    if (!hasValidRoomData) {
+      // No valid room data - redirect back to rooms setup
+      console.warn('No valid room data found, redirecting to rooms setup');
+      navigate('/stays/setup/rooms', {
+        state: location.state,
+        replace: true
+      });
+    }
+  }, [roomData, navigate, location.state]);
   const [isEditing, setIsEditing] = useState(false);
   const [customRoomName, setCustomRoomName] = useState('');
 
@@ -51,13 +77,28 @@ export default function ReviewRoomNameStep() {
     return parts.length > 0 ? parts.join(', ') : 'Room';
   };
 
-  const [roomName, setRoomName] = useState(() => {
+  // Load room name from roomData if it exists, otherwise generate it
+  // IMPORTANT: When editing, remove "(Copy)" suffix if present so user can change it
+  const getInitialRoomName = () => {
+    if (roomData.roomName) {
+      // If editing a copied room, remove "(Copy)" suffix to allow user to change it
+      const name = roomData.roomName.replace(/\s*\(Copy\)\s*$/, '').trim();
+      return name || generateRoomName();
+    }
     return generateRoomName();
-  });
+  };
+
+  const [roomName, setRoomName] = useState(() => getInitialRoomName());
 
   useEffect(() => {
-    const generated = generateRoomName();
-    if (!customRoomName) {
+    // Only update if we don't have a custom room name set
+    // This preserves user's custom name when navigating back
+    if (roomData.roomName && !customRoomName) {
+      // Remove "(Copy)" suffix when loading for editing
+      const cleanedName = roomData.roomName.replace(/\s*\(Copy\)\s*$/, '').trim();
+      setRoomName(cleanedName || generateRoomName());
+    } else if (!roomData.roomName && !customRoomName) {
+      const generated = generateRoomName();
       setRoomName(generated);
     }
   }, [roomData]);
@@ -81,29 +122,58 @@ export default function ReviewRoomNameStep() {
 
   const handleNext = () => {
     // Update room data with final room name
+    // IMPORTANT: Remove "(Copy)" suffix if present - user may have edited the name
+    const cleanedRoomName = roomName.replace(/\s*\(Copy\)\s*$/, '').trim() || roomName;
+    
+    // IMPORTANT: Explicitly preserve all ID fields for editing
     const updatedRoomData = {
       ...roomData,
-      roomName: roomName,
-      step: 3
+      roomName: cleanedRoomName, // Use cleaned name without "(Copy)" suffix
+      step: 3,
+      // Preserve all ID fields explicitly (critical for editing existing rooms)
+      room_id: roomData.room_id || roomData.roomId || roomData.id,
+      roomId: roomData.roomId || roomData.room_id || roomData.id,
+      id: roomData.id || roomData.roomId || roomData.room_id
     };
 
     // Navigate to next step (step 4/5 - Base Rate, skipping Pricing Model)
+    // IMPORTANT: Preserve isEdit and isCopy flags
     navigate('/stays/setup/base-rate', {
       state: {
         ...location.state,
         roomData: updatedRoomData,
-        roomSetupStep: 4
+        roomSetupStep: 4,
+        isEdit: location.state?.isEdit || false,
+        isCopy: location.state?.isCopy || false
       }
     });
   };
 
   const handleBack = () => {
-    // Go back to step 2 with room data
+    // Preserve current room name in roomData when going back
+    // IMPORTANT: Remove "(Copy)" suffix if present
+    const cleanedRoomName = roomName.replace(/\s*\(Copy\)\s*$/, '').trim() || roomName;
+    
+    // IMPORTANT: Explicitly preserve all ID fields for editing
+    const updatedRoomData = {
+      ...roomData,
+      roomName: cleanedRoomName, // Save cleaned room name without "(Copy)" suffix
+      step: 3,
+      // Preserve all ID fields explicitly (critical for editing existing rooms)
+      room_id: roomData.room_id || roomData.roomId || roomData.id,
+      roomId: roomData.roomId || roomData.room_id || roomData.id,
+      id: roomData.id || roomData.roomId || roomData.room_id
+    };
+    
+    // Go back to step 2 with updated room data (preserving room name)
+    // IMPORTANT: Preserve isEdit and isCopy flags
     navigate('/stays/setup/room-amenities', {
       state: {
         ...location.state,
-        roomData: roomData,
-        roomSetupStep: 2
+        roomData: updatedRoomData,
+        roomSetupStep: 2,
+        isEdit: location.state?.isEdit || false,
+        isCopy: location.state?.isCopy || false
       }
     });
   };
@@ -121,7 +191,7 @@ export default function ReviewRoomNameStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-6xl mx-auto">
           {/* Progress Indicator */}
-          <ProgressIndicator currentStep={5} totalSteps={10} />
+          <ProgressIndicator currentStep={4} totalSteps={10} />
 
           {/* Navigation Link */}
           <button

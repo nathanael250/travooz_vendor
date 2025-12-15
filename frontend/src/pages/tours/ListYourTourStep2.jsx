@@ -67,6 +67,8 @@ export default function ListYourTourStep2() {
     countryCode: existingStep2Data.countryCode || '+250', // Default to Rwanda
     phone: existingStep2Data.phone || '',
     otherTourType: existingStep2Data.otherTourType || '', // Custom tour type when "Other" is selected
+    wantsNotifications: existingStep2Data.wantsNotifications || 'no',
+    notificationReceiver: existingStep2Data.notificationReceiver || ''
   });
 
   const [errors, setErrors] = useState({});
@@ -127,6 +129,16 @@ export default function ListYourTourStep2() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    
+    // Clear notification receiver email if user selects "no"
+    if (name === 'wantsNotifications' && value === 'no') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value,
+        notificationReceiver: ''
+      }));
+      return;
+    }
       setFormData(prev => ({
         ...prev,
         [name]: value
@@ -460,6 +472,56 @@ export default function ListYourTourStep2() {
                 </div>
               )}
 
+              {/* Notification Receiver Section */}
+              <div className="bg-gray-50 rounded-lg p-5 border" style={{ borderColor: '#e5e7eb' }}>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Do you want to receive notifications from travooz.com?
+                </label>
+                <div className="flex gap-6 mb-4">
+                  <label className="flex items-center cursor-pointer group">
+                    <input
+                      type="radio"
+                      name="wantsNotifications"
+                      value="yes"
+                      checked={formData.wantsNotifications === 'yes'}
+                      onChange={handleChange}
+                      className="w-4 h-4 mr-2 cursor-pointer"
+                      style={{ accentColor: '#3CAF54' }}
+                    />
+                    <span className="text-gray-700 group-hover:text-[#3CAF54] transition-colors">Yes</span>
+                  </label>
+                  <label className="flex items-center cursor-pointer group">
+                    <input
+                      type="radio"
+                      name="wantsNotifications"
+                      value="no"
+                      checked={formData.wantsNotifications === 'no'}
+                      onChange={handleChange}
+                      className="w-4 h-4 mr-2 cursor-pointer"
+                      style={{ accentColor: '#3CAF54' }}
+                    />
+                    <span className="text-gray-700 group-hover:text-[#3CAF54] transition-colors">No</span>
+                  </label>
+                </div>
+                {formData.wantsNotifications === 'yes' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Notification Receiver Email *
+                    </label>
+                    <input
+                      type="email"
+                      name="notificationReceiver"
+                      value={formData.notificationReceiver}
+                      onChange={handleChange}
+                      placeholder="Enter email address for notifications"
+                      className="w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 placeholder-gray-400 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      This email will receive important notifications and updates from travooz.com
+                    </p>
+                  </div>
+                )}
+              </div>
 
               <div className="flex gap-4">
                 <button

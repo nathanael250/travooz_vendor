@@ -17,6 +17,11 @@ export default function SetUpRoomStep() {
     };
   }, []);
 
+  // Scroll to top when component mounts or location changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
+
   // Redirect if no user data
   useEffect(() => {
     if (!location.state?.userId) {
@@ -35,6 +40,55 @@ export default function SetUpRoomStep() {
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Load room data from location.state if editing/copying or navigating back
+  useEffect(() => {
+    const roomData = location.state?.roomData;
+    if (roomData) {
+      console.log('[SetUpRoomStep] Loading room data:', roomData);
+      
+      // Map database field names (snake_case) to form field names (camelCase)
+      // Also check if data is already in form format (from previous step navigation)
+      const mappedData = {
+        roomType: roomData.roomType || roomData.room_type || '',
+        roomClass: roomData.roomClass || roomData.room_class || '',
+        smokingPolicy: roomData.smokingPolicy || roomData.smoking_policy || '',
+        numberOfRooms: roomData.numberOfRooms || roomData.number_of_rooms || 1,
+        recommendedOccupancy: roomData.recommendedOccupancy || roomData.recommended_occupancy || 0
+      };
+
+      // Handle beds - could be from roomData.beds or roomData.room_beds
+      // Also preserve beds if they're already in the correct format
+      let beds = [{ bedType: '', quantity: 1 }];
+      if (roomData.beds && Array.isArray(roomData.beds) && roomData.beds.length > 0) {
+        // Check if beds are already in form format (bedType) or database format (bed_type)
+        beds = roomData.beds.map(bed => ({
+          bedType: bed.bedType || bed.bed_type || '',
+          quantity: bed.quantity || 1
+        }));
+      } else if (roomData.room_beds && Array.isArray(roomData.room_beds) && roomData.room_beds.length > 0) {
+        beds = roomData.room_beds.map(bed => ({
+          bedType: bed.bedType || bed.bed_type || '',
+          quantity: bed.quantity || 1
+        }));
+      }
+
+      const newFormData = {
+        ...mappedData,
+        beds: beds.length > 0 ? beds : [{ bedType: '', quantity: 1 }]
+      };
+      
+      console.log('[SetUpRoomStep] Setting form data:', newFormData);
+      setFormData(newFormData);
+      
+      // Store the full room data (including amenities) in a way that will be preserved
+      // This ensures amenities are available when navigating to RoomAmenitiesStep
+      if (roomData.amenities) {
+        // Amenities will be loaded in RoomAmenitiesStep from location.state.roomData
+        console.log('[SetUpRoomStep] Room has amenities:', roomData.amenities);
+      }
+    }
+  }, [location.state?.roomData]);
 
   // Room type options
   const roomTypes = [
@@ -67,8 +121,7 @@ export default function SetUpRoomStep() {
   // Smoking policy options
   const smokingPolicies = [
     'Non-smoking',
-    'Smoking',
-    'Smoking and Non-smoking'
+    'Smoking'
   ];
 
   // Bed type options
@@ -209,18 +262,73 @@ export default function SetUpRoomStep() {
     }
 
     // Store room data temporarily (will be saved to backend in later steps)
+    // Preserve existing data from previousRoomData if editing/copying or navigating back
+    const existingRoomData = location.state?.roomData || {};
+    const isCopy = location.state?.isCopy || false;
+    const isEdit = location.state?.isEdit || false;
+    
+    // Determine if we're editing an existing room (has valid room_id) or creating new
+    // Get the actual database room_id (prioritize room_id and roomId over id)
+    let actualRoomId = existingRoomData.room_id || existingRoomData.roomId;
+    
+    // Only use 'id' if it's a valid database ID (not Date.now() which is > 1e12)
+    if (!actualRoomId && existingRoomData.id) {
+      const parsedId = parseInt(existingRoomData.id, 10);
+      if (!isNaN(parsedId) && parsedId > 0 && parsedId < 1000000) {
+        actualRoomId = parsedId;
+      }
+    }
+    
+    // We have a valid room_id if: (1) actualRoomId exists, (2) NOT a copy, (3) explicitly marked as edit OR has room_id
+    const hasValidRoomId = actualRoomId && !isCopy && (isEdit || existingRoomData.room_id);
+    
+    console.log('[SetUpRoomStep] Room ID check:', {
+      existingRoomData: {
+        room_id: existingRoomData.room_id,
+        roomId: existingRoomData.roomId,
+        id: existingRoomData.id
+      },
+      actualRoomId,
+      isCopy,
+      isEdit,
+      hasValidRoomId
+    });
+    
     const roomData = {
+      // Use current form data (user's current input)
       ...formData,
       step: 1, // Current step in room setup (1/6)
-      id: Date.now() // Temporary ID
+      // Only set temporary ID if this is a new room (no existing room_id)
+      // If editing, preserve the actual database ID (not Date.now() which is too large)
+      ...(hasValidRoomId ? {
+        // Editing existing room - use database ID (not temporary Date.now())
+        id: actualRoomId,
+        room_id: actualRoomId,
+        roomId: actualRoomId
+      } : {
+        // New room - use temporary ID (but this won't be sent to backend)
+        id: Date.now()
+      }),
+      // Preserve all existing room data (amenities, ratePlans, etc.) if editing/copying/navigating back
+      ...(existingRoomData.amenities && { amenities: existingRoomData.amenities }),
+      ...(existingRoomData.ratePlans && { ratePlans: existingRoomData.ratePlans }),
+      ...(existingRoomData.roomName && { roomName: existingRoomData.roomName }),
+      ...(existingRoomData.baseRate && { baseRate: existingRoomData.baseRate }),
+      // Preserve peopleIncluded if it exists
+      ...(existingRoomData.peopleIncluded && { peopleIncluded: existingRoomData.peopleIncluded })
     };
+    
+    console.log('[SetUpRoomStep] Navigating forward with room data:', roomData);
 
     // Navigate to next step (step 2/6 - Room Amenities)
+    // IMPORTANT: Preserve isEdit and isCopy flags so subsequent steps know if this is an edit
     navigate('/stays/setup/room-amenities', {
       state: {
         ...location.state,
         roomData: roomData,
-        roomSetupStep: 2
+        roomSetupStep: 2,
+        isEdit: isEdit,
+        isCopy: isCopy
       }
     });
   };
@@ -238,7 +346,7 @@ export default function SetUpRoomStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-4xl mx-auto">
           {/* Progress Indicator */}
-          <ProgressIndicator currentStep={5} totalSteps={10} />
+          <ProgressIndicator currentStep={4} totalSteps={10} />
 
           {/* Navigation Link */}
           <button

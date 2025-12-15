@@ -15,7 +15,7 @@ import {
   User,
   AlertCircle
 } from 'lucide-react';
-import { staysAuthService, getMyPropertyListings } from '../../services/staysService';
+import { staysAuthService, getMyPropertyListings, staysSetupService } from '../../services/staysService';
 import toast from 'react-hot-toast';
 import logo from '../../assets/images/cdc_logo.jpg';
 import useTranslation from '../../hooks/useTranslation';
@@ -32,6 +32,8 @@ const StaysDashboardLayout = () => {
   const [properties, setProperties] = useState([]);
   const [currentProperty, setCurrentProperty] = useState(null);
   const [isPropertyLive, setIsPropertyLive] = useState(false);
+  const [setupComplete, setSetupComplete] = useState(true);
+  const [isCheckingSetup, setIsCheckingSetup] = useState(true);
 
   useEffect(() => {
     // Check authentication
@@ -60,10 +62,27 @@ const StaysDashboardLayout = () => {
             latestProperty.is_live === true ||
             latestProperty.status === 'approved';
           setIsPropertyLive(propertyIsLive);
+
+          // Check setup status
+          try {
+            const propertyId = latestProperty.property_id || latestProperty.propertyId;
+            if (propertyId) {
+              const status = await staysSetupService.getSetupStatus(propertyId);
+              const isComplete = status.setupComplete || status.allComplete;
+              setSetupComplete(isComplete);
+            }
+          } catch (error) {
+            console.error('Error checking setup status:', error);
+            // Check localStorage as fallback
+            const setupCompleteLocal = localStorage.getItem('stays_setup_complete') === 'true';
+            setSetupComplete(setupCompleteLocal);
+          }
         }
       } catch (error) {
         console.error('Error checking auth:', error);
         navigate('/stays/login', { replace: true });
+      } finally {
+        setIsCheckingSetup(false);
       }
     };
 
@@ -104,6 +123,15 @@ const StaysDashboardLayout = () => {
     { icon: FileText, label: t('stays.nav.reports'), path: '/stays/dashboard/reports', category: 'Analytics', disabled: !isPropertyLive },
     { icon: BookOpen, label: t('stays.nav.apiDocs'), path: '/stays/dashboard/api-docs', category: 'Support', disabled: !isPropertyLive },
   ];
+
+  // If setup is incomplete, hide layout and show only the content (card)
+  if (!isCheckingSetup && !setupComplete) {
+    return (
+      <div className="h-screen bg-gray-100">
+        <Outlet />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">

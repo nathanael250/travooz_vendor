@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { restaurantsAPI, ordersAPI } from '../../services/restaurantDashboardService';
+import { restaurantSetupService, restaurantOnboardingProgressService } from '../../services/eatingOutService';
+import restaurantAuthService from '../../services/restaurantAuthService';
 import { Store, DollarSign, TrendingUp, ShoppingBag, Calendar as CalendarIcon, Clock, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -33,61 +35,14 @@ const Dashboard = () => {
   const [orderTypeData, setOrderTypeData] = useState([]);
   const [dateRange, setDateRange] = useState('today');
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Start as false, will be set to true when fetching
+  const [isCheckingApproval, setIsCheckingApproval] = useState(true); // Add loading state for approval check
+  const [setupComplete, setSetupComplete] = useState(true);
+  const [setupStatus, setSetupStatus] = useState(null);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, [dateRange, selectedDate]);
-
-  // Check restaurant approval status on mount
-  useEffect(() => {
-    const checkApprovalStatus = async () => {
-      try {
-        const myRestaurant = await restaurantsAPI.getMyRestaurant();
-        
-        // If restaurant is null and we have restaurant_id in session, it was deleted
-        // getMyRestaurant will handle the logout
-        if (myRestaurant === null && localStorage.getItem('restaurant_id')) {
-          console.log('⚠️ Restaurant was deleted - logout handled by getMyRestaurant');
-          return;
-        }
-        
-        if (myRestaurant) {
-          const restaurantStatus = myRestaurant.status || myRestaurant.data?.status;
-          // Normalize status to lowercase for comparison
-          const normalizedStatus = restaurantStatus ? String(restaurantStatus).toLowerCase() : null;
-          
-          console.log('🔍 Dashboard - Restaurant status check:', {
-            status: restaurantStatus,
-            normalized: normalizedStatus,
-            restaurant: myRestaurant
-          });
-          
-          // If restaurant is not approved, redirect to waiting page
-          if (normalizedStatus && normalizedStatus !== 'approved' && normalizedStatus !== 'active') {
-            console.log('⏳ Restaurant not approved yet (status:', normalizedStatus, '), redirecting to waiting page');
-            navigate('/restaurant/setup/complete', { replace: true });
-            return;
-          } else if (normalizedStatus === 'approved' || normalizedStatus === 'active') {
-            console.log('✅ Restaurant is approved, showing dashboard');
-          }
-        }
-      } catch (error) {
-        // Check if it's a restaurant not found error
-        const { isRestaurantNotFoundError } = await import('../../utils/restaurantAuth');
-        if (isRestaurantNotFoundError(error)) {
-          console.log('⚠️ Restaurant not found error - logout handled');
-          return;
-        }
-        console.error('Error checking restaurant approval status:', error);
-        // Continue - might be in setup process
-      }
-    };
-
-    checkApprovalStatus();
-  }, [navigate]);
-
-  const fetchDashboardData = async () => {
+  // Define fetchDashboardData before useEffect
+  const fetchDashboardData = async (restaurantToUse = null) => {
+    console.log('🔄 fetchDashboardData called', { restaurantToUse: !!restaurantToUse, restaurant: !!restaurant });
     try {
       setLoading(true);
       const today = new Date();
@@ -113,12 +68,16 @@ const Dashboard = () => {
         endDate.setHours(23, 59, 59, 999);
       }
 
-      // Get vendor's restaurant (one restaurant per vendor)
-      const myRestaurant = await restaurantsAPI.getMyRestaurant();
+      // Use provided restaurant or fetch it
+      let myRestaurant = restaurantToUse || restaurant;
+      if (!myRestaurant) {
+        myRestaurant = await restaurantsAPI.getMyRestaurant();
+      }
       
       // If restaurant is null and we have restaurant_id in session, it was deleted
       if (myRestaurant === null && localStorage.getItem('restaurant_id')) {
         console.log('⚠️ Restaurant was deleted during data fetch - logout handled');
+        setLoading(false);
         return;
       }
       
@@ -143,14 +102,27 @@ const Dashboard = () => {
         // If restaurant is not approved, redirect to waiting page
         if (normalizedStatus && normalizedStatus !== 'approved' && normalizedStatus !== 'active') {
           console.log('⏳ Restaurant not approved yet (status:', normalizedStatus, '), redirecting to waiting page');
+          setLoading(false);
           navigate('/restaurant/setup/complete', { replace: true });
           return;
         } else if (normalizedStatus === 'approved' || normalizedStatus === 'active') {
           console.log('✅ Restaurant is approved, loading dashboard data');
+          // Check setup status
+          try {
+            const setupInfo = await restaurantSetupService.getSetupStatus(myRestaurant.id);
+            setSetupComplete(setupInfo?.setupComplete || setupInfo?.setup_complete || false);
+            setSetupStatus(setupInfo);
+          } catch (setupErr) {
+            console.warn('⚠️ Could not check setup status:', setupErr);
+            setSetupComplete(true); // Assume complete if we can't check
+          }
         }
       }
       
-      setRestaurant(myRestaurant);
+      // Set restaurant state if not already set
+      if (!restaurant || restaurant.id !== myRestaurant.id) {
+        setRestaurant(myRestaurant);
+      }
 
       if (!myRestaurant) {
         // Don't show error toast - just show empty state
@@ -160,7 +132,9 @@ const Dashboard = () => {
       }
 
       // Get orders for vendor's restaurant
+      console.log('📦 Fetching orders for restaurant:', myRestaurant.id);
       const allOrders = await ordersAPI.getAll(myRestaurant.id);
+      console.log('📦 Orders fetched:', allOrders?.length || 0);
       const orders = allOrders.filter(order => {
         const orderDate = new Date(order.created_at);
         return orderDate >= startDate && orderDate <= endDate;
@@ -238,7 +212,10 @@ const Dashboard = () => {
         todayOrders: todayOrders.length,
         totalOrders: orders?.length || 0,
       });
+      
+      console.log('✅ fetchDashboardData completed successfully');
     } catch (error) {
+      console.error('❌ fetchDashboardData error:', error);
       console.error('Error fetching dashboard data:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Failed to fetch dashboard data';
       toast.error(errorMessage);
@@ -255,7 +232,74 @@ const Dashboard = () => {
     }
   };
 
-  if (loading) {
+  // Since DashboardLayout already checks approval, we can skip the redundant check
+  // and just fetch the restaurant and dashboard data directly
+  useEffect(() => {
+    const initializeDashboard = async () => {
+      console.log('🚀 Dashboard - initializeDashboard started');
+      setIsCheckingApproval(true);
+      try {
+        console.log('📞 Dashboard - Calling getMyRestaurant...');
+        const myRestaurant = await restaurantsAPI.getMyRestaurant();
+        console.log('📞 Dashboard - getMyRestaurant returned:', myRestaurant?.id);
+        
+        if (!myRestaurant) {
+          console.log('⚠️ No restaurant found');
+          setIsCheckingApproval(false);
+          setLoading(false);
+          return;
+        }
+        
+        // Set restaurant state
+        setRestaurant(myRestaurant);
+        
+        // Check setup status
+        try {
+          const setupInfo = await restaurantSetupService.getSetupStatus(myRestaurant.id);
+          setSetupComplete(setupInfo?.setupComplete || setupInfo?.setup_complete || false);
+          setSetupStatus(setupInfo);
+        } catch (setupErr) {
+          console.warn('⚠️ Could not check setup status:', setupErr);
+          setSetupComplete(true); // Assume complete if we can't check
+        }
+        
+        setIsCheckingApproval(false);
+        // Fetch dashboard data
+        console.log('📊 Calling fetchDashboardData');
+        fetchDashboardData(myRestaurant);
+      } catch (error) {
+        console.error('❌ Dashboard - initializeDashboard error:', error);
+        setIsCheckingApproval(false);
+        setLoading(false);
+      }
+    };
+
+    initializeDashboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigate]);
+
+  // Fetch dashboard data when date range or selected date changes (only if approval check is done)
+  // IMPORTANT: This must be before any conditional returns to maintain hook order
+  useEffect(() => {
+    if (!isCheckingApproval && restaurant) {
+      fetchDashboardData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange, selectedDate]);
+
+  // Show loading screen while checking approval status
+  if (isCheckingApproval) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-[#3CAF54] mx-auto mb-4"></div>
+          <p className="text-sm sm:text-base text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading && !isCheckingApproval) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -276,6 +320,87 @@ const Dashboard = () => {
           <p className="text-gray-600 mb-6">
             Please complete your restaurant setup to access the dashboard.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show setup incomplete message if needed
+  if (!setupComplete) {
+    const handleContinueSetup = async () => {
+      try {
+        const currentUser = restaurantAuthService.getCurrentUser();
+        if (!currentUser || !currentUser.user_id) {
+          toast.error('Session expired. Please log in again.');
+          navigate('/restaurant/login');
+          return;
+        }
+
+        const restaurantId = restaurant?.id || localStorage.getItem('restaurant_id');
+        if (!restaurantId) {
+          toast.error('Restaurant ID not found. Please start setup again.');
+          navigate('/restaurant/list-your-restaurant');
+          return;
+        }
+
+        // Get progress to determine next step
+        try {
+          const progressData = await restaurantOnboardingProgressService.getProgress();
+          if (progressData && progressData.progress) {
+            const currentStep = progressData.progress.current_step;
+            const stepMapping = progressData.stepMapping || {};
+            const targetStep = stepMapping[currentStep];
+            
+            if (targetStep && targetStep.route) {
+              navigate(targetStep.route, { replace: true });
+              return;
+            }
+          }
+        } catch (progressError) {
+          console.error('Error getting progress:', progressError);
+        }
+
+        // Fallback: navigate to business details (first setup step)
+        navigate('/restaurant/setup/business-details', { replace: true });
+      } catch (error) {
+        console.error('Error continuing setup:', error);
+        toast.error('Failed to continue setup. Please try again.');
+      }
+    };
+
+    const handleLogout = () => {
+      restaurantAuthService.logout();
+      navigate('/restaurant/login');
+    };
+
+    return (
+      <div className="flex h-screen bg-gray-100 items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          <div className="bg-white rounded-lg shadow-xl p-8 border text-center">
+            <AlertCircle className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Setup Incomplete</h2>
+            <p className="text-gray-600 mb-6">
+              Please complete your restaurant setup to access the dashboard.
+            </p>
+            <button
+              onClick={handleContinueSetup}
+              className="w-full px-6 py-3 text-white font-semibold rounded-lg transition-colors shadow-md hover:shadow-lg"
+              style={{ backgroundColor: '#3CAF54' }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
+            >
+              Continue Setup
+            </button>
+          </div>
+          {/* Logout link below the card */}
+          <div className="text-center mt-4">
+            <button
+              onClick={handleLogout}
+              className="text-gray-600 hover:text-gray-900 text-sm underline"
+            >
+              Having trouble? Logout and sign in again
+            </button>
+          </div>
         </div>
       </div>
     );

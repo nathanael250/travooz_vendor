@@ -107,7 +107,7 @@ const Pricing = () => {
                           className="w-24 px-2 py-1 border border-gray-300 rounded"
                         />
                       ) : (
-                        <span className="text-gray-900">${car.daily_rate || '0.00'}</span>
+                        <span className="text-gray-900">RWF {parseFloat(car.daily_rate || 0).toLocaleString()}</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -119,7 +119,7 @@ const Pricing = () => {
                           className="w-24 px-2 py-1 border border-gray-300 rounded"
                         />
                       ) : (
-                        <span className="text-gray-900">${car.weekly_rate || '0.00'}</span>
+                        <span className="text-gray-900">RWF {parseFloat(car.weekly_rate || 0).toLocaleString()}</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -131,7 +131,7 @@ const Pricing = () => {
                           className="w-24 px-2 py-1 border border-gray-300 rounded"
                         />
                       ) : (
-                        <span className="text-gray-900">${car.monthly_rate || '0.00'}</span>
+                        <span className="text-gray-900">RWF {parseFloat(car.monthly_rate || 0).toLocaleString()}</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -143,7 +143,7 @@ const Pricing = () => {
                           className="w-24 px-2 py-1 border border-gray-300 rounded"
                         />
                       ) : (
-                        <span className="text-gray-900">${car.security_deposit || '0.00'}</span>
+                        <span className="text-gray-900">RWF {parseFloat(car.security_deposit || 0).toLocaleString()}</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

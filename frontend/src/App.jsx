@@ -60,6 +60,7 @@ import ConnectivitySettingsStep from './pages/stays/ConnectivitySettingsStep';
 import ReviewListingStep from './pages/stays/ReviewListingStep';
 import SubmitListingStep from './pages/stays/SubmitListingStep';
 import SetupInProgress from './pages/stays/SetupInProgress';
+import StaysSetupComplete from './pages/stays/SetupComplete';
 import StaysDashboard from './pages/stays/Dashboard';
 import MyProperty from './pages/stays/MyPropertyTabbed';
 import RoomAvailability from './pages/stays/RoomAvailability';
@@ -229,6 +230,7 @@ function App() {
           <Route path="/stays/setup/review" element={<ReviewListingStep />} />
           <Route path="/stays/setup/submit" element={<SubmitListingStep />} />
           <Route path="/stays/setup/in-progress" element={<SetupInProgress />} />
+          <Route path="/stays/setup/complete" element={<StaysSetupComplete />} />
           
           {/* Stays Dashboard - Nested Routes with Layout */}
           <Route path="/stays/dashboard" element={<StaysDashboardLayout />}>

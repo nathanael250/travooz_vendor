@@ -167,6 +167,8 @@ export default function ListYourTourStep3() {
           currency: step2Data.currency,
           location: location.state?.location || '',
           locationData: locationData,
+          wantsNotifications: step2Data.wantsNotifications || 'no',
+          notificationReceiver: step2Data.notificationReceiver || '',
           ...tourTypePayload
         });
 
@@ -258,6 +260,8 @@ export default function ListYourTourStep3() {
         currency: step2Data.currency,
         location: location.state?.location || '',
         locationData: locationData,
+        wantsNotifications: step2Data.wantsNotifications || 'no',
+        notificationReceiver: step2Data.notificationReceiver || '',
         ...tourTypePayload
       });
 

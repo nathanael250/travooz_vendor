@@ -17,39 +17,73 @@ staysApiClient.interceptors.request.use(
   }
 );
 
-// Handle token expiration
+// Handle token expiration and not found errors
 staysApiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Only redirect if we're NOT on a login page and NOT on other service pages
-      const currentPath = window.location.pathname;
-      const isLoginPage = currentPath.includes('/login') || currentPath.includes('/auth/');
-      const isTourPage = currentPath.includes('/tours/');
-      const isRestaurantPage = currentPath.includes('/restaurant/');
-      const isCarRentalPage = currentPath.includes('/car-rental/');
-      
-      // CRITICAL: Only handle stays-related 401s, ignore 401s from other services
-      // Check if this is actually a stays API call
-      const isStaysApiCall = error.config?.url?.includes('/stays/') || 
-                            error.config?.baseURL?.includes('/stays/');
-      
+    const status = error.response?.status;
+    const message = error.response?.data?.message || error.message || '';
+    const currentPath = window.location.pathname;
+    const isLoginPage = currentPath.includes('/login') || currentPath.includes('/auth/');
+    const isTourPage = currentPath.includes('/tours/');
+    const isRestaurantPage = currentPath.includes('/restaurant/');
+    const isCarRentalPage = currentPath.includes('/car-rental/');
+    
+    // Check if this is actually a stays API call
+    const isStaysApiCall = error.config?.url?.includes('/stays/') || 
+                          error.config?.baseURL?.includes('/stays/');
+    
+    // Handle 401 (Unauthorized)
+    if (status === 401) {
       // Don't redirect if we're on login pages or other service pages
-      // This prevents stays interceptor from interfering with other services
-      // Also only redirect if this is actually a stays API call
       if (isStaysApiCall && !isLoginPage && !isTourPage && !isRestaurantPage && !isCarRentalPage) {
         localStorage.removeItem('stays_token');
         localStorage.removeItem('stays_user');
         window.location.href = '/stays/login';
       } else {
         // Just clear stays tokens, don't redirect
-        // This is not a stays API call or we're on another service's page
         if (isStaysApiCall) {
           localStorage.removeItem('stays_token');
           localStorage.removeItem('stays_user');
         }
       }
     }
+    
+    // Handle 404 (Not Found) - Property or User not found
+    if (status === 404 && isStaysApiCall && !isLoginPage) {
+      const isNotFoundError = 
+        message.toLowerCase().includes('not found') ||
+        message.toLowerCase().includes('property not found') ||
+        message.toLowerCase().includes('user not found') ||
+        message.toLowerCase().includes('does not exist');
+      
+      if (isNotFoundError) {
+        // Clear all stays-related localStorage data
+        const staysKeys = [
+          'stays_property_id',
+          'stays_user_id',
+          'stays_token',
+          'stays_contract_accepted',
+          'stays_policies',
+          'stays_amenities',
+          'stays_rooms',
+          'stays_property_images',
+          'stays_room_images',
+          'stays_setup_complete',
+          'stays_property_status',
+          'token',
+          'auth_token',
+          'user',
+          'stays_user'
+        ];
+        
+        staysKeys.forEach(key => localStorage.removeItem(key));
+        
+        // Redirect to login
+        window.location.href = '/stays/login';
+      }
+    }
+    
     return Promise.reject(error);
   }
 );
@@ -180,6 +214,15 @@ export const getPropertyListing = async (propertyId) => {
 export const getPropertyWithAllData = async (propertyId) => {
   try {
     const response = await staysApiClient.get(`/stays/properties/${propertyId}/complete`);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+export const getPropertyRooms = async (propertyId) => {
+  try {
+    const response = await staysApiClient.get(`/stays/properties/${propertyId}/rooms`);
     return response.data.data || response.data;
   } catch (error) {
     throw error.response?.data || error;
@@ -381,6 +424,20 @@ export const staysSetupService = {
   },
 
   /**
+   * Delete Room
+   */
+  async deleteRoom(propertyId, roomId) {
+    try {
+      const response = await staysApiClient.delete(`/stays/setup/room/${roomId}`, {
+        data: { propertyId },
+      });
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
    * Step 7: Save Promotions
    */
   async savePromotions(propertyId, promotions) {
@@ -453,6 +510,70 @@ export const staysSetupService = {
   },
 
   /**
+   * Get Policies
+   */
+  async getPolicies(propertyId) {
+    try {
+      const response = await staysApiClient.get(`/stays/setup/policies/${propertyId}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      // If 404, return null (no policies saved yet)
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Get Amenities
+   */
+  async getAmenities(propertyId) {
+    try {
+      const response = await staysApiClient.get(`/stays/setup/amenities/${propertyId}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      // If 404, return null (no amenities saved yet)
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Get Tax Details
+   */
+  async getTaxDetails(propertyId) {
+    try {
+      const response = await staysApiClient.get(`/stays/setup/taxes/${propertyId}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      // If 404, return null (no tax details saved yet)
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Get Connectivity Settings
+   */
+  async getConnectivity(propertyId) {
+    try {
+      const response = await staysApiClient.get(`/stays/setup/connectivity/${propertyId}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      // If 404, return null (no connectivity saved yet)
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
    * Submit Final Listing
    */
   async submitListing(propertyId) {
@@ -509,6 +630,76 @@ export const staysBookingService = {
       if (endDate) params.append('end_date', endDate);
 
       const response = await staysApiClient.get(`/stays/availability?${params.toString()}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  }
+};
+
+// Onboarding Progress Tracking API functions
+export const staysOnboardingProgressService = {
+  /**
+   * Get current onboarding progress
+   */
+  async getProgress() {
+    try {
+      const response = await staysApiClient.get('/stays/onboarding/progress');
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Save or update onboarding progress
+   */
+  async saveProgress(stepKey, propertyId = null, isComplete = false) {
+    try {
+      const response = await staysApiClient.post('/stays/onboarding/progress', {
+        stepKey,
+        propertyId,
+        isComplete
+      });
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Mark a step as complete and move to next step
+   */
+  async completeStep(stepKey, propertyId = null) {
+    try {
+      const response = await staysApiClient.post('/stays/onboarding/complete-step', {
+        stepKey,
+        propertyId
+      });
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Get the next step the user should be on
+   */
+  async getNextStep() {
+    try {
+      const response = await staysApiClient.get('/stays/onboarding/next-step');
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Reset progress (for testing)
+   */
+  async resetProgress() {
+    try {
+      const response = await staysApiClient.delete('/stays/onboarding/progress');
       return response.data.data || response.data;
     } catch (error) {
       throw error.response?.data || error;

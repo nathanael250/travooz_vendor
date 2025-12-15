@@ -106,6 +106,11 @@ export default function MediaStep() {
                 : `${apiBaseUrl.replace('/api/v1', '')}${logoUrl}`;
               console.log('📸 Setting logo preview:', fullUrl);
               setLogoPreview(fullUrl);
+              // Set a marker to indicate logo exists (even though it's not a file object)
+              // This allows validation to pass when logo is loaded from database
+              setLogo('existing'); // Use a marker value to indicate existing logo
+              // This allows validation to pass when logo is loaded from database
+              setLogo('existing'); // Use a marker value to indicate existing logo
             }
           }
 
@@ -198,9 +203,9 @@ export default function MediaStep() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validation - logo is required
-    if (!logo) {
-      setSubmitError('Please upload a restaurant logo');
+    // Validation - logo is required (either new upload or existing from database)
+    if (!logo && !logoPreview) {
+      setSubmitError('Please upload a front image');
       return;
     }
 
@@ -226,8 +231,9 @@ export default function MediaStep() {
 
     try {
       // Save media via API
+      // Only send logo if it's a File object (new upload), not if it's 'existing' marker
       await restaurantSetupService.saveMedia(restaurantId, {
-        logo,
+        logo: logo instanceof File ? logo : null, // Only send file if it's a new upload
         galleryImages
       });
 
@@ -277,7 +283,7 @@ export default function MediaStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-3xl w-full mx-auto">
           {/* Progress Indicator */}
-          <SetupProgressIndicator currentStep={5} totalSteps={11} />
+          <SetupProgressIndicator currentStepKey="media" currentStepNumber={5} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>
@@ -307,10 +313,10 @@ export default function MediaStep() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-8">
-              {/* Restaurant Logo */}
+              {/* Front Image */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Restaurant Logo *
+                  Front Image *
                   <span className="text-gray-500 font-normal ml-2">(Recommended: Square, 500x500px, max 5MB)</span>
                 </label>
                 <div className="flex items-start gap-4">
@@ -352,10 +358,10 @@ export default function MediaStep() {
                       className="px-4 py-2 border-2 border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors flex items-center gap-2"
                     >
                       <Upload className="h-4 w-4" />
-                      <span>{logo ? 'Change Logo' : 'Upload Logo'}</span>
+                      <span>{logo ? 'Change Front Image' : 'Upload Front Image'}</span>
                     </button>
                     <p className="text-xs text-gray-500 mt-2">
-                      Your restaurant logo will be displayed on your listing and in search results.
+                      Your front image will be displayed on your listing and in search results.
                     </p>
                   </div>
                 </div>

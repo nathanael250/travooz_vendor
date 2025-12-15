@@ -1,4 +1,5 @@
 const propertySetupService = require('../../services/stays/propertySetup.service');
+const onboardingProgressService = require('../../services/stays/onboardingProgress.service');
 const { sendSuccess, sendError } = require('../../utils/response.utils');
 
 // Step 2: Save Contract Acceptance
@@ -12,6 +13,7 @@ const saveContract = async (req, res) => {
         }
 
         await propertySetupService.saveContract(userId, propertyId);
+        // Contract step removed - no progress tracking needed
         return sendSuccess(res, { success: true }, 'Contract accepted successfully');
     } catch (error) {
         console.error('Error saving contract:', error);
@@ -30,6 +32,8 @@ const savePolicies = async (req, res) => {
         }
 
         await propertySetupService.savePolicies(userId, propertyId, policiesData);
+        // Save progress - policies step completed
+        await onboardingProgressService.completeStep(userId, 'policies', propertyId);
         return sendSuccess(res, { success: true }, 'Policies saved successfully');
     } catch (error) {
         console.error('Error saving policies:', error);
@@ -48,6 +52,8 @@ const saveAmenities = async (req, res) => {
         }
 
         await propertySetupService.saveAmenities(userId, propertyId, amenitiesData);
+        // Save progress - amenities step completed
+        await onboardingProgressService.completeStep(userId, 'amenities', propertyId);
         return sendSuccess(res, { success: true }, 'Amenities saved successfully');
     } catch (error) {
         console.error('Error saving amenities:', error);
@@ -102,6 +108,8 @@ const saveImages = async (req, res) => {
         }
 
         await propertySetupService.saveImages(userId, propertyId, imagesData);
+        // Save progress - images step completed
+        await onboardingProgressService.completeStep(userId, 'images', propertyId);
         return sendSuccess(res, { success: true }, 'Images saved successfully');
     } catch (error) {
         console.error('Error saving images:', error);
@@ -120,6 +128,8 @@ const saveTaxDetails = async (req, res) => {
         }
 
         await propertySetupService.saveTaxDetails(userId, propertyId, taxData);
+        // Save progress - taxes step completed
+        await onboardingProgressService.completeStep(userId, 'taxes', propertyId);
         return sendSuccess(res, { success: true }, 'Tax details saved successfully');
     } catch (error) {
         console.error('Error saving tax details:', error);
@@ -138,6 +148,8 @@ const saveConnectivity = async (req, res) => {
         }
 
         await propertySetupService.saveConnectivity(userId, propertyId, connectivityData);
+        // Save progress - connectivity step completed
+        await onboardingProgressService.completeStep(userId, 'connectivity', propertyId);
         return sendSuccess(res, { success: true }, 'Connectivity settings saved successfully');
     } catch (error) {
         console.error('Error saving connectivity:', error);
@@ -164,6 +176,78 @@ const getSetupStatus = async (req, res) => {
 };
 
 // Submit Final Listing
+// Get Policies
+const getPolicies = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { propertyId } = req.params;
+
+        if (!propertyId) {
+            return sendError(res, 'Property ID is required', 400);
+        }
+
+        const policies = await propertySetupService.getPolicies(userId, propertyId);
+        return sendSuccess(res, policies, 'Policies retrieved successfully');
+    } catch (error) {
+        console.error('Error getting policies:', error);
+        return sendError(res, error.message || 'Failed to get policies', 500);
+    }
+};
+
+// Get Amenities
+const getAmenities = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { propertyId } = req.params;
+
+        if (!propertyId) {
+            return sendError(res, 'Property ID is required', 400);
+        }
+
+        const amenities = await propertySetupService.getAmenities(userId, propertyId);
+        return sendSuccess(res, amenities, 'Amenities retrieved successfully');
+    } catch (error) {
+        console.error('Error getting amenities:', error);
+        return sendError(res, error.message || 'Failed to get amenities', 500);
+    }
+};
+
+// Get Tax Details
+const getTaxDetails = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { propertyId } = req.params;
+
+        if (!propertyId) {
+            return sendError(res, 'Property ID is required', 400);
+        }
+
+        const taxDetails = await propertySetupService.getTaxDetails(userId, propertyId);
+        return sendSuccess(res, taxDetails, 'Tax details retrieved successfully');
+    } catch (error) {
+        console.error('Error getting tax details:', error);
+        return sendError(res, error.message || 'Failed to get tax details', 500);
+    }
+};
+
+// Get Connectivity Settings
+const getConnectivity = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { propertyId } = req.params;
+
+        if (!propertyId) {
+            return sendError(res, 'Property ID is required', 400);
+        }
+
+        const connectivity = await propertySetupService.getConnectivity(userId, propertyId);
+        return sendSuccess(res, connectivity, 'Connectivity settings retrieved successfully');
+    } catch (error) {
+        console.error('Error getting connectivity:', error);
+        return sendError(res, error.message || 'Failed to get connectivity', 500);
+    }
+};
+
 const submitListing = async (req, res) => {
     try {
         const userId = req.user.userId;
@@ -184,6 +268,10 @@ const submitListing = async (req, res) => {
             });
         }
 
+        // Save progress - submit step completed, move to complete
+        await onboardingProgressService.completeStep(userId, 'submit', propertyId);
+        await onboardingProgressService.completeStep(userId, 'complete', propertyId);
+
         return sendSuccess(res, result, 'Listing submitted successfully');
     } catch (error) {
         console.error('Error submitting listing:', error);
@@ -191,16 +279,44 @@ const submitListing = async (req, res) => {
     }
 };
 
+// Delete Room
+const deleteRoom = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { roomId } = req.params;
+        const { propertyId } = req.body;
+
+        if (!roomId) {
+            return sendError(res, 'Room ID is required', 400);
+        }
+
+        if (!propertyId) {
+            return sendError(res, 'Property ID is required', 400);
+        }
+
+        await propertySetupService.deleteRoom(userId, propertyId, roomId);
+        return sendSuccess(res, { success: true }, 'Room deleted successfully');
+    } catch (error) {
+        console.error('Error deleting room:', error);
+        return sendError(res, error.message || 'Failed to delete room', 500);
+    }
+};
+
 module.exports = {
     saveContract,
     savePolicies,
+    getPolicies,
     saveAmenities,
+    getAmenities,
     saveRoom,
     savePromotions,
     saveImages,
     saveTaxDetails,
+    getTaxDetails,
     saveConnectivity,
+    getConnectivity,
     getSetupStatus,
-    submitListing
+    submitListing,
+    deleteRoom
 };
 

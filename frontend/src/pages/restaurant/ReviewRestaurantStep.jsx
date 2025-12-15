@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, Edit, Building2, Camera, FileText, UtensilsCrossed, Percent } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import SetupProgressIndicator from '../../components/restaurant/SetupProgressIndicator';
+import { restaurantSetupService, restaurantOnboardingProgressService } from '../../services/eatingOutService';
+import toast from 'react-hot-toast';
 
 export default function ReviewRestaurantStep() {
   const navigate = useNavigate();
@@ -26,6 +28,9 @@ export default function ReviewRestaurantStep() {
   const userId = location.state?.userId;
   const email = location.state?.email;
   const userName = location.state?.userName;
+  const restaurantId = location.state?.restaurantId || localStorage.getItem('restaurant_id');
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleEdit = (section) => {
     const routes = {
@@ -42,12 +47,32 @@ export default function ReviewRestaurantStep() {
     }
   };
 
-  const handleNext = () => {
-    navigate('/restaurant/setup/agreement', {
-      state: {
-        ...location.state
-      }
-    });
+  const handleNext = async () => {
+    if (!restaurantId) {
+      toast.error('Restaurant ID is missing. Please go back and try again.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      // Complete setup (this endpoint handles marking setup as complete and updating progress)
+      await restaurantSetupService.completeSetup(restaurantId);
+
+      toast.success('Setup completed successfully!');
+      
+      navigate('/restaurant/setup/complete', {
+        state: {
+          ...location.state,
+          setupComplete: true
+        }
+      });
+    } catch (error) {
+      console.error('Error completing setup:', error);
+      toast.error(error.message || 'Failed to complete setup. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
 
@@ -69,7 +94,7 @@ export default function ReviewRestaurantStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-5xl mx-auto">
           {/* Progress Indicator */}
-          <SetupProgressIndicator currentStep={10} totalSteps={11} />
+          <SetupProgressIndicator currentStepKey="review" currentStepNumber={9} />
 
           {/* Header */}
           <div className="mb-8">
@@ -132,7 +157,7 @@ export default function ReviewRestaurantStep() {
             </div>
             
             <div className="space-y-2 text-sm text-gray-600">
-              <p><span className="font-medium text-gray-900">Logo:</span> {media.logo ? 'Uploaded' : 'Not uploaded'}</p>
+              <p><span className="font-medium text-gray-900">Front Image:</span> {media.logo ? 'Uploaded' : 'Not uploaded'}</p>
               <p><span className="font-medium text-gray-900">Gallery Images:</span> {media.galleryImages?.length || 0} image(s)</p>
             </div>
           </div>
@@ -193,18 +218,28 @@ export default function ReviewRestaurantStep() {
             </div>
           </div>
 
-          {/* Next Button */}
+          {/* Complete Setup Button */}
           <div className="flex justify-center mt-8">
             <button
               type="button"
               onClick={handleNext}
-              className="text-white font-semibold py-4 px-12 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg text-lg"
+              disabled={isSubmitting}
+              className="text-white font-semibold py-4 px-12 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: '#3CAF54' }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
+              onMouseEnter={(e) => !isSubmitting && (e.target.style.backgroundColor = '#2d8f42')}
+              onMouseLeave={(e) => !isSubmitting && (e.target.style.backgroundColor = '#3CAF54')}
             >
-              <span>Next</span>
-              <ArrowRight className="h-5 w-5" />
+              {isSubmitting ? (
+                <>
+                  <span>Completing Setup...</span>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                </>
+              ) : (
+                <>
+                  <span>Complete Setup</span>
+                  <ArrowRight className="h-5 w-5" />
+                </>
+              )}
             </button>
           </div>
         </div>

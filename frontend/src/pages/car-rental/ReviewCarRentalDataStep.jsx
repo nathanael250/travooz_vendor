@@ -115,8 +115,12 @@ export default function ReviewCarRentalDataStep() {
                     <span className="ml-2 text-gray-900">{step2Data.carRentalBusinessName || businessDetails.businessName || 'Not provided'}</span>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-700">Car Type:</span>
-                    <span className="ml-2 text-gray-900">{step2Data.carTypeName || 'Not provided'}</span>
+                    <span className="font-medium text-gray-700">Car Types:</span>
+                    <span className="ml-2 text-gray-900">
+                      {step2Data.carTypeNames && step2Data.carTypeNames.length > 0
+                        ? step2Data.carTypeNames.join(', ')
+                        : (step2Data.carTypeName || 'Not provided')}
+                    </span>
                   </div>
                   <div>
                     <span className="font-medium text-gray-700">Description:</span>
@@ -139,10 +143,6 @@ export default function ReviewCarRentalDataStep() {
                   <div>
                     <span className="font-medium text-gray-700">Legal Business Name:</span>
                     <span className="ml-2 text-gray-900">{taxPayment.legalBusinessName || 'Not provided'}</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-700">Payment Method:</span>
-                    <span className="ml-2 text-gray-900">{taxPayment.paymentMethod || 'Not provided'}</span>
                   </div>
                 </div>
               </div>

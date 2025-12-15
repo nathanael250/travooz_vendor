@@ -511,7 +511,7 @@ const Cars = () => {
                 <div className="space-y-2 mb-4">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-600">Daily Rate:</span>
-                    <span className="font-semibold text-gray-900">${parseFloat(car.daily_rate).toLocaleString()}</span>
+                    <span className="font-semibold text-gray-900">RWF {parseFloat(car.daily_rate || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-600">Seats:</span>

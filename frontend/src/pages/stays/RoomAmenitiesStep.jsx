@@ -17,6 +17,11 @@ export default function RoomAmenitiesStep() {
     };
   }, []);
 
+  // Scroll to top when component mounts or location changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
+
   // Redirect if no user data
   useEffect(() => {
     if (!location.state?.userId) {
@@ -30,7 +35,6 @@ export default function RoomAmenitiesStep() {
   const [formData, setFormData] = useState({
     // Kitchen
     hasKitchen: 'no',
-    addKitchenToAll: true,
     kitchenAmenities: {
       cookware: false,
       stovetop: false,
@@ -39,12 +43,10 @@ export default function RoomAmenitiesStep() {
       refrigerator: false,
       dishwasher: false
     },
-    addKitchenAmenitiesToAll: true,
     
     // Climate control
     airConditioning: false,
     airConditioningType: 'in-room',
-    addAirConditioningToAll: true,
     
     // Room view
     hasView: 'yes',
@@ -56,18 +58,113 @@ export default function RoomAmenitiesStep() {
     
     // Outdoor space
     hasOutdoorSpace: 'no',
-    addOutdoorSpaceToAll: true,
     
     // Room layout
     desk: false,
-    addDeskToAll: true,
     separateSittingArea: false,
-    addSittingAreaToAll: true,
     privateSpaTub: false,
     laptopFriendlyWorkspace: false,
     separateDiningArea: false,
     privatePool: false
   });
+
+  // Load amenities data from previousRoomData if editing/copying
+  useEffect(() => {
+    const amenitiesData = previousRoomData.amenities;
+    if (amenitiesData) {
+      console.log('[RoomAmenitiesStep] Loading amenities data:', amenitiesData);
+      
+      // Map database format (snake_case) to form format (camelCase)
+      // Database has: has_kitchen (tinyint), has_air_conditioning (tinyint), has_view (enum), etc.
+      // Form expects: hasKitchen ('yes'/'no'), airConditioning (boolean), hasView ('yes'/'no'), etc.
+      
+      // Convert has_kitchen (0/1) to hasKitchen ('yes'/'no')
+      const hasKitchen = amenitiesData.has_kitchen === 1 || amenitiesData.hasKitchen === 'yes' || amenitiesData.hasKitchen === true ? 'yes' : 'no';
+      
+      // Convert has_air_conditioning (0/1) to airConditioning (boolean)
+      const airConditioning = amenitiesData.has_air_conditioning === 1 || amenitiesData.airConditioning === true || amenitiesData.hasAirConditioning === true;
+      
+      // Convert has_view (enum) to hasView ('yes'/'no')
+      const hasView = amenitiesData.has_view === 'yes' || amenitiesData.hasView === 'yes' ? 'yes' : 'no';
+      
+      // Parse kitchen_facilities JSON if it exists
+      let kitchenAmenities = {
+        cookware: false,
+        stovetop: false,
+        oven: false,
+        microwave: false,
+        refrigerator: false,
+        dishwasher: false
+      };
+      if (amenitiesData.kitchen_facilities) {
+        try {
+          const kitchenFacilities = typeof amenitiesData.kitchen_facilities === 'string' 
+            ? JSON.parse(amenitiesData.kitchen_facilities) 
+            : amenitiesData.kitchen_facilities;
+          if (Array.isArray(kitchenFacilities)) {
+            kitchenFacilities.forEach(facility => {
+              if (kitchenAmenities.hasOwnProperty(facility)) {
+                kitchenAmenities[facility] = true;
+              }
+            });
+          } else if (typeof kitchenFacilities === 'object') {
+            kitchenAmenities = { ...kitchenAmenities, ...kitchenFacilities };
+          }
+        } catch (e) {
+          console.error('Error parsing kitchen_facilities:', e);
+        }
+      } else if (amenitiesData.kitchenAmenities) {
+        kitchenAmenities = amenitiesData.kitchenAmenities;
+      }
+      
+      // Handle room size - check both sqm and sqft
+      let roomSize = '';
+      let roomSizeUnit = 'square_feet';
+      if (amenitiesData.room_size_sqm) {
+        roomSize = amenitiesData.room_size_sqm.toString();
+        roomSizeUnit = 'square_meters';
+      } else if (amenitiesData.room_size_sqft) {
+        roomSize = amenitiesData.room_size_sqft.toString();
+        roomSizeUnit = 'square_feet';
+      } else if (amenitiesData.roomSize) {
+        roomSize = amenitiesData.roomSize.toString();
+        roomSizeUnit = amenitiesData.roomSizeUnit || 'square_feet';
+      }
+      
+      // Handle outdoor space - check balcony, terrace, patio
+      const hasOutdoorSpace = (amenitiesData.has_balcony === 1 || amenitiesData.has_terrace === 1 || amenitiesData.has_patio === 1 ||
+                                amenitiesData.hasBalcony === true || amenitiesData.hasTerrace === true || amenitiesData.hasPatio === true) ? 'yes' : 'no';
+      
+      // Ensure all values are always defined (never undefined) to prevent controlled/uncontrolled input warnings
+      const loadedData = {
+        hasKitchen: hasKitchen || 'no',
+        kitchenAmenities: kitchenAmenities || {
+          cookware: false,
+          stovetop: false,
+          oven: false,
+          microwave: false,
+          refrigerator: false,
+          dishwasher: false
+        },
+        airConditioning: airConditioning !== undefined ? airConditioning : false,
+        airConditioningType: amenitiesData.airConditioningType || amenitiesData.air_conditioning_type || 'in-room',
+        hasView: hasView || 'no',
+        roomView: amenitiesData.room_view || amenitiesData.roomView || '',
+        roomSize: roomSize || '',
+        roomSizeUnit: roomSizeUnit || 'square_feet',
+        hasOutdoorSpace: amenitiesData.hasOutdoorSpace || hasOutdoorSpace || 'no',
+        desk: amenitiesData.desk !== undefined ? Boolean(amenitiesData.desk) : false,
+        separateSittingArea: amenitiesData.separateSittingArea !== undefined ? Boolean(amenitiesData.separateSittingArea) : false,
+        privateSpaTub: amenitiesData.privateSpaTub !== undefined ? Boolean(amenitiesData.privateSpaTub) : false,
+        laptopFriendlyWorkspace: amenitiesData.laptopFriendlyWorkspace !== undefined ? Boolean(amenitiesData.laptopFriendlyWorkspace) : false,
+        separateDiningArea: amenitiesData.separateDiningArea !== undefined ? Boolean(amenitiesData.separateDiningArea) : false,
+        privatePool: amenitiesData.privatePool !== undefined ? Boolean(amenitiesData.privatePool) : false
+      };
+
+      console.log('[RoomAmenitiesStep] Setting form data:', loadedData);
+      setFormData(loadedData);
+    }
+  }, [previousRoomData]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -99,14 +196,11 @@ export default function RoomAmenitiesStep() {
   const roomViews = [
     'Garden view',
     'City view',
-    'Ocean view',
     'Mountain view',
     'Pool view',
     'Park view',
     'Lake view',
-    'River view',
-    'Courtyard view',
-    'No view'
+    'River view'
   ];
 
   const roomSizeUnits = [
@@ -116,29 +210,52 @@ export default function RoomAmenitiesStep() {
 
   const handleNext = () => {
     // Combine previous room data with amenities
+    // IMPORTANT: Explicitly preserve all ID fields for editing
     const updatedRoomData = {
       ...previousRoomData,
       amenities: formData,
-      step: 2
+      step: 2,
+      // Preserve all ID fields explicitly (critical for editing existing rooms)
+      room_id: previousRoomData.room_id || previousRoomData.roomId || previousRoomData.id,
+      roomId: previousRoomData.roomId || previousRoomData.room_id || previousRoomData.id,
+      id: previousRoomData.id || previousRoomData.roomId || previousRoomData.room_id
     };
 
     // Navigate to next step (step 3/6 - Review Room Name)
+    // IMPORTANT: Preserve isEdit and isCopy flags
     navigate('/stays/setup/review-room-name', {
       state: {
         ...location.state,
         roomData: updatedRoomData,
-        roomSetupStep: 3
+        roomSetupStep: 3,
+        isEdit: location.state?.isEdit || false,
+        isCopy: location.state?.isCopy || false
       }
     });
   };
 
   const handleBack = () => {
-    // Go back to step 1 with previous room data
+    // Preserve current form data in roomData when going back
+    // IMPORTANT: Explicitly preserve all ID fields for editing
+    const updatedRoomData = {
+      ...previousRoomData,
+      amenities: formData, // Save current form state
+      step: 2,
+      // Preserve all ID fields explicitly (critical for editing existing rooms)
+      room_id: previousRoomData.room_id || previousRoomData.roomId || previousRoomData.id,
+      roomId: previousRoomData.roomId || previousRoomData.room_id || previousRoomData.id,
+      id: previousRoomData.id || previousRoomData.roomId || previousRoomData.room_id
+    };
+    
+    // Go back to step 1 with updated room data (preserving amenities changes)
+    // IMPORTANT: Preserve isEdit and isCopy flags
     navigate('/stays/setup/room-setup', {
       state: {
         ...location.state,
-        roomData: previousRoomData,
-        roomSetupStep: 1
+        roomData: updatedRoomData,
+        roomSetupStep: 1,
+        isEdit: location.state?.isEdit || false,
+        isCopy: location.state?.isCopy || false
       }
     });
   };
@@ -156,7 +273,7 @@ export default function RoomAmenitiesStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-4xl mx-auto">
           {/* Progress Indicator */}
-          <ProgressIndicator currentStep={5} totalSteps={10} />
+          <ProgressIndicator currentStep={4} totalSteps={10} />
 
           {/* Navigation Link */}
           <button
@@ -174,8 +291,7 @@ export default function RoomAmenitiesStep() {
             <div className="mb-8">
               <h1 className="text-3xl font-bold text-gray-900 mb-4">Attract travelers with in-room amenities</h1>
               <p className="text-sm text-gray-600">
-                Add room amenities to give travelers a sense of what their stay will be like. Amenities will be added to all rooms, 
-                unless you deselect Add to all rooms. If you don't see what your room has, we have more amenities you can add after you're live.
+                Add room amenities to give travelers a sense of what their stay will be like. If you don't see what your room has, we have more amenities you can add after you're live.
               </p>
             </div>
 
@@ -212,16 +328,6 @@ export default function RoomAmenitiesStep() {
                       <span className="text-sm text-gray-700">No</span>
                     </label>
                   </div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="addKitchenToAll"
-                      checked={formData.addKitchenToAll}
-                      onChange={handleChange}
-                      className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                    />
-                    <span className="text-sm text-gray-700">Add to all rooms</span>
-                  </label>
                 </div>
 
                 {formData.hasKitchen === 'yes' && (
@@ -250,16 +356,6 @@ export default function RoomAmenitiesStep() {
                         </label>
                       ))}
                     </div>
-                    <label className="flex items-center gap-2 mt-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        name="addKitchenAmenitiesToAll"
-                        checked={formData.addKitchenAmenitiesToAll}
-                        onChange={handleChange}
-                        className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                      />
-                      <span className="text-sm text-gray-700">Add to all rooms</span>
-                    </label>
                   </div>
                 )}
               </div>
@@ -306,16 +402,6 @@ export default function RoomAmenitiesStep() {
                         </label>
                       </div>
                       <p className="text-xs text-gray-500">Choose In-room if guests can control the temperature in their room.</p>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          name="addAirConditioningToAll"
-                          checked={formData.addAirConditioningToAll}
-                          onChange={handleChange}
-                          className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                        />
-                        <span className="text-sm text-gray-700">Add to all rooms</span>
-                      </label>
                     </div>
                   )}
                 </div>
@@ -360,7 +446,7 @@ export default function RoomAmenitiesStep() {
                       </label>
                       <select
                         name="roomView"
-                        value={formData.roomView}
+                        value={formData.roomView || ''}
                         onChange={handleChange}
                         className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
                       >
@@ -386,14 +472,14 @@ export default function RoomAmenitiesStep() {
                     <input
                       type="number"
                       name="roomSize"
-                      value={formData.roomSize}
+                      value={formData.roomSize || ''}
                       onChange={handleChange}
                       placeholder="Room size"
                       className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
                     />
                     <select
                       name="roomSizeUnit"
-                      value={formData.roomSizeUnit}
+                      value={formData.roomSizeUnit || 'square_feet'}
                       onChange={handleChange}
                       className="w-full sm:w-auto sm:min-w-[140px] px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54]"
                     >
@@ -437,16 +523,6 @@ export default function RoomAmenitiesStep() {
                       <span className="text-sm text-gray-700">No</span>
                     </label>
                   </div>
-                  <label className="flex items-center gap-2 mt-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="addOutdoorSpaceToAll"
-                      checked={formData.addOutdoorSpaceToAll}
-                      onChange={handleChange}
-                      className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                    />
-                    <span className="text-sm text-gray-700">Add to all rooms</span>
-                  </label>
                 </div>
               </div>
 
@@ -466,18 +542,6 @@ export default function RoomAmenitiesStep() {
                       />
                       <span className="text-sm font-medium text-gray-700">Desk</span>
                     </label>
-                    {formData.desk && (
-                      <label className="flex items-center gap-2 cursor-pointer ml-6 mt-2">
-                        <input
-                          type="checkbox"
-                          name="addDeskToAll"
-                          checked={formData.addDeskToAll}
-                          onChange={handleChange}
-                          className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                        />
-                        <span className="text-sm text-gray-700">Add to all rooms</span>
-                      </label>
-                    )}
                   </div>
 
                   <div>
@@ -491,18 +555,6 @@ export default function RoomAmenitiesStep() {
                       />
                       <span className="text-sm font-medium text-gray-700">Separate sitting area</span>
                     </label>
-                    {formData.separateSittingArea && (
-                      <label className="flex items-center gap-2 cursor-pointer ml-6 mt-2">
-                        <input
-                          type="checkbox"
-                          name="addSittingAreaToAll"
-                          checked={formData.addSittingAreaToAll}
-                          onChange={handleChange}
-                          className="w-4 h-4 rounded border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                        />
-                        <span className="text-sm text-gray-700">Add to all rooms</span>
-                      </label>
-                    )}
                   </div>
 
                   <div>

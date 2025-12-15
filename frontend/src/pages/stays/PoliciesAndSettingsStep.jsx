@@ -4,7 +4,8 @@ import { ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import ProgressIndicator from '../../components/stays/ProgressIndicator';
-import { staysSetupService } from '../../services/staysService';
+import { staysSetupService, staysOnboardingProgressService } from '../../services/staysService';
+import { handleStaysError } from '../../utils/staysErrorHandler';
 
 export default function PoliciesAndSettingsStep() {
   const navigate = useNavigate();
@@ -18,12 +19,42 @@ export default function PoliciesAndSettingsStep() {
     };
   }, []);
 
+  // Scroll to top when component mounts or location changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
+
   // Redirect if no user data
   useEffect(() => {
     if (!location.state?.userId) {
       navigate('/stays/login');
     }
   }, [location.state, navigate]);
+
+  // Initialize progress tracking when user first lands on this step (first setup step)
+  useEffect(() => {
+    const initializeProgress = async () => {
+      const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
+      const userId = location.state?.userId;
+      
+      if (propertyId && userId) {
+        try {
+          // Check if progress exists
+          const progressData = await staysOnboardingProgressService.getProgress();
+          
+          // If no progress exists, initialize it at the policies step
+          if (!progressData || !progressData.progress) {
+            await staysOnboardingProgressService.saveProgress('policies', String(propertyId), false);
+          }
+        } catch (error) {
+          console.error('Error initializing progress tracking:', error);
+          // Don't block the user if progress tracking fails
+        }
+      }
+    };
+
+    initializeProgress();
+  }, [location.state]);
 
   const [formData, setFormData] = useState({
     // Languages spoken
@@ -56,6 +87,106 @@ export default function PoliciesAndSettingsStep() {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+
+  // Load policies data from location.state, localStorage, or API when component mounts
+  useEffect(() => {
+    const loadPolicies = async () => {
+      const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
+      
+      // First, try location.state (from navigation)
+      const savedPolicies = location.state?.policies;
+      
+      if (savedPolicies) {
+        console.log('[PoliciesAndSettingsStep] Loading policies from location.state:', savedPolicies);
+        loadPoliciesIntoForm(savedPolicies);
+        return;
+      }
+      
+      // Second, try localStorage (same device/browser)
+      const localStoragePolicies = localStorage.getItem('stays_policies');
+      if (localStoragePolicies) {
+        try {
+          const parsed = JSON.parse(localStoragePolicies);
+          console.log('[PoliciesAndSettingsStep] Loading policies from localStorage:', parsed);
+          setFormData(parsed);
+          return;
+        } catch (e) {
+          console.error('[PoliciesAndSettingsStep] Error parsing localStorage policies:', e);
+        }
+      }
+      
+      // Third, fetch from API (for different device/browser)
+      if (propertyId && propertyId > 0) {
+        try {
+          console.log('[PoliciesAndSettingsStep] Fetching policies from API for propertyId:', propertyId);
+          const apiPolicies = await staysSetupService.getPolicies(propertyId);
+          if (apiPolicies) {
+            console.log('[PoliciesAndSettingsStep] Loaded policies from API:', apiPolicies);
+            loadPoliciesIntoForm(apiPolicies);
+            // Also save to localStorage for future use
+            localStorage.setItem('stays_policies', JSON.stringify(apiPolicies));
+          }
+        } catch (error) {
+          console.error('[PoliciesAndSettingsStep] Error fetching policies from API:', error);
+          // Don't show error to user, just use default form values
+        }
+      }
+    };
+
+    // Helper function to load policies into form
+    const loadPoliciesIntoForm = (savedPolicies) => {
+      // Handle languages - could be array of strings or object
+      let languages = {
+        english: false,
+        french: false,
+        kinyarwanda: false
+      };
+      
+      if (savedPolicies.languages) {
+        if (Array.isArray(savedPolicies.languages)) {
+          // Convert array of language names to object
+          savedPolicies.languages.forEach(lang => {
+            const langLower = lang.toLowerCase();
+            if (langLower.includes('english')) languages.english = true;
+            if (langLower.includes('french')) languages.french = true;
+            if (langLower.includes('kinyarwanda')) languages.kinyarwanda = true;
+          });
+        } else if (typeof savedPolicies.languages === 'object') {
+          languages = savedPolicies.languages;
+        }
+      }
+      
+      // Map other fields, handling both database and form formats
+      const mappedData = {
+        languages: languages,
+        acceptCreditDebitCards: savedPolicies.acceptCreditDebitCards !== undefined 
+          ? savedPolicies.acceptCreditDebitCards 
+          : (savedPolicies.accept_credit_debit_cards === 1 || savedPolicies.accept_credit_debit_cards === true),
+        acceptTravoozCard: savedPolicies.acceptTravoozCard !== undefined 
+          ? savedPolicies.acceptTravoozCard 
+          : (savedPolicies.accept_travooz_card === 1 || savedPolicies.accept_travooz_card === true),
+        acceptMobileMoney: savedPolicies.acceptMobileMoney !== undefined 
+          ? savedPolicies.acceptMobileMoney 
+          : (savedPolicies.accept_mobile_money === 1 || savedPolicies.accept_mobile_money === true),
+        acceptAirtelMoney: savedPolicies.acceptAirtelMoney !== undefined 
+          ? savedPolicies.acceptAirtelMoney 
+          : (savedPolicies.accept_airtel_money === 1 || savedPolicies.accept_airtel_money === true),
+        requireDeposits: savedPolicies.requireDeposits || savedPolicies.require_deposits || 'no',
+        cancellationWindow: savedPolicies.cancellationWindow || savedPolicies.cancellation_window || '24_hour',
+        cancellationFee: savedPolicies.cancellationFee || savedPolicies.cancellation_fee || 'first_night_plus_tax',
+        vatPercentage: savedPolicies.vatPercentage !== undefined ? savedPolicies.vatPercentage : (savedPolicies.vat_percentage || 18.00),
+        tourismTaxPercentage: savedPolicies.tourismTaxPercentage !== undefined ? savedPolicies.tourismTaxPercentage : (savedPolicies.tourism_tax_percentage || 3.00),
+        taxesIncludedInRate: savedPolicies.taxesIncludedInRate !== undefined ? savedPolicies.taxesIncludedInRate : (savedPolicies.taxes_included_in_rate !== 0 && savedPolicies.taxes_included_in_rate !== false),
+        requestTaxTeamAssistance: savedPolicies.requestTaxTeamAssistance !== undefined 
+          ? savedPolicies.requestTaxTeamAssistance 
+          : (savedPolicies.request_tax_team_assistance === 1 || savedPolicies.request_tax_team_assistance === true)
+      };
+      
+      setFormData(mappedData);
+    };
+
+    loadPolicies();
+  }, [location.state?.policies, location.state?.propertyId]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -156,6 +287,12 @@ export default function PoliciesAndSettingsStep() {
       });
     } catch (err) {
       console.error('Error saving policies:', err);
+      
+      // Handle not found errors - clear localStorage and redirect to login
+      if (handleStaysError(err, navigate)) {
+        return; // Error was handled, don't show error message
+      }
+      
       setSubmitError(err.message || 'Failed to save policies. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -163,9 +300,16 @@ export default function PoliciesAndSettingsStep() {
   };
 
   const handleBack = () => {
-    navigate('/stays/setup/contract', {
-      state: location.state
-    });
+    // Go back to email verification or step 3
+    if (location.state?.fromEmailVerification) {
+      navigate('/stays/list-your-property/verify-email', {
+        state: location.state
+      });
+    } else {
+      navigate('/stays/list-your-property/step-3', {
+        state: location.state
+      });
+    }
   };
 
   return (
@@ -175,7 +319,7 @@ export default function PoliciesAndSettingsStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-4xl mx-auto">
           {/* Progress Indicator */}
-          <ProgressIndicator currentStep={3} totalSteps={10} />
+          <ProgressIndicator currentStep={2} totalSteps={10} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>

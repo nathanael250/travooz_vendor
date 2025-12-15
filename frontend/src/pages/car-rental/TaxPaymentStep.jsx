@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, FileText, CreditCard, Upload, X, FileCheck } from 'lucide-react';
+import { ArrowRight, ArrowLeft, FileText, Upload, X, FileCheck } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import toast from 'react-hot-toast';
@@ -24,7 +24,6 @@ export default function TaxPaymentStep() {
   const [formData, setFormData] = useState({
     tin: '',
     legalBusinessName: '',
-    paymentMethod: '',
   });
 
   const [documents, setDocuments] = useState({
@@ -42,15 +41,6 @@ export default function TaxPaymentStep() {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
-
-  const paymentMethods = [
-    'Bank Transfer',
-    'Mobile Money (MTN)',
-    'Mobile Money (Airtel)',
-    'Mobile Money (Other)',
-    'Cash',
-    'Other'
-  ];
 
   const convertFileToBase64 = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -131,9 +121,6 @@ export default function TaxPaymentStep() {
     }
     if (!formData.legalBusinessName.trim()) {
       newErrors.legalBusinessName = 'Legal business name is required';
-    }
-    if (!formData.paymentMethod) {
-      newErrors.paymentMethod = 'Payment method is required';
     }
 
     if (!documents.professionalCertificate) {
@@ -384,35 +371,6 @@ export default function TaxPaymentStep() {
                     <p className="mt-1 text-sm text-red-600">{errors.legalBusinessName}</p>
                   )}
                 </div>
-              </div>
-
-              {/* Payment Method */}
-              <div>
-                <label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700 mb-2">
-                  How would you like to receive payments? *
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <CreditCard className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <select
-                    id="paymentMethod"
-                    name="paymentMethod"
-                    value={formData.paymentMethod}
-                    onChange={handleChange}
-                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:outline-none transition-all appearance-none bg-white ${
-                      errors.paymentMethod ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
-                    }`}
-                  >
-                    <option value="">Select payment method</option>
-                    {paymentMethods.map((method) => (
-                      <option key={method} value={method}>{method}</option>
-                    ))}
-                  </select>
-                </div>
-                {errors.paymentMethod && (
-                  <p className="mt-1 text-sm text-red-600">{errors.paymentMethod}</p>
-                )}
               </div>
 
               {/* Document Uploads */}
