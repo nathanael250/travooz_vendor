@@ -359,6 +359,8 @@ class AdminAccountsService {
                         `SELECT 
                             crb.car_rental_business_id,
                             crb.business_name,
+                            crb.wants_notifications,
+                            crb.notification_receiver,
                             cu.email,
                             cu.name
                          FROM car_rental_businesses crb
@@ -368,18 +370,35 @@ class AdminAccountsService {
                     );
                     
                     if (carRentalApprove && carRentalApprove.length > 0) {
-                        const { business_name, email, name } = carRentalApprove[0];
+                        const { business_name, email, name, wants_notifications, notification_receiver } = carRentalApprove[0];
                         const dashboardUrl = process.env.CAR_RENTAL_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/car-rental/dashboard';
-                        try {
-                            await CarRentalApprovalNotificationService.sendApprovalEmail({
-                                email,
-                                name,
-                                businessName: business_name,
-                                dashboardUrl
-                            });
-                        } catch (emailError) {
-                            console.error('Failed to send approval email for car rental:', emailError);
-                            // Don't fail the approval if email fails
+                        
+                        // Collect all emails to send to
+                        const emailsToSend = [];
+                        
+                        // Always include the vendor account email
+                        if (email) {
+                            emailsToSend.push(email);
+                        }
+                        
+                        // If wants_notifications is 'yes' and notification_receiver is set, also send to that email
+                        if (wants_notifications === 'yes' && notification_receiver && notification_receiver !== email) {
+                            emailsToSend.push(notification_receiver);
+                        }
+                        
+                        // Send approval email to all collected emails
+                        for (const emailToSend of emailsToSend) {
+                            try {
+                                await CarRentalApprovalNotificationService.sendApprovalEmail({
+                                    email: emailToSend,
+                                    name,
+                                    businessName: business_name,
+                                    dashboardUrl
+                                });
+                            } catch (emailError) {
+                                console.error(`Failed to send approval email to ${emailToSend} for car rental:`, emailError);
+                                // Don't fail the approval if email fails
+                            }
                         }
                     }
                     
@@ -574,6 +593,8 @@ class AdminAccountsService {
                         `SELECT 
                             crb.car_rental_business_id,
                             crb.business_name,
+                            crb.wants_notifications,
+                            crb.notification_receiver,
                             cu.email,
                             cu.name
                          FROM car_rental_businesses crb
@@ -583,16 +604,38 @@ class AdminAccountsService {
                     );
                     
                     if (carRentalReject.length > 0) {
-                        const { business_name, email, name } = carRentalReject[0];
+                        const { business_name, email, name, wants_notifications, notification_receiver } = carRentalReject[0];
                         const dashboardUrl = process.env.CAR_RENTAL_VENDOR_DASHBOARD_URL || 'https://vendor.travooz.rw/car-rental/dashboard';
-                        await CarRentalApprovalNotificationService.sendRejectionEmail({
-                            email,
-                            name,
-                            businessName: business_name,
-                            reason: rejectionReason || 'Your car rental submission requires updates.',
-                            notes: notes || '',
-                            dashboardUrl
-                        });
+                        
+                        // Collect all emails to send to
+                        const emailsToSend = [];
+                        
+                        // Always include the vendor account email
+                        if (email) {
+                            emailsToSend.push(email);
+                        }
+                        
+                        // If wants_notifications is 'yes' and notification_receiver is set, also send to that email
+                        if (wants_notifications === 'yes' && notification_receiver && notification_receiver !== email) {
+                            emailsToSend.push(notification_receiver);
+                        }
+                        
+                        // Send rejection email to all collected emails
+                        for (const emailToSend of emailsToSend) {
+                            try {
+                                await CarRentalApprovalNotificationService.sendRejectionEmail({
+                                    email: emailToSend,
+                                    name,
+                                    businessName: business_name,
+                                    reason: rejectionReason || 'Your car rental submission requires updates.',
+                                    notes: notes || '',
+                                    dashboardUrl
+                                });
+                            } catch (emailError) {
+                                console.error(`Failed to send rejection email to ${emailToSend} for car rental:`, emailError);
+                                // Don't fail the rejection if email fails
+                            }
+                        }
                     }
                     break;
 

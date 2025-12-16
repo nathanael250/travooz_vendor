@@ -1157,29 +1157,45 @@ class ClientBookingService {
         );
 
         if (vendorInfo && vendorInfo.length > 0) {
-          // Use notification_receiver if wants_notifications is 'yes', otherwise use vendor email
           const wantsNotifications = vendorInfo[0].wants_notifications === 'yes';
-          const notificationEmail = wantsNotifications && vendorInfo[0].notification_receiver 
-            ? vendorInfo[0].notification_receiver 
-            : vendorInfo[0].vendor_email;
-
-          if (notificationEmail) {
-            this.sendCarRentalBookingVendorNotification({
-              vendor_email: notificationEmail,
-              vendor_name: vendorInfo[0].vendor_name,
-              car_name: carData.name || carData.model || carData.make,
-              booking_reference: bookingReference,
-              pickup_date,
-              return_date,
-              pickup_location,
-              return_location,
-              total_amount: totalAmount,
-              days,
-              customer_name: customer_first_name,
-              customer_email,
-              customer_phone,
-              special_requests: specialRequestsText
-            });
+          const vendorEmail = vendorInfo[0].vendor_email;
+          const notificationReceiverEmail = vendorInfo[0].notification_receiver;
+          
+          // Collect all emails to send to
+          const emailsToSend = [];
+          
+          // Always include the vendor account email
+          if (vendorEmail) {
+            emailsToSend.push(vendorEmail);
+          }
+          
+          // If wants_notifications is 'yes' and notification_receiver is set, also send to that email
+          if (wantsNotifications && notificationReceiverEmail && notificationReceiverEmail !== vendorEmail) {
+            emailsToSend.push(notificationReceiverEmail);
+          }
+          
+          // Send notification to all collected emails
+          for (const email of emailsToSend) {
+            try {
+              this.sendCarRentalBookingVendorNotification({
+                vendor_email: email,
+                vendor_name: vendorInfo[0].vendor_name,
+                car_name: carData.name || carData.model || carData.make,
+                booking_reference: bookingReference,
+                pickup_date,
+                return_date,
+                pickup_location,
+                return_location,
+                total_amount: totalAmount,
+                days,
+                customer_name: customer_first_name,
+                customer_email,
+                customer_phone,
+                special_requests: specialRequestsText
+              });
+            } catch (emailError) {
+              console.error(`⚠️ Failed to send notification to ${email}:`, emailError.message);
+            }
           }
         }
       } catch (vendorEmailError) {
