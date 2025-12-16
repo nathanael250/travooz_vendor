@@ -5,6 +5,7 @@ import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import toast from 'react-hot-toast';
 import carRentalSetupService from '../../services/carRentalSetupService';
+import SetupProgressIndicator from '../../components/car-rental/SetupProgressIndicator';
 
 export default function BusinessDetailsStep() {
   const navigate = useNavigate();
@@ -25,6 +26,71 @@ export default function BusinessDetailsStep() {
   const step2Data = location.state?.step2Data || {};
   const carRentalBusinessId = location.state?.carRentalBusinessId || localStorage.getItem('car_rental_business_id');
   const resolvedUserId = userId || localStorage.getItem('car_rental_user_id');
+
+  // Check if carRentalBusinessId is missing and redirect to login
+  // Also check if email is verified - if not, redirect to email verification
+  React.useEffect(() => {
+    if (!carRentalBusinessId) {
+      toast.error('Something went wrong. Please sign in again.');
+      localStorage.removeItem('car_rental_user_id');
+      localStorage.removeItem('car_rental_business_id');
+      localStorage.removeItem('user');
+      setTimeout(() => {
+        navigate('/login');
+      }, 1500);
+      return;
+    }
+
+    // Check if user came from email verification
+    // If not, and we don't have fromEmailVerification flag, redirect to email verification
+    const fromEmailVerification = location.state?.fromEmailVerification;
+    if (!fromEmailVerification && resolvedUserId && email) {
+      // Check if email is verified by checking user profile
+      const checkEmailVerification = async () => {
+        try {
+          // Try to get user profile to check email verification status
+          const apiClient = (await import('../../services/apiClient')).default;
+          try {
+            const profileResponse = await apiClient.get('/car-rental/auth/profile');
+            const userProfile = profileResponse.data?.data || profileResponse.data;
+            
+            // If email is not verified, redirect to email verification
+            if (userProfile && userProfile.email_verified !== 1 && userProfile.email_verified !== true) {
+              console.log('BusinessDetailsStep - Email not verified, redirecting to email verification');
+              navigate('/car-rental/setup/email-verification', {
+                state: {
+                  ...location.state,
+                  userId: resolvedUserId,
+                  email: email,
+                  userName: userName,
+                  carRentalBusinessId: carRentalBusinessId
+                },
+                replace: true
+              });
+              return;
+            }
+          } catch (profileError) {
+            // If profile check fails, assume email needs verification
+            console.warn('BusinessDetailsStep - Could not verify email status, redirecting to email verification');
+            navigate('/car-rental/setup/email-verification', {
+              state: {
+                ...location.state,
+                userId: resolvedUserId,
+                email: email,
+                userName: userName,
+                carRentalBusinessId: carRentalBusinessId
+              },
+              replace: true
+            });
+          }
+        } catch (error) {
+          console.error('BusinessDetailsStep - Error checking email verification:', error);
+        }
+      };
+      
+      checkEmailVerification();
+    }
+  }, [carRentalBusinessId, navigate, resolvedUserId, email, userName, location.state]);
 
   const [formData, setFormData] = useState({
     businessName: location.state?.businessDetails?.businessName || step2Data.carRentalBusinessName || '',
@@ -106,6 +172,20 @@ export default function BusinessDetailsStep() {
         businessDetails: formData
       });
       
+      // Save step progress
+      try {
+        await carRentalSetupService.saveStepData(carRentalBusinessId, 2, {
+          businessName: formData.businessName,
+          businessType: formData.businessType,
+          shortDescription: formData.shortDescription
+        });
+        // Mark step as complete
+        await carRentalSetupService.completeStep('business-details', carRentalBusinessId);
+      } catch (progressError) {
+        console.error('⚠️ Failed to save progress:', progressError);
+        // Don't block navigation if progress save fails
+      }
+      
       toast.success('Business details saved successfully');
       
       navigate('/car-rental/setup/tax-payment', {
@@ -141,44 +221,7 @@ export default function BusinessDetailsStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-3xl w-full mx-auto">
           {/* Progress Indicator */}
-          <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  4
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  5
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  6
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  7
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  8
-                </div>
-              </div>
-            </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Step 4 of 8: Business Details</p>
-          </div>
+          <SetupProgressIndicator currentStepKey="business-details" currentStepNumber={2} />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>

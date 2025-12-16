@@ -159,7 +159,18 @@ const AdminAccountDetails = () => {
   const handleDeleteAccount = async () => {
     if (!details) return;
     
-    const businessName = details.business?.name || 'this vendor';
+    // For car_rental, business name might be in different locations
+    // Check multiple possible locations based on service type
+    let businessName = 'this vendor';
+    if (serviceType === 'car_rental') {
+      // For car rental, try business_name from business object or from account list data
+      businessName = details.business?.business_name || 
+                    details.business?.name || 
+                    details.businessName ||
+                    'this vendor';
+    } else {
+      businessName = details.business?.name || 'this vendor';
+    }
     
     const confirmed = window.confirm(
       `⚠️ WARNING: This action cannot be undone!\n\n` +
@@ -179,8 +190,13 @@ const AdminAccountDetails = () => {
       `To confirm deletion, please type the business name:\n"${businessName}"`
     );
 
-    if (!typedName || typedName.trim().toLowerCase() !== businessName.trim().toLowerCase()) {
-      toast.error('Business name does not match. Deletion cancelled.');
+    // Normalize both names for comparison (trim, lowercase, normalize whitespace)
+    const normalizeName = (name) => (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const normalizedBusinessName = normalizeName(businessName);
+    const normalizedTypedName = normalizeName(typedName);
+
+    if (!typedName || normalizedTypedName !== normalizedBusinessName) {
+      toast.error(`Business name does not match. Expected: "${businessName}", Got: "${typedName || '(empty)'}". Deletion cancelled.`);
       return;
     }
 

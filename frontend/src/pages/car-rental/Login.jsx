@@ -223,6 +223,42 @@ export default function CarRentalLogin() {
         console.warn('⚠️ Could not perform post-login restaurant approval check for car-rental:', e);
       }
 
+      // Check email verification status first (works across devices)
+      const emailVerified = result.user?.email_verified;
+      const userId = result.user?.user_id || result.user?.id;
+      const userEmail = result.user?.email;
+      const userName = result.user?.name;
+      
+      // If email is not verified, redirect to email verification
+      if (emailVerified !== true && emailVerified !== 1) {
+        console.log('⚠️ Email not verified, redirecting to email verification');
+        toast.success('Login successful! Please verify your email to continue.');
+        
+        // Store necessary data for email verification
+        if (userId) {
+          localStorage.setItem('car_rental_user_id', String(userId));
+        }
+        if (userEmail) {
+          localStorage.setItem('car_rental_user_email', userEmail);
+        }
+        if (userName) {
+          localStorage.setItem('car_rental_user_name', userName);
+        }
+        
+        // Navigate to email verification with necessary state
+        navigate('/car-rental/setup/email-verification', {
+          state: {
+            userId: userId,
+            email: userEmail,
+            userName: userName,
+            carRentalBusinessId: result.carRentalBusinessId,
+            fromLogin: true
+          },
+          replace: true
+        });
+        return;
+      }
+
       toast.success('Login successful!');
 
       // Check submission status and redirect accordingly
@@ -294,6 +330,22 @@ export default function CarRentalLogin() {
         console.log('🚫 Login failed with 401 - preventing any redirects');
         console.log('🚫 Current path:', window.location.pathname);
         console.log('🚫 Will NOT navigate - staying on car rental login page');
+        
+        // Get the error message from the response
+        const errorMessage = error.response?.data?.message || error.message || 'Invalid email or password';
+        
+        // Show user-friendly error message
+        if (errorMessage.includes('Account setup incomplete') || errorMessage.includes('password hash')) {
+          toast.error('Account setup incomplete. Please use "Forgot Password" to set your password.');
+        } else if (errorMessage.includes('Invalid email or password')) {
+          toast.error('Invalid email or password. Please check your credentials and try again.');
+        } else {
+          toast.error(errorMessage);
+        }
+      } else {
+        // For other errors, show the error message
+        const errorMessage = error.response?.data?.message || error.message || 'Login failed. Please try again.';
+        toast.error(errorMessage);
       }
       
       // Handle validation errors

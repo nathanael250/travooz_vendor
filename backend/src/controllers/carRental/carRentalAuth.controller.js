@@ -12,11 +12,16 @@ const login = async (req, res) => {
             return sendError(res, 'Email and password are required', 400);
         }
 
+        console.log('🔐 Car rental login attempt:', { email, passwordLength: password?.length });
+
         const result = await carRentalAuthService.login(email, password);
 
+        console.log('✅ Car rental login successful for:', email);
         return sendSuccess(res, result, 'Login successful', 200);
     } catch (error) {
-        console.error('Error in car rental login controller:', error);
+        console.error('❌ Error in car rental login controller:', error);
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error stack:', error.stack);
         return sendError(res, error.message || 'Login failed', 401);
     }
 };

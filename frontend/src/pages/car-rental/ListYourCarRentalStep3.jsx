@@ -5,6 +5,7 @@ import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import toast from 'react-hot-toast';
 import carRentalSetupService from '../../services/carRentalSetupService';
+import PhoneInput from '../../components/common/PhoneInput';
 
 export default function ListYourCarRentalStep3() {
   const navigate = useNavigate();
@@ -195,10 +196,18 @@ export default function ListYourCarRentalStep3() {
       const responseData = apiResponse?.data || apiResponse || {};
 
       const apiUserId = responseData.userId || resolvedUserId || null;
-      const carRentalBusinessId = responseData.carRentalBusinessId || existingBusinessId;
+      const carRentalBusinessId = responseData.carRentalBusinessId || responseData.car_rental_business_id || existingBusinessId;
 
       if (!carRentalBusinessId) {
-        throw new Error('Unable to create or fetch car rental business identifier.');
+        // Clear user data and redirect to login
+        localStorage.removeItem('car_rental_user_id');
+        localStorage.removeItem('car_rental_business_id');
+        localStorage.removeItem('user');
+        toast.error('Something went wrong. Please sign in again.');
+        setTimeout(() => {
+          navigate('/login');
+        }, 1500);
+        return;
       }
 
       if (apiUserId) {
@@ -222,22 +231,61 @@ export default function ListYourCarRentalStep3() {
 
       toast.success('Car rental registration saved successfully!');
 
-      navigate('/car-rental/setup/business-details', {
-        state: {
-          ...location.state,
-          location: selectedLocation,
-          locationData: selectedLocationData,
-          step2Data: step2Data,
-          carRentalBusinessId,
-          userId: apiUserId,
-          email: isVendor ? user?.email : formData.email,
-          userName: isVendor
-            ? user?.name
-            : `${formData.firstName} ${formData.lastName}`.trim() || formData.email.split('@')[0]
-        }
-      });
+      // Double-check carRentalBusinessId before navigation
+      if (!carRentalBusinessId) {
+        localStorage.removeItem('car_rental_user_id');
+        localStorage.removeItem('car_rental_business_id');
+        localStorage.removeItem('user');
+        toast.error('Something went wrong. Please sign in again.');
+        setTimeout(() => {
+          navigate('/login');
+        }, 1500);
+        return;
+      }
+
+      // Navigate to email verification first
+      const finalEmail = isVendor ? user?.email : formData.email;
+      const finalUserName = isVendor
+        ? user?.name
+        : `${formData.firstName} ${formData.lastName}`.trim() || formData.email.split('@')[0];
+
+      // Small delay to ensure state is ready, then navigate to email verification
+      setTimeout(() => {
+        navigate('/car-rental/setup/email-verification', {
+          state: {
+            ...location.state,
+            location: selectedLocation,
+            locationData: selectedLocationData,
+            step2Data: step2Data,
+            carRentalBusinessId,
+            userId: apiUserId,
+            email: finalEmail,
+            userName: finalUserName
+          }
+        });
+      }, 100);
     } catch (error) {
       console.error('Error creating car rental registration:', error);
+
+      // Check if error is related to car_rental_business_id being undefined
+      const errorMessage = error.message || '';
+      const errorString = error.toString() || '';
+      
+      if (errorMessage.includes('car_rental_business_id') || 
+          errorString.includes('car_rental_business_id') ||
+          errorMessage.includes('Cannot read properties of undefined')) {
+        // Clear user data and redirect to login
+        localStorage.removeItem('car_rental_user_id');
+        localStorage.removeItem('car_rental_business_id');
+        localStorage.removeItem('user');
+        setSubmitError('Something went wrong. Please sign in again.');
+        toast.error('Something went wrong. Please sign in again.');
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+        setIsSubmitting(false);
+        return;
+      }
 
       if (error.response?.data?.errors) {
         const validationErrors = {};
@@ -417,43 +465,30 @@ export default function ListYourCarRentalStep3() {
                 </div>
 
                 {/* Phone Number */}
-                <div className="flex gap-2">
-                  <div className="relative w-32">
-                    <select
-                      name="countryCode"
-                      value={formData.countryCode}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 appearance-none"
-                    >
-                      {countryCodes.map(country => (
-                        <option key={country.code} value={country.code}>
-                          {country.code}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="relative flex-1">
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      onFocus={() => setFocusedFields(prev => ({ ...prev, phone: true }))}
-                      onBlur={() => setFocusedFields(prev => ({ ...prev, phone: false }))}
-                      className={`w-full px-4 pt-6 pb-2 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 ${
-                        errors.phone ? 'border-red-500' : ''
-                      }`}
-                    />
-                    <label
-                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        focusedFields.phone || formData.phone
-                          ? 'top-2 text-xs text-gray-500'
-                          : 'top-1/2 -translate-y-1/2 text-base text-gray-400'
-                      }`}
-                    >
-                      Phone
-                    </label>
-                  </div>
+                <div>
+                  <PhoneInput
+                    countryCode={formData.countryCode}
+                    phone={formData.phone}
+                    onChange={(code, phoneNum) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        countryCode: code,
+                        phone: phoneNum
+                      }));
+                      setFocusedFields(prev => ({ ...prev, phone: true }));
+                      // Clear error
+                      if (errors.phone) {
+                        setErrors(prev => ({
+                          ...prev,
+                          phone: ''
+                        }));
+                      }
+                    }}
+                    placeholder="7XX XXX XXX"
+                    error={!!errors.phone}
+                    errorMessage={errors.phone}
+                    required
+                  />
                 </div>
 
                 {/* Email */}

@@ -4,6 +4,7 @@ import { ArrowRight, ArrowLeft } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import apiClient from '../../services/apiClient';
+import PhoneInput from '../../components/common/PhoneInput';
 
 export default function ListYourTourStep2() {
   const navigate = useNavigate();
@@ -423,44 +424,29 @@ export default function ListYourTourStep2() {
                   <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
                     Phone Number *
                   </label>
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="sm:w-32">
-                      <select
-                        id="countryCode"
-                        name="countryCode"
-                        value={formData.countryCode}
-                        onChange={handleChange}
-                        className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
-                          errors.countryCode ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
-                        }`}
-                      >
-                        {countryCodes.map(code => (
-                          <option key={code.code} value={code.code}>
-                            {code.code}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex-1">
-                      <input
-                        type="tel"
-                        id="phone"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        placeholder="7XX XXX XXX"
-                        className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
-                          errors.phone ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
-                        }`}
-                      />
-                    </div>
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Enter the country code first, then your local phone number.
-                  </p>
-                  {errors.phone && (
-                    <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
-                  )}
+                  <PhoneInput
+                    countryCode={formData.countryCode}
+                    phone={formData.phone}
+                    onChange={(code, phoneNum) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        countryCode: code,
+                        phone: phoneNum
+                      }));
+                      // Clear errors
+                      if (errors.countryCode || errors.phone) {
+                        setErrors(prev => ({
+                          ...prev,
+                          countryCode: '',
+                          phone: ''
+                        }));
+                      }
+                    }}
+                    placeholder="7XX XXX XXX"
+                    error={!!errors.phone || !!errors.countryCode}
+                    errorMessage={errors.phone || errors.countryCode}
+                    required
+                  />
                 </div>
 
               </div>

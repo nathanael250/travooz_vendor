@@ -4,6 +4,7 @@ import { ArrowRight, ArrowLeft, Eye, EyeOff, AlertCircle, Loader2, Check } from 
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import { submitPropertyListing } from '../../services/staysService';
+import PhoneInput from '../../components/common/PhoneInput';
 
 export default function ListYourPropertyStep3() {
   const navigate = useNavigate();
@@ -354,48 +355,30 @@ export default function ListYourPropertyStep3() {
               </div>
 
               {/* Phone Number */}
-              <div className="flex gap-2">
-                <div className="relative w-32">
-                  <select
-                    name="countryCode"
-                    value={formData.countryCode}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 appearance-none"
-                  >
-                    {countryCodes.map(country => (
-                      <option key={country.code} value={country.code}>
-                        {country.code}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
-                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-                <div className="relative flex-1">
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    onFocus={() => setFocusedFields(prev => ({ ...prev, phone: true }))}
-                    onBlur={() => setFocusedFields(prev => ({ ...prev, phone: false }))}
-                    className={`w-full px-4 pt-6 pb-2 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 ${
-                      errors.phone ? 'border-red-500' : ''
-                    }`}
-                  />
-                  <label
-                    className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                      focusedFields.phone || formData.phone
-                        ? 'top-2 text-xs text-gray-500'
-                        : 'top-1/2 -translate-y-1/2 text-base text-gray-400'
-                    }`}
-                  >
-                    Phone
-                  </label>
-                </div>
+              <div>
+                <PhoneInput
+                  countryCode={formData.countryCode}
+                  phone={formData.phone}
+                  onChange={(code, phoneNum) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      countryCode: code,
+                      phone: phoneNum
+                    }));
+                    setFocusedFields(prev => ({ ...prev, phone: true }));
+                    // Clear error
+                    if (errors.phone) {
+                      setErrors(prev => ({
+                        ...prev,
+                        phone: ''
+                      }));
+                    }
+                  }}
+                  placeholder="7XX XXX XXX"
+                  error={!!errors.phone}
+                  errorMessage={errors.phone}
+                  required
+                />
               </div>
 
               {/* Email */}

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
+import PhoneInput from '../../components/common/PhoneInput';
 
 export default function ListYourCarRentalStep2() {
   const navigate = useNavigate();
@@ -23,7 +24,9 @@ export default function ListYourCarRentalStep2() {
     carTypes: [], // Changed to array for multiple selections
     carTypeNames: [], // Array to store selected car type names
     subcategoryIds: [], // Array to store selected subcategory IDs
+    otherCarType: '', // Custom car type when "Other" is selected
     description: '',
+    countryCode: '+250', // Default to Rwanda
     phone: '',
     wantsNotifications: 'no',
     notificationReceiver: ''
@@ -91,11 +94,18 @@ export default function ListYourCarRentalStep2() {
     if (!formData.subcategoryIds || formData.subcategoryIds.length === 0) {
       newErrors.carTypes = 'At least one car type is required';
     }
+    // Validate "Other" car type specification
+    if (formData.subcategoryIds.includes(9) && !formData.otherCarType.trim()) {
+      newErrors.otherCarType = 'Please specify the car type';
+    }
     if (!formData.description.trim()) {
       newErrors.description = 'Description is required';
     }
     if (!formData.phone.trim()) {
       newErrors.phone = 'Phone number is required';
+    }
+    if (!formData.countryCode) {
+      newErrors.countryCode = 'Country code is required';
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -103,11 +113,24 @@ export default function ListYourCarRentalStep2() {
       return;
     }
 
+    // Prepare final form data with custom car type if "Other" is selected
+    const finalFormData = { ...formData };
+    if (finalFormData.subcategoryIds.includes(9) && finalFormData.otherCarType.trim()) {
+      // Replace "Other" in carTypeNames with the custom specification
+      const otherIndex = finalFormData.carTypeNames.indexOf('Other');
+      if (otherIndex !== -1) {
+        finalFormData.carTypeNames[otherIndex] = `Other: ${finalFormData.otherCarType.trim()}`;
+      }
+    }
+    
+    // Combine country code and phone number
+    finalFormData.phone = `${finalFormData.countryCode}${finalFormData.phone.replace(/\s+/g, '')}`;
+
     // Just collect data and navigate to next step (no API call yet)
     navigate('/car-rental/list-your-car-rental/step-3', {
       state: {
         ...location.state,
-        step2Data: formData
+        step2Data: finalFormData
       }
     });
   };
@@ -225,12 +248,17 @@ export default function ListYourCarRentalStep2() {
                                   };
                                 } else {
                                   // Remove from arrays
-                                  return {
+                                  // If removing "Other", also clear the otherCarType field
+                                  const updatedData = {
                                     ...prev,
                                     subcategoryIds: prev.subcategoryIds.filter(id => id !== type.subcategory_id),
                                     carTypeNames: prev.carTypeNames.filter(name => name !== type.name),
                                     carTypes: prev.carTypes.filter(id => id !== type.subcategory_id.toString())
                                   };
+                                  if (type.subcategory_id === 9) {
+                                    updatedData.otherCarType = '';
+                                  }
+                                  return updatedData;
                                 }
                               });
                               // Clear error when user makes a selection
@@ -238,6 +266,12 @@ export default function ListYourCarRentalStep2() {
                                 setErrors(prev => ({
                                   ...prev,
                                   carTypes: ''
+                                }));
+                              }
+                              if (errors.otherCarType && type.subcategory_id === 9 && !checked) {
+                                setErrors(prev => ({
+                                  ...prev,
+                                  otherCarType: ''
                                 }));
                               }
                             }}
@@ -254,6 +288,28 @@ export default function ListYourCarRentalStep2() {
                 </div>
                 {errors.carTypes && (
                   <p className="mt-1 text-sm text-red-600">{errors.carTypes}</p>
+                )}
+                {/* Show text input when "Other" is selected */}
+                {formData.subcategoryIds.includes(9) && (
+                  <div className="mt-4">
+                    <label htmlFor="otherCarType" className="block text-sm font-medium text-gray-700 mb-2">
+                      Please specify the car type *
+                    </label>
+                    <input
+                      type="text"
+                      id="otherCarType"
+                      name="otherCarType"
+                      value={formData.otherCarType}
+                      onChange={handleChange}
+                      placeholder="e.g., Motorcycles, Sports Cars, Electric Vehicles, etc."
+                      className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
+                        errors.otherCarType ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
+                      }`}
+                    />
+                    {errors.otherCarType && (
+                      <p className="mt-1 text-sm text-red-600">{errors.otherCarType}</p>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -277,26 +333,33 @@ export default function ListYourCarRentalStep2() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    id="phone"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="+250 7XX XXX XXX"
-                    className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
-                      errors.phone ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
-                    }`}
-                  />
-                  {errors.phone && (
-                    <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
-                  )}
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone Number *
+                </label>
+                <PhoneInput
+                  countryCode={formData.countryCode}
+                  phone={formData.phone}
+                  onChange={(code, phoneNum) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      countryCode: code,
+                      phone: phoneNum
+                    }));
+                    // Clear errors
+                    if (errors.countryCode || errors.phone) {
+                      setErrors(prev => ({
+                        ...prev,
+                        countryCode: '',
+                        phone: ''
+                      }));
+                    }
+                  }}
+                  placeholder="7XX XXX XXX"
+                  error={!!errors.phone || !!errors.countryCode}
+                  errorMessage={errors.phone || errors.countryCode}
+                  required
+                />
               </div>
 
               {locationData && (

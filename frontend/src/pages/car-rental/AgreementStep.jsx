@@ -5,6 +5,7 @@ import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import toast from 'react-hot-toast';
 import carRentalSetupService from '../../services/carRentalSetupService';
+import SetupProgressIndicator from '../../components/car-rental/SetupProgressIndicator';
 
 export default function AgreementStep() {
   const navigate = useNavigate();
@@ -22,6 +23,19 @@ export default function AgreementStep() {
       document.body.classList.remove('auth-page');
     };
   }, []);
+
+  // Check if carRentalBusinessId is missing and redirect to login
+  React.useEffect(() => {
+    if (!carRentalBusinessId) {
+      toast.error('Something went wrong. Please sign in again.');
+      localStorage.removeItem('car_rental_user_id');
+      localStorage.removeItem('car_rental_business_id');
+      localStorage.removeItem('user');
+      setTimeout(() => {
+        navigate('/login');
+      }, 1500);
+    }
+  }, [carRentalBusinessId, navigate]);
 
   const [agreed, setAgreed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,6 +69,14 @@ export default function AgreementStep() {
         carRentalBusinessId: Number(carRentalBusinessId),
         userId: finalUserId
       });
+      
+      // Mark this step as complete in onboarding progress
+      try {
+        await carRentalSetupService.completeStep('agreement', Number(carRentalBusinessId));
+      } catch (progressError) {
+        console.error('Error updating onboarding progress:', progressError);
+        // Don't block navigation if progress update fails
+      }
       
       toast.success('Registration submitted successfully!');
       
@@ -90,48 +112,10 @@ export default function AgreementStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-3xl w-full mx-auto">
           {/* Progress Indicator */}
-          <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  7
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  8
-                </div>
-              </div>
-            </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Step 7 of 8: Sign Agreement & Submit</p>
-          </div>
+          <SetupProgressIndicator 
+            currentStepKey="agreement" 
+            currentStepNumber={5} 
+          />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>

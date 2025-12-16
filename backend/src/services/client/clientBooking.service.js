@@ -863,10 +863,15 @@ class ClientBookingService {
         throw new Error('Missing required booking fields: car_id, rental.pickup_date, rental.return_date, customer.first_name, customer.phone');
       }
 
-      // Get car details
+      // Get car details - handle both string and integer car_id
+      const carIdInt = typeof car_id === 'string' ? parseInt(car_id, 10) : car_id;
+      if (isNaN(carIdInt)) {
+        throw new Error('Invalid car_id format');
+      }
+
       const car = await executeQuery(
         `SELECT * FROM cars WHERE car_id = ? AND status = 'active' AND is_available = 1`,
-        [car_id]
+        [carIdInt]
       );
 
       if (!car || car.length === 0) {
@@ -874,6 +879,7 @@ class ClientBookingService {
       }
 
       const carData = car[0];
+      console.log('✅ Car found:', { car_id: carData.car_id, vendor_id: carData.vendor_id, brand: carData.brand, model: carData.model });
 
       // Check availability - handle both old and new table structures
       // Calculate date/time strings first (needed for error messages)
@@ -899,7 +905,7 @@ class ClientBookingService {
              WHERE car_id = ? AND booking_status IN ('pending', 'confirmed', 'in_progress')
              AND CONCAT(pickup_date, ' ', COALESCE(pickup_time, '00:00:00')) < ? 
              AND CONCAT(return_date, ' ', COALESCE(return_time, '23:59:59')) > ?`,
-            [car_id, returnDateTime, pickupDateTime]
+            [carIdInt, returnDateTime, pickupDateTime]
           );
         } else {
           // Old structure - pickup_date and dropoff_date are DATETIME
@@ -908,7 +914,7 @@ class ClientBookingService {
             `SELECT COUNT(*) as count FROM car_rental_bookings 
              WHERE car_id = ? AND booking_status IN ('pending', 'confirmed', 'in_progress')
              AND pickup_date < ? AND dropoff_date > ?`,
-            [car_id, returnDateTime, pickupDateTime]
+            [carIdInt, returnDateTime, pickupDateTime]
           );
         }
       } catch (err) {
@@ -918,7 +924,7 @@ class ClientBookingService {
           `SELECT COUNT(*) as count FROM car_rental_bookings 
            WHERE car_id = ? AND booking_status IN ('pending', 'confirmed', 'in_progress')
            AND pickup_date < ? AND dropoff_date > ?`,
-          [car_id, returnDateTime, pickupDateTime]
+          [carIdInt, returnDateTime, pickupDateTime]
         );
       }
 
@@ -945,7 +951,7 @@ class ClientBookingService {
                WHERE car_id = ? AND booking_status IN ('pending', 'confirmed', 'in_progress')
                AND CONCAT(pickup_date, ' ', COALESCE(pickup_time, '00:00:00')) < ? 
                AND CONCAT(return_date, ' ', COALESCE(return_time, '23:59:59')) > ?`,
-              [car_id, returnDateTime, pickupDateTime]
+              [carIdInt, returnDateTime, pickupDateTime]
             );
           } else {
             conflictingBookings = await executeQuery(
@@ -953,7 +959,7 @@ class ClientBookingService {
                FROM car_rental_bookings 
                WHERE car_id = ? AND booking_status IN ('pending', 'confirmed', 'in_progress')
                AND pickup_date < ? AND dropoff_date > ?`,
-              [car_id, returnDateTime, pickupDateTime]
+              [carIdInt, returnDateTime, pickupDateTime]
             );
           }
         } catch (err) {
@@ -1056,7 +1062,7 @@ class ClientBookingService {
             total_amount, deposit_amount, booking_status, payment_status, special_requests
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
           insertParams = [
-            bookingId, car_id, (carData && carData.vendor_id) || null, customer_first_name, customer_email || null, customer_phone,
+            bookingId, carIdInt, (carData && carData.vendor_id) || null, customer_first_name, customer_email || null, customer_phone,
             pickup_date || null, pickup_time || null, return_date || null, return_time || null,
             pickup_location || null, dropoff_location || null, driver_option || 'self-drive',
             totalAmount || 0.00, securityDeposit || 0.00, 'pending', 'pending', specialRequestsText
@@ -1079,7 +1085,7 @@ class ClientBookingService {
             total_amount, deposit_amount, booking_status, payment_status, special_requests
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
           insertParams = [
-            bookingId, car_id, (carData && carData.vendor_id) || null, customer_first_name, customer_email || null, customer_phone,
+            bookingId, carIdInt, (carData && carData.vendor_id) || null, customer_first_name, customer_email || null, customer_phone,
             pickupDateTime || null, dropoffDateTime || null,
             pickup_location || null, dropoff_location || null,
             totalAmount || 0.00, securityDeposit || 0.00, 'pending', 'pending', specialRequestsText
@@ -1090,8 +1096,11 @@ class ClientBookingService {
         insertParams = insertParams.map(p => p === undefined ? null : p);
 
         await executeQuery(insertQuery, insertParams);
+        console.log('✅ Car rental booking created successfully:', { booking_id: bookingId, car_id: carIdInt, booking_reference: bookingReference });
       } catch (err) {
-        console.error('Error creating car rental booking:', err);
+        console.error('❌ Error creating car rental booking:', err);
+        console.error('❌ Insert query:', insertQuery);
+        console.error('❌ Insert params:', insertParams);
         throw err;
       }
 
@@ -1144,7 +1153,7 @@ class ClientBookingService {
            JOIN car_rental_businesses crb ON c.vendor_id = crb.car_rental_business_id
            JOIN car_rental_users u ON crb.user_id = u.user_id
            WHERE c.car_id = ? LIMIT 1`,
-          [car_id]
+          [carIdInt]
         );
 
         if (vendorInfo && vendorInfo.length > 0) {
@@ -1177,9 +1186,17 @@ class ClientBookingService {
         console.error('⚠️ Failed to send vendor notification for car rental booking:', vendorEmailError.message);
       }
 
+      console.log('✅ Car rental booking created successfully:', {
+        booking_id: bookingId,
+        booking_reference: bookingReference,
+        car_id: carIdInt,
+        total_amount: totalAmount
+      });
+
       return bookingDetails;
     } catch (error) {
-      console.error('Error creating car rental booking:', error);
+      console.error('❌ Error creating car rental booking:', error);
+      console.error('❌ Error stack:', error.stack);
       throw error;
     }
   }
@@ -1279,13 +1296,25 @@ class ClientBookingService {
          LEFT JOIN car_rental_bookings crb ON b.booking_id = crb.booking_id
          WHERE b.booking_reference = ?`;
 
+      console.log('🔍 Searching for booking with reference:', bookingReference);
       const bookings = await executeQuery(query, [bookingReference]);
+      console.log('🔍 Found bookings:', bookings?.length || 0);
 
       if (!bookings || bookings.length === 0) {
+        console.log('❌ No booking found with reference:', bookingReference);
+        // Try to find in bookings table directly
+        const directBooking = await executeQuery(
+          `SELECT * FROM bookings WHERE booking_reference = ?`,
+          [bookingReference]
+        );
+        if (directBooking && directBooking.length > 0) {
+          console.log('⚠️  Booking exists in bookings table but not in car_rental_bookings:', directBooking[0]);
+        }
         return null;
       }
 
       const booking = bookings[0];
+      console.log('✅ Booking found:', { booking_id: booking.booking_id, booking_reference: booking.booking_reference, service_type: booking.service_type });
       
       // Parse guest info from special_requests if it's a stay booking
       // Note: service_type is 'room' in the database for stays

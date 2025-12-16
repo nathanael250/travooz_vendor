@@ -805,11 +805,117 @@ class AdminAccountsService {
         switch (serviceType) {
             case 'tours':
                 return this.getTourAccountDetails(accountId);
+            case 'car_rental':
+                return this.getCarRentalAccountDetails(accountId);
             default:
                 const error = new Error(`Detailed view is not available yet for ${serviceType} accounts.`);
                 error.statusCode = 400;
                 throw error;
         }
+    }
+
+    async getCarRentalAccountDetails(carRentalBusinessId) {
+        const rows = await executeQuery(
+            `SELECT 
+                crb.car_rental_business_id,
+                crb.business_name,
+                crb.business_type,
+                crb.short_description,
+                crb.location,
+                crb.location_data,
+                crb.latitude,
+                crb.longitude,
+                crb.car_type,
+                crb.car_type_name,
+                crb.description,
+                crb.phone AS business_phone,
+                crb.currency,
+                crb.status AS business_status,
+                crb.created_at,
+                crb.updated_at,
+                crss.status AS submission_status,
+                crss.submitted_at,
+                crss.agreement_signed_at,
+                crsp.current_step,
+                crsp.status AS progress_status,
+                cu.user_id,
+                cu.name AS user_name,
+                cu.email AS user_email,
+                cu.phone AS user_phone,
+                cti.tin,
+                cti.legal_business_name,
+                cti.payment_method,
+                cti.documents
+            FROM car_rental_businesses crb
+            JOIN car_rental_users cu ON crb.user_id = cu.user_id
+            LEFT JOIN car_rental_setup_submissions crss ON crb.car_rental_business_id = crss.car_rental_business_id
+            LEFT JOIN car_rental_setup_progress crsp ON crb.car_rental_business_id = crsp.car_rental_business_id
+            LEFT JOIN car_rental_tax_info cti ON crb.car_rental_business_id = cti.car_rental_business_id
+            WHERE crb.car_rental_business_id = ?
+            LIMIT 1`,
+            [carRentalBusinessId]
+        );
+
+        if (!rows.length) {
+            const error = new Error('Car rental business not found');
+            error.statusCode = 404;
+            throw error;
+        }
+
+        const row = rows[0];
+        const parseJSON = (value) => {
+            if (!value) return null;
+            try {
+                return typeof value === 'string' ? JSON.parse(value) : value;
+            } catch (error) {
+                return null;
+            }
+        };
+
+        return {
+            serviceType: 'car_rental',
+            submission: {
+                id: row.car_rental_business_id,
+                status: row.submission_status || row.business_status,
+                submittedAt: row.submitted_at,
+                agreementSignedAt: row.agreement_signed_at
+            },
+            business: {
+                id: row.car_rental_business_id,
+                name: row.business_name,
+                business_name: row.business_name,
+                businessType: row.business_type,
+                shortDescription: row.short_description,
+                description: row.description,
+                location: row.location,
+                locationData: parseJSON(row.location_data),
+                latitude: row.latitude,
+                longitude: row.longitude,
+                carType: row.car_type,
+                carTypeName: row.car_type_name,
+                phone: row.business_phone,
+                currency: row.currency,
+                status: row.business_status,
+                createdAt: row.created_at,
+                updatedAt: row.updated_at
+            },
+            account: {
+                userId: row.user_id,
+                name: row.user_name,
+                email: row.user_email,
+                phone: row.user_phone
+            },
+            taxInfo: {
+                tin: row.tin,
+                legalBusinessName: row.legal_business_name,
+                paymentMethod: row.payment_method,
+                documents: parseJSON(row.documents)
+            },
+            progress: {
+                currentStep: row.current_step,
+                status: row.progress_status
+            }
+        };
     }
 
     async getTourAccountDetails(submissionId) {

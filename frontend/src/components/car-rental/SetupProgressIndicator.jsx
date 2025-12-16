@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import carRentalSetupService from '../../services/carRentalSetupService';
 
 /**
  * Responsive Progress Indicator Component for Car Rental Setup
@@ -9,6 +10,8 @@ export default function SetupProgressIndicator({ currentStepKey, currentStepNumb
   const navigate = useNavigate();
   const location = useLocation();
   const [currentStep, setCurrentStep] = useState(null);
+  const [progress, setProgress] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   // Step mapping for car rental setup
   // Initial 3 steps (location, step-2, step-3) are combined as Step 1
@@ -31,30 +34,52 @@ export default function SetupProgressIndicator({ currentStepKey, currentStepNumb
   };
 
   useEffect(() => {
-    // Determine current step from URL or props
+    const fetchProgress = async () => {
+      try {
+        const progressData = await carRentalSetupService.getProgress();
+        if (progressData) {
+          setProgress(progressData);
+        }
+      } catch (error) {
+        console.error('Error fetching progress:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProgress();
+  }, [currentStepKey, currentStepNumber]); // Re-fetch when step changes
+
+  useEffect(() => {
+    // Determine current step from URL, props, or progress
     const pathname = location.pathname;
     let stepKey = currentStepKey;
 
     if (!stepKey) {
-      // Determine from URL
-      if (pathname.includes('/setup/business-details')) {
-        stepKey = 'business-details';
-      } else if (pathname.includes('/setup/tax-payment')) {
-        stepKey = 'tax-payment';
-      } else if (pathname.includes('/setup/review')) {
-        stepKey = 'review';
-      } else if (pathname.includes('/setup/agreement')) {
-        stepKey = 'agreement';
-      } else if (pathname.includes('/setup/complete')) {
-        stepKey = 'complete';
-      } else if (pathname.includes('/list-your-car-rental')) {
-        // Initial steps (location, step-2, step-3) - these are Step 1
-        stepKey = 'initial';
+      // Use progress data if available
+      if (progress && progress.current_step) {
+        stepKey = progress.current_step;
+      } else {
+        // Determine from URL
+        if (pathname.includes('/setup/business-details')) {
+          stepKey = 'business-details';
+        } else if (pathname.includes('/setup/tax-payment')) {
+          stepKey = 'tax-payment';
+        } else if (pathname.includes('/setup/review')) {
+          stepKey = 'review';
+        } else if (pathname.includes('/setup/agreement')) {
+          stepKey = 'agreement';
+        } else if (pathname.includes('/setup/complete')) {
+          stepKey = 'complete';
+        } else if (pathname.includes('/list-your-car-rental')) {
+          // Initial steps (location, step-2, step-3) - these are Step 1
+          stepKey = 'initial';
+        }
       }
     }
 
     setCurrentStep(stepKey);
-  }, [location.pathname, currentStepKey]);
+  }, [location.pathname, currentStepKey, progress]);
 
   // Determine current step info
   const getCurrentStepInfo = () => {
@@ -81,19 +106,28 @@ export default function SetupProgressIndicator({ currentStepKey, currentStepNumb
     
     const totalSteps = 6; // 1 initial + 5 setup steps
     
-    // Calculate completed count
-    // Step 1 (initial 3 steps) is always complete if we're past it
+    // Calculate completed count using progress data if available
     let completedCount = 0;
+    const completedSteps = progress?.completed_steps || [];
+    
     if (actualCurrentStep !== 'initial') {
       completedCount = 1; // Initial steps are complete
-      // Count completed onboarding steps (steps before current)
-      if (currentIndex >= 0) {
-        // If we're on 'complete', all steps are done
-        if (actualCurrentStep === 'complete') {
-          completedCount = totalSteps; // All steps complete
-        } else {
-          completedCount += currentIndex; // Steps before current are complete
-        }
+      
+      // Count steps that are explicitly in completedSteps array
+      if (completedSteps && Array.isArray(completedSteps)) {
+        const onboardingCompletedCount = completedSteps.filter(step => STEP_ORDER.includes(step)).length;
+        completedCount += onboardingCompletedCount;
+      }
+      
+      // Also count steps that are before the current step
+      if (currentIndex >= 0 && currentIndex > 0) {
+        // Only count steps before current (not including current)
+        completedCount = Math.max(completedCount, 1 + currentIndex);
+      }
+      
+      // If we're on 'complete', all steps are done
+      if (actualCurrentStep === 'complete') {
+        completedCount = totalSteps; // All steps complete
       }
     }
     
@@ -102,12 +136,23 @@ export default function SetupProgressIndicator({ currentStepKey, currentStepNumb
       completedCount,
       totalSteps,
       currentStepKey: actualCurrentStep,
-      currentIndex
+      currentIndex,
+      completedSteps
     };
   };
 
+  if (loading) {
+    return (
+      <div className="mb-8">
+        <div className="flex items-center justify-center">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#3CAF54]"></div>
+        </div>
+      </div>
+    );
+  }
+
   const stepInfo = getCurrentStepInfo();
-  const { currentStepNum, completedCount, totalSteps, currentStepKey: actualStepKey, currentIndex } = stepInfo;
+  const { currentStepNum, completedCount, totalSteps, currentStepKey: actualStepKey, currentIndex, completedSteps } = stepInfo;
   // Calculate percentage: if on complete step, show 100%, otherwise calculate normally
   const percentage = actualStepKey === 'complete' ? 100 : Math.round((completedCount / totalSteps) * 100);
 
@@ -137,9 +182,22 @@ export default function SetupProgressIndicator({ currentStepKey, currentStepNumb
       return actualStepKey !== 'initial';
     }
     
-    // For other steps, check if they're before the current step
-    const stepIndex = displayStepNum - 2; // Convert display step to STEP_ORDER index
-    if (currentIndex >= 0 && stepIndex >= 0 && stepIndex < currentIndex) {
+    // Convert display step to STEP_ORDER index
+    const stepIndex = displayStepNum - 2;
+    if (stepIndex < 0 || stepIndex >= STEP_ORDER.length) {
+      return false;
+    }
+    
+    const stepKey = STEP_ORDER[stepIndex];
+    
+    // Check if step is explicitly in completedSteps array
+    if (completedSteps && Array.isArray(completedSteps) && completedSteps.includes(stepKey)) {
+      return true;
+    }
+    
+    // Also check if current step is past this step
+    const currentStepIndex = STEP_ORDER.indexOf(actualStepKey);
+    if (currentStepIndex >= 0 && stepIndex < currentStepIndex) {
       return true;
     }
     

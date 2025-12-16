@@ -16,6 +16,7 @@ const ensureTables = async () => {
       email VARCHAR(255) UNIQUE NOT NULL,
       phone VARCHAR(50),
       password_hash VARCHAR(255),
+      email_verified TINYINT(1) DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
     `CREATE TABLE IF NOT EXISTS car_rental_businesses (
@@ -96,11 +97,53 @@ const ensureTables = async () => {
         REFERENCES car_rental_businesses(car_rental_business_id) ON DELETE CASCADE,
       CONSTRAINT fk_car_rental_submission_user FOREIGN KEY (user_id)
         REFERENCES car_rental_users(user_id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+    `CREATE TABLE IF NOT EXISTS car_rental_onboarding_progress_track (
+      id VARCHAR(36) PRIMARY KEY,
+      user_id INT NOT NULL,
+      business_id INT,
+      current_step VARCHAR(50) DEFAULT 'business-details',
+      step_name VARCHAR(100),
+      step_number INT,
+      is_complete TINYINT(1) DEFAULT 0,
+      completed_steps JSON,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_car_rental_onboarding_user (user_id),
+      CONSTRAINT fk_car_rental_onboarding_user FOREIGN KEY (user_id)
+        REFERENCES car_rental_users(user_id) ON DELETE CASCADE,
+      CONSTRAINT fk_car_rental_onboarding_business FOREIGN KEY (business_id)
+        REFERENCES car_rental_businesses(car_rental_business_id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
   ];
 
   for (const statement of tableStatements) {
     await pool.execute(statement);
+  }
+
+  // Ensure email_verified column exists in car_rental_users (for existing tables)
+  try {
+    const [columns] = await pool.execute(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'car_rental_users' 
+      AND COLUMN_NAME = 'email_verified'
+    `);
+    
+    if (columns.length === 0) {
+      await pool.execute(`
+        ALTER TABLE car_rental_users 
+        ADD COLUMN email_verified TINYINT(1) DEFAULT 0 
+        AFTER password_hash
+      `);
+      console.log('✅ Added email_verified column to car_rental_users table');
+    } else {
+      console.log('ℹ️  email_verified column already exists in car_rental_users table');
+    }
+  } catch (alterError) {
+    console.warn('Could not add email_verified column:', alterError.message);
+    // Don't throw - continue execution
   }
 
   // Update payment_method column to allow NULL (for existing tables)
@@ -452,24 +495,45 @@ class CarRentalSetupService {
       throw new Error('User email is required');
     }
 
+    // Normalize email for comparison (trim and lowercase)
+    const normalizedEmail = (user.email || '').trim().toLowerCase();
+
     const existingUsers = await executeQuery(
-      `SELECT user_id FROM car_rental_users WHERE email = ?`,
-      [user.email]
+      `SELECT user_id, password_hash, email FROM car_rental_users WHERE LOWER(TRIM(email)) = ?`,
+      [normalizedEmail]
     );
 
     if (existingUsers && existingUsers.length > 0) {
-      return existingUsers[0].user_id;
+      const existingUser = existingUsers[0];
+      // If user exists and a password is provided, update the password
+      if (user.password && user.password.trim()) {
+        const hashedPassword = await bcrypt.hash(user.password, 10);
+        await pool.execute(
+          `UPDATE car_rental_users SET password_hash = ? WHERE user_id = ?`,
+          [hashedPassword, existingUser.user_id]
+        );
+        console.log(`✅ Updated password for existing car rental user: ${normalizedEmail}`);
+      } else {
+        // If user exists but no password is provided, check if they have a password_hash
+        // If they don't have one, they'll need to use forgot password
+        if (!existingUser.password_hash) {
+          console.log(`⚠️  Existing user ${normalizedEmail} has no password_hash. They'll need to use forgot password.`);
+        } else {
+          console.log(`ℹ️  Existing user ${normalizedEmail} already has a password_hash. Password not updated.`);
+        }
+      }
+      return existingUser.user_id;
     }
 
     // If no password is provided (e.g., for vendors from other services),
     // generate a random password that they'll need to reset later
     let passwordToHash = user.password;
-    if (!passwordToHash) {
+    if (!passwordToHash || !passwordToHash.trim()) {
       // Generate a random password for vendors who don't provide one
       // They'll need to reset it via forgot password flow
       const crypto = require('crypto');
       passwordToHash = crypto.randomBytes(16).toString('hex');
-      console.log(`Generated temporary password for vendor: ${user.email}`);
+      console.log(`⚠️  Generated temporary password for vendor: ${normalizedEmail} (no password provided)`);
     }
 
     const hashedPassword = await bcrypt.hash(passwordToHash, 10);
@@ -477,25 +541,68 @@ class CarRentalSetupService {
     const fullName = [user.firstName || '', user.lastName || '']
       .filter(Boolean)
       .join(' ')
-      .trim() || business.carRentalBusinessName || user.email.split('@')[0];
+      .trim() || business.carRentalBusinessName || normalizedEmail.split('@')[0];
 
     const formattedPhone = this.#formatPhone(user.phone, user.countryCode, { allowDefault: true });
 
-    const insertResult = await pool.execute(
-      `INSERT INTO car_rental_users (role, name, email, phone, password_hash)
-       VALUES (?, ?, ?, ?, ?)`,
-      [
-        'vendor',
-        fullName,
-        user.email,
-        formattedPhone,
-        hashedPassword
-      ]
-    );
+    // normalizedEmail is already declared above, reuse it for insert
+    try {
+      const insertResult = await pool.execute(
+        `INSERT INTO car_rental_users (role, name, email, phone, password_hash, email_verified)
+         VALUES (?, ?, ?, ?, ?, 0)`,
+        [
+          'vendor',
+          fullName,
+          normalizedEmail,
+          formattedPhone,
+          hashedPassword
+        ]
+      );
 
-    const [result] = insertResult;
-
-    return result.insertId;
+      const [result] = insertResult;
+      console.log(`✅ Created new car rental user: ${normalizedEmail} (user_id: ${result.insertId})`);
+      return result.insertId;
+    } catch (insertError) {
+      // Handle duplicate email error (MySQL error code 1062)
+      if (insertError.code === 'ER_DUP_ENTRY' || insertError.errno === 1062) {
+        console.log(`⚠️  Duplicate email detected during insert: ${normalizedEmail}. Checking existing user...`);
+        
+        // Double-check: query again to get the existing user (case-insensitive)
+        const duplicateCheck = await executeQuery(
+          `SELECT user_id, password_hash, email_verified FROM car_rental_users WHERE LOWER(TRIM(email)) = ?`,
+          [normalizedEmail]
+        );
+        
+        if (duplicateCheck && duplicateCheck.length > 0) {
+          const existingUser = duplicateCheck[0];
+          console.log(`✅ Found existing user with email ${normalizedEmail} (user_id: ${existingUser.user_id})`);
+          console.log(`ℹ️  Existing user has password_hash: ${!!existingUser.password_hash}`);
+          console.log(`ℹ️  Existing user email_verified: ${existingUser.email_verified}`);
+          
+          // If password was provided, update it (even if one exists - user might be resetting)
+          if (user.password && user.password.trim()) {
+            const hashedPassword = await bcrypt.hash(user.password, 10);
+            await pool.execute(
+              `UPDATE car_rental_users SET password_hash = ? WHERE user_id = ?`,
+              [hashedPassword, existingUser.user_id]
+            );
+            console.log(`✅ Updated password for existing user: ${normalizedEmail}`);
+          } else if (!existingUser.password_hash) {
+            // If no password provided and user has no password_hash, they'll need to use forgot password
+            console.log(`⚠️  Existing user ${normalizedEmail} has no password_hash and no password was provided. They'll need to use forgot password.`);
+          }
+          
+          return existingUser.user_id;
+        } else {
+          // This shouldn't happen, but handle it
+          throw new Error(`Email ${normalizedEmail} already exists, but could not retrieve user information.`);
+        }
+      } else {
+        // Re-throw other errors
+        console.error('❌ Error creating car rental user:', insertError);
+        throw insertError;
+      }
+    }
   }
 
   async #createOrUpdateBusiness({ userId, location, locationData, business, existingBusinessId }) {

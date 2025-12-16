@@ -94,6 +94,7 @@ import ListYourTourStep3 from './pages/tours/ListYourTourStep3';
 import ListYourCarRental from './pages/car-rental/ListYourCarRental';
 import ListYourCarRentalStep2 from './pages/car-rental/ListYourCarRentalStep2';
 import ListYourCarRentalStep3 from './pages/car-rental/ListYourCarRentalStep3';
+import CarRentalEmailVerification from './pages/car-rental/EmailVerification';
 import CarRentalBusinessDetailsStep from './pages/car-rental/BusinessDetailsStep';
 import CarRentalTaxPaymentStep from './pages/car-rental/TaxPaymentStep';
 import ReviewCarRentalDataStep from './pages/car-rental/ReviewCarRentalDataStep';
@@ -289,6 +290,7 @@ function App() {
           <Route path="/car-rental/reset-password" element={<CarRentalResetPassword />} />
 
           {/* Car Rental Setup Flow */}
+          <Route path="/car-rental/setup/email-verification" element={<CarRentalEmailVerification />} />
           <Route path="/car-rental/setup/business-details" element={<CarRentalBusinessDetailsStep />} />
           <Route path="/car-rental/setup/tax-payment" element={<CarRentalTaxPaymentStep />} />
           <Route path="/car-rental/setup/review" element={<ReviewCarRentalDataStep />} />

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
+import PhoneInput from '../../components/common/PhoneInput';
 
 export default function ListYourRestaurantStep2() {
   const navigate = useNavigate();
@@ -319,40 +320,29 @@ export default function ListYourRestaurantStep2() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
-                  <div className="flex items-center gap-3">
-                    <div className="w-28">
-                      <select
-                        id="countryCode"
-                        name="countryCode"
-                        value={formData.countryCode}
-                        onChange={handleChange}
-                        className="w-full px-3 py-3 border-2 rounded-lg focus:outline-none transition-all border-gray-300"
-                      >
-                        <option value="+250">+250 (RW)</option>
-                        <option value="+1">+1 (US)</option>
-                        <option value="+44">+44 (UK)</option>
-                        <option value="+254">+254 (KE)</option>
-                        <option value="+255">+255 (TZ)</option>
-                        <option value="+256">+256 (UG)</option>
-                      </select>
-                    </div>
-                    <div className="flex-1">
-                      <input
-                        type="tel"
-                        id="phoneNumber"
-                        name="phoneNumber"
-                        value={formData.phoneNumber}
-                        onChange={handleChange}
-                        placeholder="7XX XXX XXX"
-                        className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${
-                          errors.phoneNumber ? 'border-red-500' : 'border-gray-300 focus:border-green-500'
-                        }`}
-                      />
-                      {errors.phoneNumber && (
-                        <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
-                      )}
-                    </div>
-                  </div>
+                  <PhoneInput
+                    countryCode={formData.countryCode}
+                    phone={formData.phoneNumber}
+                    phoneName="phoneNumber"
+                    onChange={(code, phoneNum) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        countryCode: code,
+                        phoneNumber: phoneNum
+                      }));
+                      // Clear error
+                      if (errors.phoneNumber) {
+                        setErrors(prev => ({
+                          ...prev,
+                          phoneNumber: ''
+                        }));
+                      }
+                    }}
+                    placeholder="7XX XXX XXX"
+                    error={!!errors.phoneNumber}
+                    errorMessage={errors.phoneNumber}
+                    required
+                  />
                 </div>
               </div>
 

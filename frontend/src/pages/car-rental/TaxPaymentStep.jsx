@@ -5,6 +5,7 @@ import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import toast from 'react-hot-toast';
 import carRentalSetupService from '../../services/carRentalSetupService';
+import SetupProgressIndicator from '../../components/car-rental/SetupProgressIndicator';
 
 export default function TaxPaymentStep() {
   const navigate = useNavigate();
@@ -20,6 +21,19 @@ export default function TaxPaymentStep() {
       document.body.classList.remove('auth-page');
     };
   }, []);
+
+  // Check if carRentalBusinessId is missing and redirect to login
+  React.useEffect(() => {
+    if (!carRentalBusinessId) {
+      toast.error('Something went wrong. Please sign in again.');
+      localStorage.removeItem('car_rental_user_id');
+      localStorage.removeItem('car_rental_business_id');
+      localStorage.removeItem('user');
+      setTimeout(() => {
+        navigate('/login');
+      }, 1500);
+    }
+  }, [carRentalBusinessId, navigate]);
 
   const [formData, setFormData] = useState({
     tin: '',
@@ -171,6 +185,14 @@ export default function TaxPaymentStep() {
         documents: documentsPayload
       });
       
+      // Mark this step as complete in onboarding progress
+      try {
+        await carRentalSetupService.completeStep('tax-payment', Number(carRentalBusinessId));
+      } catch (progressError) {
+        console.error('Error updating onboarding progress:', progressError);
+        // Don't block navigation if progress update fails
+      }
+      
       toast.success('Tax & payment information saved successfully');
       
       navigate('/car-rental/setup/review', {
@@ -270,44 +292,10 @@ export default function TaxPaymentStep() {
       <div className="flex-1 w-full py-8 px-4">
         <div className="max-w-3xl w-full mx-auto">
           {/* Progress Indicator */}
-          <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  ✓
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#3CAF54' }}></div>
-                <div className="w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-md" style={{ backgroundColor: '#3CAF54' }}>
-                  5
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  6
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  7
-                </div>
-                <div className="w-16 h-1" style={{ backgroundColor: '#bbf7d0' }}></div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#1f6f31' }}>
-                  8
-                </div>
-              </div>
-            </div>
-            <p className="text-center text-sm font-medium" style={{ color: '#1f6f31' }}>Step 5 of 8: Tax & Payment Information</p>
-          </div>
+          <SetupProgressIndicator 
+            currentStepKey="tax-payment" 
+            currentStepNumber={3} 
+          />
 
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>

@@ -16,9 +16,11 @@ class CarRentalAuthService {
 
             console.log('🔍 Car rental login attempt for email:', email);
 
-            // Find user in car_rental_users table
+            // Find user in car_rental_users table (include email_verified)
+            // Note: is_active column may not exist, so we don't select it
             const users = await executeQuery(
-                `SELECT * FROM car_rental_users WHERE email = ?`,
+                `SELECT user_id, role, name, email, phone, password_hash, email_verified, created_at 
+                 FROM car_rental_users WHERE email = ?`,
                 [email]
             );
 
@@ -31,13 +33,10 @@ class CarRentalAuthService {
 
             const user = users[0];
 
-            // Check if user is active (if the column exists)
-            if (user.is_active !== undefined && !user.is_active) {
-                console.log('❌ User account is deactivated:', email);
-                throw new Error('Your account has been deactivated. Please contact support.');
-            }
+            // Note: is_active column doesn't exist in car_rental_users table
+            // Skip the is_active check (matching restaurant pattern)
 
-            // Verify password
+            // Verify password (matching restaurant implementation)
             console.log('🔍 Verifying password for user:', user.user_id);
             const isPasswordValid = await bcrypt.compare(password, user.password_hash);
             if (!isPasswordValid) {
@@ -84,7 +83,8 @@ class CarRentalAuthService {
                     email: user.email,
                     name: user.name,
                     role: user.role || 'vendor',
-                    phone: user.phone
+                    phone: user.phone,
+                    email_verified: Boolean(user.email_verified)
                 },
                 token,
                 carRentalBusinessId: businesses.length > 0 ? businesses[0].car_rental_business_id : null,
@@ -103,7 +103,7 @@ class CarRentalAuthService {
     async getProfile(userId) {
         try {
             const users = await executeQuery(
-                `SELECT user_id, role, name, email, phone, created_at 
+                `SELECT user_id, role, name, email, phone, email_verified, created_at 
                  FROM car_rental_users 
                  WHERE user_id = ?`,
                 [userId]
@@ -113,7 +113,11 @@ class CarRentalAuthService {
                 throw new Error('User not found');
             }
 
-            return users[0];
+            const user = users[0];
+            return {
+                ...user,
+                email_verified: Boolean(user.email_verified)
+            };
         } catch (error) {
             console.error('Error getting profile:', error);
             throw error;
