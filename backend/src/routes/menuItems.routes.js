@@ -345,11 +345,14 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const id = uuidv4();
 
+    // Default to available (1) for new menu items unless explicitly set to false
+    const isAvailable = available !== undefined ? (available ? 1 : 0) : 1;
+    
     await pool.execute(
       `INSERT INTO menu_items 
        (id, restaurant_id, name, description, price, category, image_url, available)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, restaurant_id, name, description || null, price, category, image_url || null, available ? 1 : 0]
+      [id, restaurant_id, name, description || null, price, category, image_url || null, isAvailable]
     );
 
     const [rows] = await pool.execute(

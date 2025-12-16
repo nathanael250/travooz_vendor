@@ -198,6 +198,9 @@ export default function CarRentalLogin() {
       // Store user data
       if (result.user) {
         localStorage.setItem('user', JSON.stringify(result.user));
+        
+        // Store service type to prevent cross-service conflicts
+        localStorage.setItem('service_type', 'car_rental');
       }
 
       // Store car rental business ID if available

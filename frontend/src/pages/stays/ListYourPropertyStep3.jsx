@@ -224,6 +224,8 @@ export default function ListYourPropertyStep3() {
       
       if (userId) {
         localStorage.setItem('stays_user_id', userId.toString());
+        // Store service type to prevent cross-service conflicts
+        localStorage.setItem('service_type', 'stays');
       }
       
       // Success - navigate to email verification page

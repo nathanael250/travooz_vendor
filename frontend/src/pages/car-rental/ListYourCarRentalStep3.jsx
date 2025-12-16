@@ -283,6 +283,8 @@ export default function ListYourCarRentalStep3() {
           phone: formData.phone || null
         };
         localStorage.setItem('user', JSON.stringify(createdUser));
+        // Store service type to prevent cross-service conflicts
+        localStorage.setItem('service_type', 'car_rental');
         setUser(createdUser);
       }
 

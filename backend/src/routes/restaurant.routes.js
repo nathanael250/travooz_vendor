@@ -1135,10 +1135,11 @@ router.post('/menu', authenticateToken, upload.any(), async (req, res) => {
           itemId = uuidv4();
           isUpdate = false;
           // Determine availability boolean with clear defaults - default to available for new items
-          const availabilityValueNew = (item.availability || 'available').toString().trim();
-          const isAvailableFlagNew = (typeof item.available !== 'undefined')
-            ? (item.available ? 1 : 0)
-            : (availabilityValueNew.toLowerCase() === 'available' || availabilityValueNew === '' ? 1 : 0);
+          // For new items, always default to 'available' unless explicitly set to 'unavailable'
+          const availabilityValueNew = (item.availability || 'available').toString().trim().toLowerCase();
+          // For new items, default to available (1) unless explicitly set to unavailable
+          // Only set to unavailable if availability is explicitly 'unavailable' or 'out_of_stock'
+          const isAvailableFlagNew = (availabilityValueNew === 'unavailable' || availabilityValueNew === 'out_of_stock') ? 0 : 1;
 
           await pool.execute(
             `INSERT INTO menu_items 

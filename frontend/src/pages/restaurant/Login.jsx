@@ -141,6 +141,9 @@ export default function RestaurantLogin() {
       if (result.user) {
         localStorage.setItem('user', JSON.stringify(result.user));
         
+        // Store service type to prevent cross-service conflicts
+        localStorage.setItem('service_type', 'restaurant');
+        
         // Store restaurant status if available
         if (result.user.restaurant_status) {
           localStorage.setItem('restaurant_status', result.user.restaurant_status);

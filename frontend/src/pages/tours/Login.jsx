@@ -201,6 +201,9 @@ export default function ToursLogin() {
       // Store user data
       if (result.user) {
         localStorage.setItem('user', JSON.stringify(result.user));
+        
+        // Store service type to prevent cross-service conflicts
+        localStorage.setItem('service_type', 'tours');
       }
 
       // Store tour business ID if available

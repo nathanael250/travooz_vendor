@@ -5,6 +5,7 @@ import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import toast from 'react-hot-toast';
 import { restaurantSetupService } from '../../services/eatingOutService';
+import apiClient from '../../services/apiClient';
 
 export default function ListYourRestaurantStep3() {
   const navigate = useNavigate();
@@ -26,15 +27,24 @@ export default function ListYourRestaurantStep3() {
     return storedUser ? JSON.parse(storedUser) : null;
   });
   
-  // Check if this is a restaurant-specific user
-  // We'll check this with the backend when the component loads
+  // Check service type to prevent cross-service conflicts
+  const [isDifferentService, setIsDifferentService] = useState(false);
   const [isRestaurantUser, setIsRestaurantUser] = useState(false);
   const [checkingUser, setCheckingUser] = useState(true);
   
-  // Check if user exists in restaurant_users table
+  // Check if user exists in restaurant_users table and verify service type
   useEffect(() => {
     const checkRestaurantUser = async () => {
       if (!user?.email) {
+        setCheckingUser(false);
+        return;
+      }
+      
+      // First check service type
+      const currentServiceType = localStorage.getItem('service_type');
+      if (currentServiceType && currentServiceType !== 'restaurant') {
+        // User is logged in to a different service
+        setIsDifferentService(true);
         setCheckingUser(false);
         return;
       }
@@ -301,6 +311,8 @@ export default function ListYourRestaurantStep3() {
           role: 'vendor'
         };
         localStorage.setItem('user', JSON.stringify(userData));
+        // Store service type to prevent cross-service conflicts
+        localStorage.setItem('service_type', 'restaurant');
         setUser(userData);
       }
 
@@ -460,12 +472,46 @@ export default function ListYourRestaurantStep3() {
                   </p>
                 </div>
               </div>
+            ) : isDifferentService ? (
+              <div className="space-y-6">
+                <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-300 flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-yellow-900 mb-1">
+                      You are logged in to a different service
+                    </p>
+                    <p className="text-xs text-yellow-800 mb-3">
+                      You're currently logged in as <strong>{user.name}</strong> ({user.email}) for a different service. 
+                      To create a new restaurant account with the same email, please logout first.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        localStorage.clear();
+                        window.location.href = '/restaurant/list-your-restaurant';
+                      }}
+                      className="text-xs px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+                    >
+                      Logout and Start Fresh
+                    </button>
+                  </div>
+                </div>
+              </div>
             ) : isVendor && isRestaurantUser ? (
               <div className="space-y-6">
-                <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                  <p className="text-sm text-green-800">
-                    ✓ You are logged in as restaurant vendor <strong>{user.name}</strong> ({user.email})
-                  </p>
+                <div className="p-4 bg-green-50 rounded-lg border border-green-200 flex items-start gap-3">
+                  <Check className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-green-900 mb-1">
+                      You are logged in as <strong>{user.name}</strong>
+                    </p>
+                    <p className="text-xs text-green-700">
+                      ({user.email})
+                    </p>
+                    <p className="text-xs text-green-700 mt-2">
+                      We'll use your existing restaurant account to complete the registration.
+                    </p>
+                  </div>
                 </div>
                 <div className="flex gap-4 pt-4">
                   <button
@@ -479,11 +525,11 @@ export default function ListYourRestaurantStep3() {
                   </button>
                   <button
                     onClick={handleSubmit}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isDifferentService}
                     className="flex-1 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ backgroundColor: isSubmitting ? '#2d8f42' : '#3CAF54' }}
-                    onMouseEnter={(e) => !isSubmitting && (e.target.style.backgroundColor = '#2d8f42')}
-                    onMouseLeave={(e) => !isSubmitting && (e.target.style.backgroundColor = '#3CAF54')}
+                    onMouseEnter={(e) => !isSubmitting && !isDifferentService && (e.target.style.backgroundColor = '#2d8f42')}
+                    onMouseLeave={(e) => !isSubmitting && !isDifferentService && (e.target.style.backgroundColor = '#3CAF54')}
                   >
                     {isSubmitting ? (
                       <>

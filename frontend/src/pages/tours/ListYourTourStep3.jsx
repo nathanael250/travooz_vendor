@@ -344,6 +344,8 @@ export default function ListYourTourStep3() {
           role: 'vendor'
         };
         localStorage.setItem('user', JSON.stringify(userData));
+        // Store service type to prevent cross-service conflicts
+        localStorage.setItem('service_type', 'tours');
         setUser(userData);
       }
 
