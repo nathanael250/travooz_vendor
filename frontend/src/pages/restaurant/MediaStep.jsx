@@ -142,23 +142,90 @@ export default function MediaStep() {
     loadSavedMedia();
   }, [restaurantId]);
 
-  const handleLogoChange = (e) => {
+  // Helper function to compress images before upload
+  const compressImage = (file, maxWidth = 1920, maxHeight = 1920, quality = 0.8) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Calculate new dimensions
+          if (width > height) {
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = (width * maxHeight) / height;
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                const compressedFile = new File([blob], file.name, {
+                  type: file.type,
+                  lastModified: Date.now(),
+                });
+                resolve(compressedFile);
+              } else {
+                reject(new Error('Failed to compress image'));
+              }
+            },
+            file.type,
+            quality
+          );
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleLogoChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
         alert('Logo file size should be less than 10MB. Please compress the image and try again.');
         return;
       }
-      setLogo(file);
+      
+      // Compress image if it's larger than 2MB
+      let processedFile = file;
+      if (file.size > 2 * 1024 * 1024) {
+        try {
+          processedFile = await compressImage(file, 1920, 1920, 0.85);
+          console.log(`Logo compressed: ${(file.size / 1024 / 1024).toFixed(2)}MB -> ${(processedFile.size / 1024 / 1024).toFixed(2)}MB`);
+        } catch (error) {
+          console.error('Error compressing logo:', error);
+          // Use original file if compression fails
+        }
+      }
+      
+      setLogo(processedFile);
       const reader = new FileReader();
       reader.onloadend = () => {
         setLogoPreview(reader.result);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(processedFile);
     }
   };
 
-  const handleGalleryChange = (e) => {
+  const handleGalleryChange = async (e) => {
     const files = Array.from(e.target.files);
     const validFiles = files.filter(file => {
       if (file.size > 10 * 1024 * 1024) {
@@ -173,11 +240,28 @@ export default function MediaStep() {
       return;
     }
 
-    const newImages = [...galleryImages, ...validFiles];
+    // Compress images that are larger than 2MB
+    const compressedFiles = await Promise.all(
+      validFiles.map(async (file) => {
+        if (file.size > 2 * 1024 * 1024) {
+          try {
+            const compressed = await compressImage(file, 1920, 1920, 0.85);
+            console.log(`Gallery image compressed: ${(file.size / 1024 / 1024).toFixed(2)}MB -> ${(compressed.size / 1024 / 1024).toFixed(2)}MB`);
+            return compressed;
+          } catch (error) {
+            console.error('Error compressing image:', error);
+            return file; // Use original if compression fails
+          }
+        }
+        return file;
+      })
+    );
+
+    const newImages = [...galleryImages, ...compressedFiles];
     setGalleryImages(newImages);
 
     // Create previews for new images
-    validFiles.forEach(file => {
+    compressedFiles.forEach(file => {
       const reader = new FileReader();
       reader.onloadend = () => {
         setGalleryPreviews(prev => [...prev, reader.result]);
@@ -266,9 +350,9 @@ export default function MediaStep() {
       
       if (error.message) {
         if (error.message.includes('timeout') || error.message.includes('timed out')) {
-          errorMessage = 'Upload timed out. Please check your internet connection and try again. If the problem persists, try uploading smaller images (under 5MB each).';
+          errorMessage = 'Upload timed out. This may be due to a slow internet connection. Please try: 1) Uploading fewer images at once, 2) Using a Wi-Fi connection if on mobile data, 3) Ensuring images are under 5MB each. Images are automatically compressed, but very large files may still take time.';
         } else if (error.message.includes('Network Error') || error.message.includes('network')) {
-          errorMessage = 'Network error occurred. Please check your internet connection and try again. If the problem persists, try uploading smaller images or using a different network.';
+          errorMessage = 'Network error occurred. Please check your internet connection and try again. If the problem persists, try uploading fewer images at once or using a different network.';
         } else if (error.message.includes('too large')) {
           errorMessage = error.message;
         } else {

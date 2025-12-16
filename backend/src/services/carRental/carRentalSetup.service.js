@@ -35,6 +35,8 @@ const ensureTables = async () => {
       description TEXT,
       phone VARCHAR(50),
       currency VARCHAR(10),
+      wants_notifications ENUM('yes', 'no') DEFAULT 'no',
+      notification_receiver VARCHAR(255) DEFAULT NULL,
       status VARCHAR(50) DEFAULT 'draft',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -161,6 +163,37 @@ const ensureTables = async () => {
     }
   } catch (alterError) {
     console.warn('Could not update payment_method column:', alterError.message);
+  }
+
+  // Add wants_notifications and notification_receiver columns if they don't exist
+  try {
+    const [notificationColumns] = await pool.execute(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'car_rental_businesses' 
+      AND COLUMN_NAME IN ('wants_notifications', 'notification_receiver')
+    `);
+    
+    const existingColumns = notificationColumns.map(col => col.COLUMN_NAME);
+    
+    if (!existingColumns.includes('wants_notifications')) {
+      await pool.execute(`
+        ALTER TABLE car_rental_businesses 
+        ADD COLUMN wants_notifications ENUM('yes', 'no') DEFAULT 'no'
+      `);
+      console.log('✅ Added wants_notifications column to car_rental_businesses table');
+    }
+    
+    if (!existingColumns.includes('notification_receiver')) {
+      await pool.execute(`
+        ALTER TABLE car_rental_businesses 
+        ADD COLUMN notification_receiver VARCHAR(255) DEFAULT NULL
+      `);
+      console.log('✅ Added notification_receiver column to car_rental_businesses table');
+    }
+  } catch (alterError) {
+    console.warn('Could not add notification columns:', alterError.message);
   }
 
   // Add latitude and longitude columns if they don't exist (for existing tables)
@@ -651,6 +684,7 @@ class CarRentalSetupService {
         `UPDATE car_rental_businesses
           SET business_name = ?, business_type = ?, short_description = ?, location = ?, location_data = ?,
               latitude = ?, longitude = ?, car_type = ?, car_type_name = ?, subcategory_id = ?, description = ?, phone = ?, currency = ?,
+              wants_notifications = ?, notification_receiver = ?,
               status = 'in_progress', updated_at = CURRENT_TIMESTAMP
         WHERE car_rental_business_id = ?`,
         [
@@ -677,6 +711,8 @@ class CarRentalSetupService {
           business.description || null,
           businessPhone,
           business.currency || 'RWF',
+          business.wantsNotifications || business.wants_notifications || 'no',
+          business.notificationReceiver || business.notification_receiver || null,
           targetBusinessId
         ]
       );
@@ -692,8 +728,8 @@ class CarRentalSetupService {
     const insertResult = await pool.execute(
       `INSERT INTO car_rental_businesses (
         user_id, business_name, business_type, short_description, location, location_data, latitude, longitude,
-        car_type, car_type_name, subcategory_id, description, phone, currency, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress')`,
+        car_type, car_type_name, subcategory_id, description, phone, currency, wants_notifications, notification_receiver, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress')`,
       [
         userId,
         business.carRentalBusinessName || business.businessName || 'Car Rental Business',
@@ -718,7 +754,9 @@ class CarRentalSetupService {
           : (business.subcategoryId || null),
         business.description || null,
         businessPhone,
-        business.currency || 'RWF'
+        business.currency || 'RWF',
+        business.wantsNotifications || business.wants_notifications || 'no',
+        business.notificationReceiver || business.notification_receiver || null
       ]
     );
 

@@ -97,22 +97,56 @@ class OnboardingProgressService {
         );
       } else {
         // Create new progress record
+        // Use INSERT ... ON DUPLICATE KEY UPDATE to handle race conditions
         const id = uuidv4();
-        await executeQuery(
-          `INSERT INTO stays_onboarding_progress_track 
-           (id, user_id, property_id, current_step, step_name, step_number, is_complete, completed_steps)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            id,
-            userId,
-            propertyId,
-            stepKey,
-            stepInfo.stepName,
-            stepInfo.stepNumber,
-            isComplete ? 1 : 0,
-            JSON.stringify(completedSteps)
-          ]
-        );
+        try {
+          await executeQuery(
+            `INSERT INTO stays_onboarding_progress_track 
+             (id, user_id, property_id, current_step, step_name, step_number, is_complete, completed_steps)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               current_step = VALUES(current_step),
+               step_name = VALUES(step_name),
+               step_number = VALUES(step_number),
+               is_complete = VALUES(is_complete),
+               completed_steps = VALUES(completed_steps),
+               property_id = VALUES(property_id)`,
+            [
+              id,
+              userId,
+              propertyId,
+              stepKey,
+              stepInfo.stepName,
+              stepInfo.stepNumber,
+              isComplete ? 1 : 0,
+              JSON.stringify(completedSteps)
+            ]
+          );
+        } catch (insertError) {
+          // If duplicate key error, it means another request created it
+          // Just update the existing record
+          if (insertError.code === 'ER_DUP_ENTRY' || insertError.errno === 1062) {
+            console.log(`Progress record already exists for user ${userId}, updating instead`);
+            await executeQuery(
+              `UPDATE stays_onboarding_progress_track 
+               SET current_step = ?, step_name = ?, step_number = ?, 
+                   is_complete = ?, completed_steps = ?, property_id = ?
+               WHERE user_id = ?`,
+              [
+                stepKey,
+                stepInfo.stepName,
+                stepInfo.stepNumber,
+                isComplete ? 1 : 0,
+                JSON.stringify(completedSteps),
+                propertyId,
+                userId
+              ]
+            );
+          } else {
+            // Re-throw if it's a different error
+            throw insertError;
+          }
+        }
       }
 
       return await this.getProgress(userId);

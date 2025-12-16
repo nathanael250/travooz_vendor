@@ -176,6 +176,22 @@ export default function ListYourPropertyStep3() {
       password: formData.password
     };
 
+    // Validate required fields before sending
+    if (!formData.email || !formData.email.trim()) {
+      setErrors({ email: 'Email is required' });
+      return;
+    }
+    
+    if (!formData.password || formData.password.length < 6) {
+      setErrors({ password: 'Password must be at least 6 characters' });
+      return;
+    }
+
+    console.log('Submitting property listing with data:', {
+      ...listingData,
+      password: '***' // Don't log password
+    });
+
     setIsSubmitting(true);
     
     try {
@@ -222,16 +238,26 @@ export default function ListYourPropertyStep3() {
       });
     } catch (error) {
       console.error('Error submitting property listing:', error);
+      console.error('Error response data:', error.response?.data);
+      console.error('Request payload:', listingData);
       
       // Handle validation errors
       if (error.response?.data?.errors) {
         const validationErrors = {};
         error.response.data.errors.forEach(err => {
+          console.error(`Validation error - Field: ${err.field}, Message: ${err.message}`);
           // Map backend field names to frontend field names
           if (err.field === 'email') validationErrors.email = err.message;
           if (err.field === 'password') validationErrors.password = err.message;
+          // Handle other fields
+          if (err.field && !validationErrors[err.field]) {
+            validationErrors[err.field] = err.message;
+          }
         });
         setErrors(validationErrors);
+        // Also show a general error message
+        const errorMessages = error.response.data.errors.map(e => `${e.field}: ${e.message}`).join(', ');
+        setSubmitError(`Validation failed: ${errorMessages}`);
       } else {
         setSubmitError(error.response?.data?.message || error.message || 'Failed to create property listing. Please try again.');
       }

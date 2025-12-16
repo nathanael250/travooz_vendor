@@ -173,7 +173,7 @@ export const restaurantSetupService = {
 
       const response = await apiClient.post('/eating-out/setup/media', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 120000, // 2 minutes timeout for large file uploads
+        timeout: 600000, // 10 minutes timeout for large file uploads (especially on mobile/slow connections)
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
         onUploadProgress: onUploadProgress ? (progressEvent) => {
@@ -184,8 +184,8 @@ export const restaurantSetupService = {
       return response.data.data || response.data;
     } catch (error) {
       // Handle network errors specifically
-      if (error.code === 'ECONNABORTED' || error.message === 'Network Error') {
-        throw new Error('Upload timed out. Please check your internet connection and try again. If the problem persists, try uploading smaller images.');
+      if (error.code === 'ECONNABORTED' || error.message === 'Network Error' || error.message.includes('timeout')) {
+        throw new Error('Upload timed out. Please check your internet connection and try again. If the problem persists, try uploading smaller images (under 5MB each) or fewer images at once.');
       }
       if (error.response?.data) {
         throw error.response.data;

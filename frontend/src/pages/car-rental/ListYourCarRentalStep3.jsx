@@ -6,6 +6,7 @@ import StaysFooter from '../../components/stays/StaysFooter';
 import toast from 'react-hot-toast';
 import carRentalSetupService from '../../services/carRentalSetupService';
 import PhoneInput from '../../components/common/PhoneInput';
+import apiClient from '../../services/apiClient';
 
 export default function ListYourCarRentalStep3() {
   const navigate = useNavigate();
@@ -25,6 +26,62 @@ export default function ListYourCarRentalStep3() {
     return storedUser ? JSON.parse(storedUser) : null;
   });
   const isVendor = (user?.role || '').toLowerCase() === 'vendor';
+  
+  // Check if user is from a different service
+  const [isDifferentService, setIsDifferentService] = useState(false);
+  const [isCheckingService, setIsCheckingService] = useState(false);
+  
+  useEffect(() => {
+    const checkUserService = async () => {
+      if (user && isVendor) {
+        const userId = user.user_id || user.id;
+        if (!userId) {
+          return;
+        }
+        
+        setIsCheckingService(true);
+        try {
+          // Try to get profile from car rental service
+          // If user exists in car_rental_users, they belong to this service
+          const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+          if (!token) {
+            setIsDifferentService(true);
+            setIsCheckingService(false);
+            return;
+          }
+          
+          const response = await apiClient.get('/car-rental/auth/profile', {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+          
+          // If we get a successful response, user exists in car_rental_users
+          if (response.data && response.data.data) {
+            setIsDifferentService(false);
+          } else {
+            setIsDifferentService(true);
+          }
+        } catch (error) {
+          // If 404 or "User not found", user doesn't exist in car_rental_users
+          // This means they're from a different service
+          if (error.response?.status === 404 || 
+              error.response?.status === 401 ||
+              error.response?.data?.message?.toLowerCase().includes('not found') ||
+              error.response?.data?.message?.toLowerCase().includes('user not found')) {
+            setIsDifferentService(true);
+          } else {
+            // For other errors, don't assume different service (might be network issue)
+            console.warn('Error checking user service:', error);
+          }
+        } finally {
+          setIsCheckingService(false);
+        }
+      }
+    };
+    
+    checkUserService();
+  }, [user, isVendor]);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -356,27 +413,70 @@ export default function ListYourCarRentalStep3() {
           {/* Main Content */}
           <div className="bg-white rounded-lg shadow-xl p-8 border" style={{ borderColor: '#dcfce7' }}>
             <h1 className="text-3xl font-bold text-gray-900 mb-4 text-center">
-              Create your account
+              {isVendor ? 'Complete your registration' : 'Create your account'}
             </h1>
             
-            <p className="text-center text-gray-600 mb-8">
-              Sign in to set up your new car rental business if you already have an account.{' '}
-              <button
-                type="button"
-                onClick={() => navigate('/login')}
-                className="text-[#3CAF54] hover:underline font-medium"
-              >
-                Sign in
-              </button>
-            </p>
+            {!isVendor && (
+              <p className="text-center text-gray-600 mb-8">
+                Sign in to set up your new car rental business if you already have an account.{' '}
+                <button
+                  type="button"
+                  onClick={() => navigate('/login')}
+                  className="text-[#3CAF54] hover:underline font-medium"
+                >
+                  Sign in
+                </button>
+              </p>
+            )}
 
             {isVendor ? (
               <div className="space-y-6">
-                <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                  <p className="text-sm text-green-800">
-                    ✓ You are logged in as <strong>{user.name}</strong> ({user.email})
-                  </p>
-                </div>
+                {isCheckingService ? (
+                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-3">
+                    <Loader2 className="h-5 w-5 text-gray-600 animate-spin" />
+                    <p className="text-sm text-gray-700">
+                      Verifying account...
+                    </p>
+                  </div>
+                ) : isDifferentService ? (
+                  <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-300 flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-yellow-900 mb-1">
+                        You are logged in to a different service
+                      </p>
+                      <p className="text-xs text-yellow-800 mb-3">
+                        You're currently logged in as <strong>{user.name}</strong> ({user.email}) for a different service. 
+                        To create a new car rental account with the same email, please logout first.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          localStorage.clear();
+                          window.location.href = '/car-rental/list-your-car-rental';
+                        }}
+                        className="text-xs px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+                      >
+                        Logout and Start Fresh
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-green-50 rounded-lg border border-green-200 flex items-start gap-3">
+                    <Check className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-green-900 mb-1">
+                        You are logged in as <strong>{user.name}</strong>
+                      </p>
+                      <p className="text-xs text-green-700">
+                        ({user.email})
+                      </p>
+                      <p className="text-xs text-green-700 mt-2">
+                        We'll use your existing account to complete the car rental business registration.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-4 pt-4">
                   <button
                     type="button"
@@ -389,11 +489,11 @@ export default function ListYourCarRentalStep3() {
                   </button>
                   <button
                     onClick={handleSubmit}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isDifferentService}
                     className="flex-1 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ backgroundColor: isSubmitting ? '#2d8f42' : '#3CAF54' }}
-                    onMouseEnter={(e) => !isSubmitting && (e.target.style.backgroundColor = '#2d8f42')}
-                    onMouseLeave={(e) => !isSubmitting && (e.target.style.backgroundColor = '#3CAF54')}
+                    onMouseEnter={(e) => !isSubmitting && !isDifferentService && (e.target.style.backgroundColor = '#2d8f42')}
+                    onMouseLeave={(e) => !isSubmitting && !isDifferentService && (e.target.style.backgroundColor = '#3CAF54')}
                   >
                     {isSubmitting ? (
                       <>
