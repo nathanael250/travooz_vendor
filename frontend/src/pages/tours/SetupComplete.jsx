@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Clock, CheckCircle, ArrowRight, LogOut, XCircle, AlertCircle } from 'lucide-react';
+import { Clock, CheckCircle, ArrowRight, LogOut, XCircle, AlertCircle, X } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import { tourPackageSetupService } from '../../services/tourPackageService';
@@ -12,6 +12,9 @@ export default function SetupComplete() {
   const [submissionStatus, setSubmissionStatus] = useState(null); // Start with null to prevent flash
   const [isChecking, setIsChecking] = useState(true); // Loading state
   const [rejectionDetails, setRejectionDetails] = useState(null); // Store rejection reason and step
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState('');
+  const [modalType, setModalType] = useState('pending');
 
   useEffect(() => {
     // Check if user is logged in
@@ -152,40 +155,58 @@ export default function SetupComplete() {
       }
     };
 
-    // Check immediately on mount
+    // Check immediately on mount only. Further checks are manual.
     checkStatus();
-    
-    // Set up periodic status checking (every 10 seconds) for pending users
-    // This way if they're approved while on the page, it will update quickly
-    // The checkStatus function will handle redirects if needed
-    const intervalId = setInterval(() => {
-      console.log('🔄 Periodic status check...');
-      checkStatus();
-    }, 10000); // Check every 10 seconds for faster updates
-
-    return () => {
-      clearInterval(intervalId);
-    };
   }, [navigate, tourBusinessId]); // Removed submissionStatus from dependencies to prevent loops
 
-  const handleGoToDashboard = async () => {
-    // Always check status first when button is clicked
+  const handleCheckStatus = async () => {
+    setIsChecking(true);
     try {
       if (tourBusinessId) {
         const result = await tourPackageSetupService.getSubmissionStatus(tourBusinessId);
         let status = result?.status || result?.data?.status || result?.data?.data?.status;
+
+        if (status === 'rejected') {
+          const rejectionReason = result?.rejection_reason || result?.data?.rejection_reason;
+          const currentStep = result?.current_step || result?.data?.current_step;
+          const notes = result?.notes || result?.data?.notes;
+
+          setRejectionDetails({
+            reason: rejectionReason,
+            step: currentStep,
+            notes
+          });
+        }
+
+        setSubmissionStatus(status || 'pending_review');
+        localStorage.setItem('tour_submission_status', status || 'pending_review');
         
         if (status === 'approved') {
-          navigate('/tours/dashboard');
+          setModalType('approved');
+          setModalMessage('Your tour business has been approved! Redirecting to dashboard...');
+          setShowStatusModal(true);
+          setTimeout(() => {
+            navigate('/tours/dashboard', { replace: true });
+          }, 1500);
           return;
         }
+
+        setModalType('pending');
+        setModalMessage(
+          status === 'rejected'
+            ? 'Your submission needs corrections. Review the details below and go back to the requested step.'
+            : 'Your submission is still under review. Please check again later.'
+        );
+        setShowStatusModal(true);
       }
     } catch (error) {
       console.error('Error checking status on button click:', error);
+      setModalType('pending');
+      setModalMessage('Unable to check status at this time. Please try again later.');
+      setShowStatusModal(true);
+    } finally {
+      setIsChecking(false);
     }
-    
-    // If still pending or error, reload to check again
-    window.location.reload();
   };
 
   const handleLogout = () => {
@@ -338,18 +359,29 @@ export default function SetupComplete() {
                   <span>Go to {getStepName(rejectionDetails.step)}</span>
                   <ArrowRight className="h-5 w-5" />
                 </button>
-              ) : isApproved ? (
-            <button
-              onClick={handleGoToDashboard}
-                  className="w-full text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
-              style={{ backgroundColor: '#3CAF54' }}
-                  onMouseEnter={(e) => (e.target.style.backgroundColor = '#2d8f42')}
-                  onMouseLeave={(e) => (e.target.style.backgroundColor = '#3CAF54')}
-            >
-                  <span>Go to Dashboard</span>
-              <ArrowRight className="h-5 w-5" />
-            </button>
-              ) : null}
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleCheckStatus}
+                  disabled={isChecking}
+                  className="w-full text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: '#3CAF54' }}
+                  onMouseEnter={(e) => !isChecking && (e.target.style.backgroundColor = '#2d8f42')}
+                  onMouseLeave={(e) => !isChecking && (e.target.style.backgroundColor = '#3CAF54')}
+                >
+                  {isChecking ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      <span>Checking Status...</span>
+                    </>
+                  ) : (
+                    <>
+                      {isApproved ? <ArrowRight className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
+                      <span>{isApproved ? 'Go to Dashboard' : 'Check Status'}</span>
+                    </>
+                  )}
+                </button>
+              )}
 
               {!isApproved && (
                 <button
@@ -366,7 +398,56 @@ export default function SetupComplete() {
         </div>
       </div>
       <StaysFooter />
+
+      {showStatusModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 my-auto">
+            <div className="flex justify-between items-start gap-2">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div
+                  className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    modalType === 'approved' ? 'bg-green-100' : 'bg-yellow-100'
+                  }`}
+                >
+                  {modalType === 'approved' ? (
+                    <CheckCircle className="h-8 w-8 text-green-600" />
+                  ) : (
+                    <Clock className="h-8 w-8 text-yellow-600" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {modalType === 'approved' ? 'Tour Business Approved!' : 'Status Check'}
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowStatusModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-base text-gray-700 break-words">
+              {modalMessage}
+            </p>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setShowStatusModal(false)}
+                className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                  modalType === 'approved'
+                    ? 'bg-green-600 text-white hover:bg-green-700'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                {modalType === 'approved' ? 'Continue' : 'OK'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

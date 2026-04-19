@@ -1,108 +1,26 @@
 import apiClient from './apiClient';
+import { setToken, getToken, removeToken, SERVICES } from '../utils/tokenManager';
 
-// Create a dedicated stays API client (matching old system pattern)
-const staysApiClient = apiClient;
-
-// Add token to requests if available
-staysApiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('stays_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Handle token expiration and not found errors
-staysApiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    const status = error.response?.status;
-    const message = error.response?.data?.message || error.message || '';
-    const currentPath = window.location.pathname;
-    const isLoginPage = currentPath.includes('/login') || currentPath.includes('/auth/');
-    const isTourPage = currentPath.includes('/tours/');
-    const isRestaurantPage = currentPath.includes('/restaurant/');
-    const isCarRentalPage = currentPath.includes('/car-rental/');
-    
-    // Check if this is actually a stays API call
-    const isStaysApiCall = error.config?.url?.includes('/stays/') || 
-                          error.config?.baseURL?.includes('/stays/');
-    
-    // Handle 401 (Unauthorized)
-    if (status === 401) {
-      // Don't redirect if we're on login pages or other service pages
-      if (isStaysApiCall && !isLoginPage && !isTourPage && !isRestaurantPage && !isCarRentalPage) {
-        localStorage.removeItem('stays_token');
-        localStorage.removeItem('stays_user');
-        window.location.href = '/stays/login';
-      } else {
-        // Just clear stays tokens, don't redirect
-        if (isStaysApiCall) {
-          localStorage.removeItem('stays_token');
-          localStorage.removeItem('stays_user');
-        }
-      }
-    }
-    
-    // Handle 404 (Not Found) - Property or User not found
-    if (status === 404 && isStaysApiCall && !isLoginPage) {
-      const isNotFoundError = 
-        message.toLowerCase().includes('not found') ||
-        message.toLowerCase().includes('property not found') ||
-        message.toLowerCase().includes('user not found') ||
-        message.toLowerCase().includes('does not exist');
-      
-      if (isNotFoundError) {
-        // Clear all stays-related localStorage data
-        const staysKeys = [
-          'stays_property_id',
-          'stays_user_id',
-          'stays_token',
-          'stays_contract_accepted',
-          'stays_policies',
-          'stays_amenities',
-          'stays_rooms',
-          'stays_property_images',
-          'stays_room_images',
-          'stays_setup_complete',
-          'stays_property_status',
-          'token',
-          'auth_token',
-          'user',
-          'stays_user'
-        ];
-        
-        staysKeys.forEach(key => localStorage.removeItem(key));
-        
-        // Redirect to login
-        window.location.href = '/stays/login';
-      }
-    }
-    
-    return Promise.reject(error);
-  }
-);
-
-// Auth API functions
+/**
+ * Stays Authentication Service
+ */
 export const staysAuthService = {
   /**
    * Login user
    */
   async login(email, password) {
     try {
-      const response = await staysApiClient.post('/stays/auth/login', {
+      const response = await apiClient.post('/stays/auth/login', {
         email,
         password,
       });
 
       if (response.data.success) {
-        // Store token and user data
-        localStorage.setItem('stays_token', response.data.data.token);
+        // Store token using tokenManager
+        const token = response.data.data.token;
+        setToken(SERVICES.STAYS, token);
+        
+        // Store user data
         localStorage.setItem('stays_user', JSON.stringify(response.data.data.user));
         return response.data.data;
       } else {
@@ -118,7 +36,7 @@ export const staysAuthService = {
    */
   async getProfile() {
     try {
-      const response = await staysApiClient.get('/stays/auth/profile');
+      const response = await apiClient.get('/stays/auth/profile');
       if (response.data.success) {
         localStorage.setItem('stays_user', JSON.stringify(response.data.data));
         return response.data.data;
@@ -134,7 +52,7 @@ export const staysAuthService = {
    */
   async requestPasswordReset(email) {
     try {
-      const response = await staysApiClient.post('/stays/auth/forgot-password', {
+      const response = await apiClient.post('/stays/auth/forgot-password', {
         email,
       });
 
@@ -153,7 +71,7 @@ export const staysAuthService = {
    */
   async resetPassword(token, password) {
     try {
-      const response = await staysApiClient.post('/stays/auth/reset-password', {
+      const response = await apiClient.post('/stays/auth/reset-password', {
         token,
         password,
       });
@@ -172,7 +90,7 @@ export const staysAuthService = {
    * Logout user
    */
   logout() {
-    localStorage.removeItem('stays_token');
+    removeToken(SERVICES.STAYS);
     localStorage.removeItem('stays_user');
   },
 
@@ -180,7 +98,7 @@ export const staysAuthService = {
    * Check if user is authenticated
    */
   isAuthenticated() {
-    return !!localStorage.getItem('stays_token');
+    return !!getToken(SERVICES.STAYS);
   },
 
   /**
@@ -190,473 +108,65 @@ export const staysAuthService = {
     const userStr = localStorage.getItem('stays_user');
     return userStr ? JSON.parse(userStr) : null;
   },
+
+  /**
+   * Get authentication token
+   */
+  getToken() {
+    return getToken(SERVICES.STAYS);
+  },
 };
 
-// Property API functions
-export const submitPropertyListing = async (data) => {
-  try {
-    const response = await staysApiClient.post('/stays/properties', data);
-    return response.data.data || response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-export const getPropertyListing = async (propertyId) => {
-  try {
-    const response = await staysApiClient.get(`/stays/properties/${propertyId}`);
-    return response.data.data || response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-export const getPropertyWithAllData = async (propertyId) => {
-  try {
-    const response = await staysApiClient.get(`/stays/properties/${propertyId}/complete`);
-    return response.data.data || response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-export const getPropertyRooms = async (propertyId) => {
-  try {
-    const response = await staysApiClient.get(`/stays/properties/${propertyId}/rooms`);
-    return response.data.data || response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-export const updatePropertyListing = async (propertyId, data) => {
-  try {
-    const response = await staysApiClient.put(`/stays/properties/${propertyId}`, data);
-    return response.data.data || response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-export const getMyPropertyListings = async (userId = null) => {
-  try {
-    const url = userId 
-      ? `/stays/properties/my?user_id=${userId}`
-      : '/stays/properties/my';
-    const response = await staysApiClient.get(url);
-    return response.data.data || response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-export const getPropertyImageLibrary = async (propertyId) => {
-  try {
-    const response = await staysApiClient.get(`/stays/properties/${propertyId}/images`);
-    return response.data.data || response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-export const uploadPropertyImages = async (propertyId, formData) => {
-  try {
-    const response = await staysApiClient.post(
-      `/stays/properties/${propertyId}/images/property`,
-      formData,
-      {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      }
-    );
-    return response.data.data || response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-export const deletePropertyImage = async (imageId) => {
-  try {
-    const response = await staysApiClient.delete(`/stays/properties/images/${imageId}`);
-    return response.data.data || response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-export const updatePropertyImage = async (imageId, payload) => {
-  try {
-    const response = await staysApiClient.put(`/stays/properties/images/${imageId}`, payload);
-    return response.data.data || response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-export const uploadRoomImages = async (roomId, formData) => {
-  try {
-    const response = await staysApiClient.post(
-      `/stays/rooms/${roomId}/images`,
-      formData,
-      {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      }
-    );
-    return response.data.data || response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-export const deleteRoomImage = async (imageId) => {
-  try {
-    const response = await staysApiClient.delete(`/stays/rooms/images/${imageId}`);
-    return response.data.data || response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-export const updateRoomImage = async (imageId, payload) => {
-  try {
-    const response = await staysApiClient.put(`/stays/rooms/images/${imageId}`, payload);
-    return response.data.data || response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-// Get properties by userId (no auth required - for setup flow)
-export const getPropertiesByUserId = async (userId) => {
-  try {
-    const response = await staysApiClient.get(`/stays/properties/by-user/${userId}`);
-    return response.data.data || response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-// Email verification API functions
+/**
+ * Send email verification code
+ */
 export const sendEmailVerificationCode = async (userId, email, userName) => {
   try {
-    const response = await staysApiClient.post('/stays/email-verification/send', {
+    const response = await apiClient.post('/stays/email-verification/send', {
       userId,
       email,
-      userName,
+      userName
     });
     return response.data.data || response.data;
   } catch (error) {
+    console.error('Error sending email verification code:', error);
     throw error.response?.data || error;
   }
 };
 
+/**
+ * Verify email code
+ */
 export const verifyEmailCode = async (userId, email, code) => {
   try {
-    const response = await staysApiClient.post('/stays/email-verification/verify', {
+    const response = await apiClient.post('/stays/email-verification/verify', {
       userId,
       email,
-      code,
+      code
     });
     return response.data.data || response.data;
   } catch (error) {
+    console.error('Error verifying email code:', error);
     throw error.response?.data || error;
   }
 };
 
-// Property Setup API functions
-export const staysSetupService = {
-  /**
-   * Step 2: Save Contract Acceptance
-   */
-  async saveContract(propertyId) {
-    try {
-      const response = await staysApiClient.post('/stays/setup/contract', {
-        propertyId,
-      });
-      return response.data.data || response.data;
-    } catch (error) {
-      throw error.response?.data || error;
-    }
-  },
-
-  /**
-   * Step 3: Save Policies and Settings
-   */
-  async savePolicies(propertyId, policiesData) {
-    try {
-      const response = await staysApiClient.post('/stays/setup/policies', {
-        propertyId,
-        ...policiesData,
-      });
-      return response.data.data || response.data;
-    } catch (error) {
-      throw error.response?.data || error;
-    }
-  },
-
-  /**
-   * Step 4: Save Property Amenities
-   */
-  async saveAmenities(propertyId, amenitiesData) {
-    try {
-      const response = await staysApiClient.post('/stays/setup/amenities', {
-        propertyId,
-        ...amenitiesData,
-      });
-      return response.data.data || response.data;
-    } catch (error) {
-      throw error.response?.data || error;
-    }
-  },
-
-  /**
-   * Step 5-6: Save Room (with beds, amenities, rate plans)
-   */
-  async saveRoom(propertyId, roomData) {
-    try {
-      const response = await staysApiClient.post('/stays/setup/room', {
-        propertyId,
-        ...roomData,
-      });
-      return response.data.data || response.data;
-    } catch (error) {
-      throw error.response?.data || error;
-    }
-  },
-
-  /**
-   * Delete Room
-   */
-  async deleteRoom(propertyId, roomId) {
-    try {
-      const response = await staysApiClient.delete(`/stays/setup/room/${roomId}`, {
-        data: { propertyId },
-      });
-      return response.data.data || response.data;
-    } catch (error) {
-      throw error.response?.data || error;
-    }
-  },
-
-  /**
-   * Step 7: Save Promotions
-   */
-  async savePromotions(propertyId, promotions) {
-    try {
-      const response = await staysApiClient.post('/stays/setup/promotions', {
-        propertyId,
-        promotions,
-      });
-      return response.data.data || response.data;
-    } catch (error) {
-      throw error.response?.data || error;
-    }
-  },
-
-  /**
-   * Step 8: Save Images
-   */
-  async saveImages(propertyId, imagesData) {
-    try {
-      const response = await staysApiClient.post('/stays/setup/images', {
-        propertyId,
-        ...imagesData,
-      });
-      return response.data.data || response.data;
-    } catch (error) {
-      throw error.response?.data || error;
-    }
-  },
-
-  /**
-   * Step 9: Save Tax Details
-   */
-  async saveTaxDetails(propertyId, taxData) {
-    try {
-      const response = await staysApiClient.post('/stays/setup/taxes', {
-        propertyId,
-        ...taxData,
-      });
-      return response.data.data || response.data;
-    } catch (error) {
-      throw error.response?.data || error;
-    }
-  },
-
-  /**
-   * Step 10: Save Connectivity Settings
-   */
-  async saveConnectivity(propertyId, connectivityData) {
-    try {
-      const response = await staysApiClient.post('/stays/setup/connectivity', {
-        propertyId,
-        ...connectivityData,
-      });
-      return response.data.data || response.data;
-    } catch (error) {
-      throw error.response?.data || error;
-    }
-  },
-
-  /**
-   * Get Setup Status
-   */
-  async getSetupStatus(propertyId) {
-    try {
-      const response = await staysApiClient.get(`/stays/setup/status/${propertyId}`);
-      return response.data.data || response.data;
-    } catch (error) {
-      throw error.response?.data || error;
-    }
-  },
-
-  /**
-   * Get Policies
-   */
-  async getPolicies(propertyId) {
-    try {
-      const response = await staysApiClient.get(`/stays/setup/policies/${propertyId}`);
-      return response.data.data || response.data;
-    } catch (error) {
-      // If 404, return null (no policies saved yet)
-      if (error.response?.status === 404) {
-        return null;
-      }
-      throw error.response?.data || error;
-    }
-  },
-
-  /**
-   * Get Amenities
-   */
-  async getAmenities(propertyId) {
-    try {
-      const response = await staysApiClient.get(`/stays/setup/amenities/${propertyId}`);
-      return response.data.data || response.data;
-    } catch (error) {
-      // If 404, return null (no amenities saved yet)
-      if (error.response?.status === 404) {
-        return null;
-      }
-      throw error.response?.data || error;
-    }
-  },
-
-  /**
-   * Get Tax Details
-   */
-  async getTaxDetails(propertyId) {
-    try {
-      const response = await staysApiClient.get(`/stays/setup/taxes/${propertyId}`);
-      return response.data.data || response.data;
-    } catch (error) {
-      // If 404, return null (no tax details saved yet)
-      if (error.response?.status === 404) {
-        return null;
-      }
-      throw error.response?.data || error;
-    }
-  },
-
-  /**
-   * Get Connectivity Settings
-   */
-  async getConnectivity(propertyId) {
-    try {
-      const response = await staysApiClient.get(`/stays/setup/connectivity/${propertyId}`);
-      return response.data.data || response.data;
-    } catch (error) {
-      // If 404, return null (no connectivity saved yet)
-      if (error.response?.status === 404) {
-        return null;
-      }
-      throw error.response?.data || error;
-    }
-  },
-
-  /**
-   * Submit Final Listing
-   */
-  async submitListing(propertyId) {
-    try {
-      const response = await staysApiClient.post('/stays/setup/submit', {
-        propertyId,
-      });
-      return response.data.data || response.data;
-    } catch (error) {
-      // If error response has data, return it (includes incompleteSteps)
-      if (error.response?.data) {
-        // Throw an error object that includes incompleteSteps
-        const errorData = error.response.data;
-        const customError = new Error(errorData.message || 'Failed to submit listing');
-        customError.incompleteSteps = errorData.incompleteSteps || [];
-        customError.success = errorData.success || false;
-        throw customError;
-      }
-      throw error;
-    }
-  },
-};
-
-// Booking and Availability API functions
-export const staysBookingService = {
-  async getBookings(filters = {}) {
-    try {
-      const params = new URLSearchParams();
-      if (filters.status) params.append('status', filters.status);
-      if (filters.startDate) params.append('start_date', filters.startDate);
-      if (filters.endDate) params.append('end_date', filters.endDate);
-      if (filters.limit) params.append('limit', filters.limit);
-
-      const response = await staysApiClient.get(`/stays/bookings?${params.toString()}`);
-      return response.data.data || response.data;
-    } catch (error) {
-      throw error.response?.data || error;
-    }
-  },
-
-  async getBookingById(bookingId) {
-    try {
-      const response = await staysApiClient.get(`/stays/bookings/${bookingId}`);
-      return response.data.data || response.data;
-    } catch (error) {
-      throw error.response?.data || error;
-    }
-  },
-
-  async getRoomAvailability(startDate, endDate) {
-    try {
-      const params = new URLSearchParams();
-      if (startDate) params.append('start_date', startDate);
-      if (endDate) params.append('end_date', endDate);
-
-      const response = await staysApiClient.get(`/stays/availability?${params.toString()}`);
-      return response.data.data || response.data;
-    } catch (error) {
-      throw error.response?.data || error;
-    }
-  }
-};
-
-// Onboarding Progress Tracking API functions
+/**
+ * Stays Onboarding Progress Tracking Service
+ */
 export const staysOnboardingProgressService = {
-  /**
-   * Get current onboarding progress
-   */
   async getProgress() {
     try {
-      const response = await staysApiClient.get('/stays/onboarding/progress');
+      const response = await apiClient.get('/stays/onboarding/progress');
       return response.data.data || response.data;
     } catch (error) {
       throw error.response?.data || error;
     }
   },
 
-  /**
-   * Save or update onboarding progress
-   */
   async saveProgress(stepKey, propertyId = null, isComplete = false) {
     try {
-      const response = await staysApiClient.post('/stays/onboarding/progress', {
+      const response = await apiClient.post('/stays/onboarding/progress', {
         stepKey,
         propertyId,
         isComplete
@@ -667,12 +177,9 @@ export const staysOnboardingProgressService = {
     }
   },
 
-  /**
-   * Mark a step as complete and move to next step
-   */
   async completeStep(stepKey, propertyId = null) {
     try {
-      const response = await staysApiClient.post('/stays/onboarding/complete-step', {
+      const response = await apiClient.post('/stays/onboarding/complete-step', {
         stepKey,
         propertyId
       });
@@ -682,24 +189,18 @@ export const staysOnboardingProgressService = {
     }
   },
 
-  /**
-   * Get the next step the user should be on
-   */
   async getNextStep() {
     try {
-      const response = await staysApiClient.get('/stays/onboarding/next-step');
+      const response = await apiClient.get('/stays/onboarding/next-step');
       return response.data.data || response.data;
     } catch (error) {
       throw error.response?.data || error;
     }
   },
 
-  /**
-   * Reset progress (for testing)
-   */
   async resetProgress() {
     try {
-      const response = await staysApiClient.delete('/stays/onboarding/progress');
+      const response = await apiClient.delete('/stays/onboarding/progress');
       return response.data.data || response.data;
     } catch (error) {
       throw error.response?.data || error;
@@ -707,3 +208,423 @@ export const staysOnboardingProgressService = {
   }
 };
 
+/**
+ * Stays Setup Service - Property setup and configuration
+ */
+export const staysSetupService = {
+  /**
+   * Save contract acceptance
+   */
+  async saveContract(propertyId) {
+    try {
+      const response = await apiClient.post('/stays/setup/contract', {
+        propertyId
+      });
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Save policies
+   */
+  async savePolicies(propertyId, policiesData) {
+    try {
+      const response = await apiClient.post('/stays/setup/policies', {
+        propertyId,
+        ...policiesData
+      });
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Get policies
+   */
+  async getPolicies(propertyId) {
+    try {
+      const response = await apiClient.get(`/stays/setup/policies/${propertyId}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Save amenities
+   */
+  async saveAmenities(propertyId, amenitiesData) {
+    try {
+      const response = await apiClient.post('/stays/setup/amenities', {
+        propertyId,
+        ...amenitiesData
+      });
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Get amenities
+   */
+  async getAmenities(propertyId) {
+    try {
+      const response = await apiClient.get(`/stays/setup/amenities/${propertyId}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Save room
+   */
+  async saveRoom(propertyId, roomData) {
+    try {
+      const response = await apiClient.post('/stays/setup/room', {
+        propertyId,
+        ...roomData
+      });
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Delete room
+   */
+  async deleteRoom(propertyId, roomId) {
+    try {
+      const response = await apiClient.delete(`/stays/setup/room/${roomId}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Save promotions
+   */
+  async savePromotions(propertyId, promotionsData) {
+    try {
+      const response = await apiClient.post('/stays/setup/promotions', {
+        propertyId,
+        ...promotionsData
+      });
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Save tax details
+   */
+  async saveTaxDetails(propertyId, taxData) {
+    try {
+      const response = await apiClient.post('/stays/setup/taxes', {
+        propertyId,
+        ...taxData
+      });
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Get tax details
+   */
+  async getTaxDetails(propertyId) {
+    try {
+      const response = await apiClient.get(`/stays/setup/taxes/${propertyId}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Save connectivity settings
+   */
+  async saveConnectivity(propertyId, connectivityData) {
+    try {
+      const response = await apiClient.post('/stays/setup/connectivity', {
+        propertyId,
+        ...connectivityData
+      });
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Get connectivity settings
+   */
+  async getConnectivity(propertyId) {
+    try {
+      const response = await apiClient.get(`/stays/setup/connectivity/${propertyId}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Get setup status
+   */
+  async getSetupStatus(propertyId) {
+    try {
+      const response = await apiClient.get(`/stays/setup/status/${propertyId}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Submit listing for review
+   */
+  async submitListing(propertyId) {
+    try {
+      const response = await apiClient.post('/stays/setup/submit', {
+        propertyId
+      });
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  }
+};
+
+/**
+ * Stays Booking Service
+ */
+export const staysBookingService = {
+  /**
+   * Get bookings with optional filters
+   */
+  async getBookings(filters = {}) {
+    try {
+      const params = new URLSearchParams();
+      if (filters.status) params.append('status', filters.status);
+      if (filters.propertyId) params.append('propertyId', filters.propertyId);
+      if (filters.startDate) params.append('startDate', filters.startDate);
+      if (filters.endDate) params.append('endDate', filters.endDate);
+      
+      const queryString = params.toString();
+      const url = `/stays/bookings${queryString ? `?${queryString}` : ''}`;
+      const response = await apiClient.get(url);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * Get room availability
+   */
+  async getRoomAvailability(startDate, endDate) {
+    try {
+      const response = await apiClient.get('/stays/availability', {
+        params: {
+          startDate,
+          endDate
+        }
+      });
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  }
+};
+
+/**
+ * Get my property listings
+ */
+export const getMyPropertyListings = async () => {
+  try {
+    const response = await apiClient.get('/stays/properties/my');
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Get property listing by ID
+ */
+export const getPropertyListing = async (propertyId) => {
+  try {
+    const response = await apiClient.get(`/stays/properties/${propertyId}`);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Get properties by user ID
+ */
+export const getPropertiesByUserId = async (userId) => {
+  try {
+    const response = await apiClient.get(`/stays/properties/by-user/${userId}`);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Get property with all data (complete)
+ */
+export const getPropertyWithAllData = async (propertyId) => {
+  try {
+    const response = await apiClient.get(`/stays/properties/${propertyId}/complete`);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Get property rooms
+ */
+export const getPropertyRooms = async (propertyId) => {
+  try {
+    const response = await apiClient.get(`/stays/properties/${propertyId}/rooms`);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Update property listing
+ */
+export const updatePropertyListing = async (propertyId, propertyData) => {
+  try {
+    const response = await apiClient.put(`/stays/properties/${propertyId}`, propertyData);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Get property image library
+ */
+export const getPropertyImageLibrary = async (propertyId) => {
+  try {
+    const response = await apiClient.get(`/stays/properties/${propertyId}/images`);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Upload property images
+ */
+export const uploadPropertyImages = async (propertyId, formData) => {
+  try {
+    const response = await apiClient.post(
+      `/stays/properties/${propertyId}/images/property`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Delete property image
+ */
+export const deletePropertyImage = async (imageId) => {
+  try {
+    const response = await apiClient.delete(`/stays/properties/images/${imageId}`);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Update property image
+ */
+export const updatePropertyImage = async (imageId, imageData) => {
+  try {
+    const response = await apiClient.put(`/stays/properties/images/${imageId}`, imageData);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Create property (used in Step 3 of listing flow)
+ */
+export const createProperty = async (propertyData) => {
+  try {
+    const response = await apiClient.post('/stays/properties', propertyData);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Upload room images
+ */
+export const uploadRoomImages = async (roomId, formData) => {
+  try {
+    const response = await apiClient.post(
+      `/stays/rooms/${roomId}/images`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Delete room image
+ */
+export const deleteRoomImage = async (imageId) => {
+  try {
+    const response = await apiClient.delete(`/stays/rooms/images/${imageId}`);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Update room image
+ */
+export const updateRoomImage = async (imageId, imageData) => {
+  try {
+    const response = await apiClient.put(`/stays/rooms/images/${imageId}`, imageData);
+    return response.data.data || response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};

@@ -57,7 +57,7 @@ const AccountActionModal = ({
 
   const isApprove = type === 'approve';
   const actionTitle = isApprove ? 'Approve Account' : 'Reject Account';
-  const actionIcon = isApprove ? CheckCircle : XCircle;
+  const ActionIcon = isApprove ? CheckCircle : XCircle;
   const actionColor = isApprove ? 'text-green-400' : 'text-red-400';
 
   return (
@@ -84,7 +84,7 @@ const AccountActionModal = ({
 
         <div className="px-6 py-6 space-y-5">
           <div className="flex items-center gap-3">
-            <actionIcon className={`h-10 w-10 ${actionColor}`} />
+            <ActionIcon className={`h-10 w-10 ${actionColor}`} />
             <p className="text-sm text-gray-300">
               {isApprove
                 ? 'Confirm that all documents are valid before approving this account.'

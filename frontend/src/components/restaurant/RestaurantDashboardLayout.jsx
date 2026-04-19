@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { restaurantSetupService, restaurantOnboardingProgressService } from '../../services/eatingOutService';
+import { getToken, removeToken, SERVICES } from '../../utils/tokenManager';
 
 const RestaurantDashboardLayout = () => {
   const navigate = useNavigate();
@@ -29,7 +30,7 @@ const RestaurantDashboardLayout = () => {
     // Check authentication and setup progress
     const checkAuth = async () => {
       const userData = localStorage.getItem('user');
-      const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+      const token = getToken(SERVICES.RESTAURANT);
       
       if (!userData || !token) {
         console.log('No user data or token found, redirecting to restaurant login');
@@ -66,8 +67,7 @@ const RestaurantDashboardLayout = () => {
           if (authError.response?.status === 401) {
             console.log('Token validation failed (401), clearing session');
             localStorage.removeItem('user');
-            localStorage.removeItem('token');
-            localStorage.removeItem('auth_token');
+            removeToken(SERVICES.RESTAURANT);
             localStorage.removeItem('restaurant_id');
             localStorage.removeItem('restaurant_setup_progress');
             navigate('/restaurant/login', { replace: true });
@@ -287,9 +287,9 @@ const RestaurantDashboardLayout = () => {
   }, [navigate]);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('auth_token');
+    removeToken(SERVICES.RESTAURANT);
     localStorage.removeItem('user');
+    localStorage.removeItem('service_type');
     toast.success('Logged out successfully');
     navigate('/restaurant/login');
   };

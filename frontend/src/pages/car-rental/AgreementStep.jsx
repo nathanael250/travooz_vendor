@@ -70,9 +70,16 @@ export default function AgreementStep() {
         userId: finalUserId
       });
       
-      // Mark this step as complete in onboarding progress
+      // Mark this step as complete in onboarding progress (only if user has token)
       try {
-        await carRentalSetupService.completeStep('agreement', Number(carRentalBusinessId));
+        const { getToken, SERVICES } = await import('../../utils/tokenManager');
+        const token = getToken(SERVICES.CAR_RENTAL) || localStorage.getItem('token') || localStorage.getItem('auth_token');
+        
+        if (token) {
+          await carRentalSetupService.completeStep('agreement', Number(carRentalBusinessId));
+        } else {
+          console.log('⚠️ Skipping progress save - user in registration flow (no token)');
+        }
       } catch (progressError) {
         console.error('Error updating onboarding progress:', progressError);
         // Don't block navigation if progress update fails

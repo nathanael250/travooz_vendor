@@ -36,12 +36,27 @@ export default function SetupProgressIndicator({ currentStepKey, currentStepNumb
   useEffect(() => {
     const fetchProgress = async () => {
       try {
+        // Check if user has a token before fetching progress
+        // During registration flow, users don't have tokens yet
+        const { getToken, SERVICES } = await import('../../utils/tokenManager');
+        const token = getToken(SERVICES.CAR_RENTAL) || localStorage.getItem('token') || localStorage.getItem('auth_token');
+        
+        if (!token) {
+          // User is in registration flow - skip progress fetch
+          console.log('SetupProgressIndicator - No token found, skipping progress fetch (user in registration flow)');
+          setLoading(false);
+          return;
+        }
+        
         const progressData = await carRentalSetupService.getProgress();
         if (progressData) {
           setProgress(progressData);
         }
       } catch (error) {
-        console.error('Error fetching progress:', error);
+        // Only log error if it's not a 401 (unauthorized) - 401 is expected during registration
+        if (error.response?.status !== 401) {
+          console.error('Error fetching progress:', error);
+        }
       } finally {
         setLoading(false);
       }

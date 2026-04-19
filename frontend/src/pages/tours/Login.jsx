@@ -6,6 +6,7 @@ import StaysFooter from '../../components/stays/StaysFooter';
 import { tourPackageSetupService } from '../../services/tourPackageService';
 import apiClient from '../../services/apiClient';
 import toast from 'react-hot-toast';
+import { setToken, getToken, removeToken, SERVICES } from '../../utils/tokenManager';
 
 export default function ToursLogin() {
   const navigate = useNavigate();
@@ -24,7 +25,7 @@ export default function ToursLogin() {
   useEffect(() => {
     const checkAuth = async () => {
       const user = localStorage.getItem('user');
-      const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+      const token = getToken(SERVICES.TOURS);
       
       // Only auto-redirect if we have both user and token
       if (user && token) {
@@ -68,8 +69,7 @@ export default function ToursLogin() {
                 localStorage.removeItem('tour_business_id');
                 localStorage.removeItem('tour_submission_status');
                 localStorage.removeItem('user');
-                localStorage.removeItem('token');
-                localStorage.removeItem('auth_token');
+                removeToken(SERVICES.TOURS);
                 // Stay on login page
                 return;
               }
@@ -81,8 +81,7 @@ export default function ToursLogin() {
                 localStorage.removeItem('tour_business_id');
                 localStorage.removeItem('tour_submission_status');
                 localStorage.removeItem('user');
-                localStorage.removeItem('token');
-                localStorage.removeItem('auth_token');
+                removeToken(SERVICES.TOURS);
                 return;
               }
               
@@ -101,8 +100,7 @@ export default function ToursLogin() {
                 localStorage.removeItem('tour_business_id');
                 localStorage.removeItem('tour_submission_status');
                 localStorage.removeItem('user');
-                localStorage.removeItem('token');
-                localStorage.removeItem('auth_token');
+                removeToken(SERVICES.TOURS);
                 // Stay on login page - don't redirect
                 return;
               }
@@ -184,6 +182,26 @@ export default function ToursLogin() {
     setIsSubmitting(true);
 
     try {
+      // Check if there's a different user already logged in
+      const existingUser = localStorage.getItem('user');
+      if (existingUser) {
+        try {
+          const existingUserData = JSON.parse(existingUser);
+          const existingEmail = existingUserData?.email?.toLowerCase().trim();
+          const newEmail = formData.email.toLowerCase().trim();
+          
+          // If different user is trying to log in, clear all localStorage
+          if (existingEmail && existingEmail !== newEmail) {
+            console.log('🔄 Different user detected, clearing localStorage...');
+            localStorage.clear();
+          }
+        } catch (e) {
+          // If we can't parse existing user, clear localStorage to be safe
+          console.warn('⚠️ Could not parse existing user data, clearing localStorage:', e);
+          localStorage.clear();
+        }
+      }
+
       // Login to tours_users table
       const response = await apiClient.post('/tours/auth/login', {
         email: formData.email,
@@ -192,14 +210,38 @@ export default function ToursLogin() {
 
       const result = response.data.data || response.data;
       
-      // Store token
+      // Store token for tours service
       if (result.token) {
-        localStorage.setItem('token', result.token);
-        localStorage.setItem('auth_token', result.token);
+        setToken(SERVICES.TOURS, result.token);
       }
 
       // Store user data
       if (result.user) {
+        // Double-check: if stored user email doesn't match, clear everything first
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          try {
+            const storedUserData = JSON.parse(storedUser);
+            const storedEmail = storedUserData?.email?.toLowerCase().trim();
+            const newUserEmail = result.user?.email?.toLowerCase().trim();
+            
+            if (storedEmail && storedEmail !== newUserEmail) {
+              console.log('🔄 User email mismatch detected, clearing localStorage...');
+              localStorage.clear();
+              // Re-store token after clearing
+              if (result.token) {
+                setToken(SERVICES.TOURS, result.token);
+              }
+            }
+          } catch (e) {
+            // If we can't parse, clear to be safe
+            localStorage.clear();
+            if (result.token) {
+              setToken(SERVICES.TOURS, result.token);
+            }
+          }
+        }
+        
         localStorage.setItem('user', JSON.stringify(result.user));
         
         // Store service type to prevent cross-service conflicts

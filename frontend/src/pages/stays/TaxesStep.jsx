@@ -42,33 +42,53 @@ export default function TaxesStep() {
     const loadPropertyData = async () => {
       const propertyId = location.state?.propertyId || parseInt(localStorage.getItem('stays_property_id') || '0');
       
-      // Try to get property name from API first
+      // Try to get property name and tax data from API first
       let propertyName = '';
+      let taxData = null;
+      
       if (propertyId && propertyId > 0) {
         try {
           const property = await getPropertyListing(propertyId);
           propertyName = property?.property_name || property?.propertyName || '';
+          
+          // Try to fetch existing tax data from API
+          try {
+            taxData = await staysSetupService.getTaxDetails(propertyId);
+          } catch (error) {
+            console.log('No existing tax data found for this property');
+          }
         } catch (error) {
           console.log('Could not fetch property from API, trying localStorage');
         }
       }
       
-      // Fallback to localStorage or state
+      // Fallback to localStorage or state for property name
       if (!propertyName) {
         const savedProperty = JSON.parse(localStorage.getItem('stays_property') || '{}');
         propertyName = savedProperty.propertyName || savedProperty.property_name || location.state?.propertyName || '';
       }
       
-      // Load saved tax data
-      const savedTaxData = JSON.parse(localStorage.getItem('stays_tax_data') || '{}');
+      // Only use localStorage tax data if:
+      // 1. We don't have tax data from API
+      // 2. The stored propertyId matches the current propertyId
+      const storedPropertyId = parseInt(localStorage.getItem('stays_property_id') || '0');
+      let savedTaxData = {};
       
-      // Pre-fill legal name with property name if not already set
-      const legalName = savedTaxData.legalName || propertyName;
+      if (!taxData && propertyId === storedPropertyId) {
+        // Only load from localStorage if it's for the same property
+        savedTaxData = JSON.parse(localStorage.getItem('stays_tax_data') || '{}');
+      } else if (propertyId !== storedPropertyId) {
+        // Clear old tax data if propertyId doesn't match
+        localStorage.removeItem('stays_tax_data');
+      }
+      
+      // Pre-fill form data: prioritize API data, then localStorage (if same property), then property name
+      const legalName = taxData?.legalName || savedTaxData.legalName || propertyName;
       
       setFormData({
-        legalName: legalName,
-        vatRegistered: savedTaxData.vatRegistered || '',
-        vatId: savedTaxData.vatId || ''
+        legalName: legalName || '',
+        vatRegistered: taxData?.vatRegistered || savedTaxData.vatRegistered || '',
+        vatId: taxData?.vatId || savedTaxData.vatId || ''
       });
     };
     
@@ -88,6 +108,12 @@ export default function TaxesStep() {
     // Validate required fields
     if (!formData.legalName.trim()) {
       setSubmitError('Please enter the legal name of your property');
+      return;
+    }
+
+    // Validate VAT ID if VAT registered is "yes"
+    if (formData.vatRegistered === 'yes' && !formData.vatId.trim()) {
+      setSubmitError('Please enter your VAT ID since you indicated the property is registered for VAT');
       return;
     }
 
@@ -205,7 +231,9 @@ export default function TaxesStep() {
             {/* VAT ID Section */}
             {formData.vatRegistered === 'yes' && (
               <div className="mb-8">
-                <h2 className="text-lg font-semibold text-gray-900 mb-2">VAT ID</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-2">
+                  VAT ID <span className="text-red-500">*</span>
+                </h2>
                 <p className="text-sm text-gray-600 mb-4">
                   We display this number on your invoices to identify your business for tax purposes.
                 </p>
@@ -214,6 +242,7 @@ export default function TaxesStep() {
                   value={formData.vatId}
                   onChange={(e) => handleChange('vatId', e.target.value)}
                   placeholder="VAT ID"
+                  required
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#3CAF54] text-base"
                 />
               </div>

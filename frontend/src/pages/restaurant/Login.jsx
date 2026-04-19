@@ -4,7 +4,9 @@ import { Eye, EyeOff, Mail, Lock, Loader2, AlertCircle, ArrowLeft } from 'lucide
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import apiClient from '../../services/apiClient';
+import restaurantAuthService from '../../services/restaurantAuthService';
 import toast from 'react-hot-toast';
+import { setToken, getToken, SERVICES } from '../../utils/tokenManager';
 
 export default function RestaurantLogin() {
   const navigate = useNavigate();
@@ -19,7 +21,7 @@ export default function RestaurantLogin() {
 
   // Redirect if already logged in
   useEffect(() => {
-    const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+    const token = getToken(SERVICES.RESTAURANT);
     const user = localStorage.getItem('user');
 
     // Only auto-redirect if we have a token and an explicit approval/status indicating the
@@ -122,39 +124,85 @@ export default function RestaurantLogin() {
     setIsSubmitting(true);
 
     try {
-      // Login using general auth endpoint (profiles table)
-      // Note: This assumes restaurants use the profiles table for authentication
-      const response = await apiClient.post('/auth/login', {
-        email: formData.email,
-        password: formData.password
-      });
-
-      const result = response.data.data || response.data;
-      
-      // Store token
-      if (result.token) {
-        localStorage.setItem('token', result.token);
-        localStorage.setItem('auth_token', result.token);
+      // Check if there's a different user already logged in
+      const existingUser = localStorage.getItem('user');
+      if (existingUser) {
+        try {
+          const existingUserData = JSON.parse(existingUser);
+          const existingEmail = existingUserData?.email?.toLowerCase().trim();
+          const newEmail = formData.email.toLowerCase().trim();
+          
+          // If different user is trying to log in, clear all localStorage
+          if (existingEmail && existingEmail !== newEmail) {
+            console.log('🔄 Different user detected, clearing localStorage...');
+            localStorage.clear();
+          }
+        } catch (e) {
+          // If we can't parse existing user, clear localStorage to be safe
+          console.warn('⚠️ Could not parse existing user data, clearing localStorage:', e);
+          localStorage.clear();
+        }
       }
 
+      // Login using restaurant-specific auth endpoint
+      const result = await restaurantAuthService.login(formData.email, formData.password);
+      
+      // Store token using tokenManager
+      if (result.token) {
+        setToken(SERVICES.RESTAURANT, result.token);
+      }
+
+      // Prepare user object with restaurant data
+      const userData = {
+        ...result.user,
+        restaurant_id: result.restaurantId || result.user.restaurant_id,
+        restaurant_status: result.restaurant?.status || result.user.restaurant_status,
+        restaurant_name: result.restaurant?.business_name || result.restaurant?.name
+      };
+
       // Store user data
-      if (result.user) {
-        localStorage.setItem('user', JSON.stringify(result.user));
+      if (userData) {
+        // Double-check: if stored user email doesn't match, clear everything first
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          try {
+            const storedUserData = JSON.parse(storedUser);
+            const storedEmail = storedUserData?.email?.toLowerCase().trim();
+            const newUserEmail = userData?.email?.toLowerCase().trim();
+            
+            if (storedEmail && storedEmail !== newUserEmail) {
+              console.log('🔄 User email mismatch detected, clearing localStorage...');
+              localStorage.clear();
+              // Re-store token after clearing
+              if (result.token) {
+                setToken(SERVICES.RESTAURANT, result.token);
+              }
+            }
+          } catch (e) {
+            // If we can't parse, clear to be safe
+            localStorage.clear();
+            if (result.token) {
+              setToken(SERVICES.RESTAURANT, result.token);
+            }
+          }
+        }
+        
+        localStorage.setItem('user', JSON.stringify(userData));
         
         // Store service type to prevent cross-service conflicts
         localStorage.setItem('service_type', 'restaurant');
         
         // Store restaurant status if available
-        if (result.user.restaurant_status) {
-          localStorage.setItem('restaurant_status', result.user.restaurant_status);
+        if (userData.restaurant_status) {
+          localStorage.setItem('restaurant_status', userData.restaurant_status);
         }
       }
 
       // Verify the login was successful before showing success message
-      if (result.token && result.user) {
+      if (result.token && userData) {
         // Check restaurant status and redirect accordingly
-        const restaurantStatus = result.user.restaurant_status;
-        const restaurantId = result.user.restaurant_id;
+        const restaurantStatus = userData.restaurant_status;
+        const restaurantId = userData.restaurant_id;
         
         // Store restaurant ID if available
         if (restaurantId) {

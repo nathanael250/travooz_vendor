@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Eye, EyeOff, AlertCircle, Loader2, Check } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import toast from 'react-hot-toast';
 import { restaurantSetupService } from '../../services/eatingOutService';
-import apiClient from '../../services/apiClient';
+import PhoneInput from '../../components/common/PhoneInput';
+import { setToken, getToken, SERVICES } from '../../utils/tokenManager';
 
 export default function ListYourRestaurantStep3() {
   const navigate = useNavigate();
@@ -20,61 +21,16 @@ export default function ListYourRestaurantStep3() {
   }, []);
 
   // Check if user is already logged in (from localStorage)
-  // IMPORTANT: For restaurant setup, we need to check if user exists in restaurant_users table
-  // Just having a session from tours/stays doesn't mean they have a restaurant account
   const [user, setUser] = useState(() => {
     const storedUser = localStorage.getItem('user');
     return storedUser ? JSON.parse(storedUser) : null;
   });
-  
-  // Check service type to prevent cross-service conflicts
-  const [isDifferentService, setIsDifferentService] = useState(false);
-  const [isRestaurantUser, setIsRestaurantUser] = useState(false);
-  const [checkingUser, setCheckingUser] = useState(true);
-  
-  // Check if user exists in restaurant_users table and verify service type
-  useEffect(() => {
-    const checkRestaurantUser = async () => {
-      if (!user?.email) {
-        setCheckingUser(false);
-        return;
-      }
-      
-      // First check service type
-      const currentServiceType = localStorage.getItem('service_type');
-      if (currentServiceType && currentServiceType !== 'restaurant') {
-        // User is logged in to a different service
-        setIsDifferentService(true);
-        setCheckingUser(false);
-        return;
-      }
-      
-      try {
-        // Check if user exists in restaurant_users via backend
-        const response = await apiClient.post('/api/v1/restaurant/check-user', {
-          email: user.email
-        });
-        if (response.data?.exists) {
-          setIsRestaurantUser(true);
-        }
-      } catch (error) {
-        // User doesn't exist in restaurant_users, that's fine - they'll create one
-        setIsRestaurantUser(false);
-      } finally {
-        setCheckingUser(false);
-      }
-    };
-    
-    checkRestaurantUser();
-  }, [user]);
-  
-  // Only skip account creation if user is specifically a restaurant_user
-  const isVendor = isRestaurantUser && (user?.role || '').toLowerCase() === 'vendor';
+  const isVendor = (user?.role || '').toLowerCase() === 'vendor';
 
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
-    countryCode: '+250', // Default to Rwanda
+    countryCode: '+250',
     phone: '',
     email: '',
     password: '',
@@ -122,28 +78,12 @@ export default function ListYourRestaurantStep3() {
     return { level: 'weak', label: 'Weak', percentage: 30 };
   }, [passwordGuidelines]);
 
-  // Common country codes (focusing on East Africa)
-  const countryCodes = [
-    { code: '+250', country: 'Rwanda' },
-    { code: '+256', country: 'Uganda' },
-    { code: '+255', country: 'Tanzania' },
-    { code: '+254', country: 'Kenya' },
-    { code: '+251', country: 'Ethiopia' },
-    { code: '+1', country: 'USA/Canada' },
-    { code: '+44', country: 'UK' },
-    { code: '+33', country: 'France' },
-    { code: '+49', country: 'Germany' },
-    { code: '+234', country: 'Nigeria' },
-    { code: '+27', country: 'South Africa' }
-  ];
-
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
-    // Clear error for this field
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
@@ -152,248 +92,150 @@ export default function ListYourRestaurantStep3() {
     }
   };
 
+  const step2Data = location.state?.step2Data || {};
+  const selectedLocation = location.state?.location || '';
+  const selectedLocationData = location.state?.locationData || null;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (isVendor) {
-      // User is already logged in, create restaurant listing only
-      setIsSubmitting(true);
+
+    if (!step2Data || Object.keys(step2Data).length === 0) {
+      toast.error('Please provide your restaurant information first.');
+      return;
+    }
+
+    if (!isVendor) {
       setSubmitError('');
 
-      try {
-        const step2Data = location.state?.step2Data || {};
-        const locationData = location.state?.locationData || null;
+      const newErrors = {};
 
-        // Create restaurant listing (user already exists)
-        const result = await restaurantSetupService.createRestaurantListing({
-          // Restaurant data only (user is already logged in)
-          restaurantName: step2Data.restaurantName,
-          restaurantType: step2Data.restaurantType,
-          restaurantTypeName: step2Data.restaurantTypeName,
-          subcategoryId: parseInt(step2Data.subcategoryId),
-          description: step2Data.description,
-          phone: step2Data.phone,
-          currency: step2Data.currency,
-          location: location.state?.location || '',
-          locationData: locationData,
-          wantsNotifications: step2Data.wantsNotifications || 'no',
-          notificationReceiver: step2Data.notificationReceiver || ''
-        });
+      if (!formData.email.trim()) {
+        newErrors.email = 'Cannot be left blank';
+      } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+        newErrors.email = 'Please enter a valid email address';
+      }
 
-        const restaurantId = result.restaurantId || result.data?.restaurantId;
-
-        // Store restaurantId in localStorage for persistence
-        if (restaurantId) {
-          localStorage.setItem('restaurant_id', restaurantId);
+      if (!formData.password.trim()) {
+        newErrors.password = 'Cannot be left blank';
+      } else {
+        if (!passwordGuidelines.minLength) {
+          newErrors.password = 'Password must be at least 7 characters';
+        } else if (!passwordGuidelines.hasLetter) {
+          newErrors.password = 'Password must contain at least one letter';
+        } else if (!passwordGuidelines.noNames) {
+          newErrors.password = 'Password cannot contain your first or last name';
+        } else if (!passwordGuidelines.hasNumber) {
+          newErrors.password = 'Password must contain at least one number';
+        } else if (!passwordGuidelines.notCommon) {
+          newErrors.password = 'Password is too common or easily guessed';
         }
-
-        // Navigate to business details step
-        navigate('/restaurant/setup/business-details', {
-          state: {
-            location: location.state?.location || '',
-            locationData: locationData,
-            step2Data: step2Data,
-            userId: user.user_id || user.id,
-            email: user.email,
-            userName: user.name,
-            restaurantId: restaurantId
-          }
-        });
-      } catch (error) {
-        console.error('Error creating restaurant listing:', error);
-        setSubmitError(error.response?.data?.message || error.message || 'Failed to create restaurant listing. Please try again.');
-        toast.error(error.response?.data?.message || error.message || 'Failed to create restaurant listing');
-      } finally {
-        setIsSubmitting(false);
       }
-      return;
-    }
 
-    setSubmitError('');
-    
-    // Basic validation (optional fields can be empty)
-    const newErrors = {};
-    
-    if (!formData.email.trim()) {
-      newErrors.email = 'Cannot be left blank';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-
-    if (!formData.password.trim()) {
-      newErrors.password = 'Cannot be left blank';
-    } else {
-      // Check password guidelines
-      if (!passwordGuidelines.minLength) {
-        newErrors.password = 'Password must be at least 7 characters';
-      } else if (!passwordGuidelines.hasLetter) {
-        newErrors.password = 'Password must contain at least one letter';
-      } else if (!passwordGuidelines.noNames) {
-        newErrors.password = 'Password cannot contain your first or last name';
-      } else if (!passwordGuidelines.hasNumber) {
-        newErrors.password = 'Password must contain at least one number';
-      } else if (!passwordGuidelines.notCommon) {
-        newErrors.password = 'Password is too common or easily guessed';
+      // Validate confirm password
+      if (!formData.confirmPassword.trim()) {
+        newErrors.confirmPassword = 'Please confirm your password';
+      } else if (formData.password !== formData.confirmPassword) {
+        newErrors.confirmPassword = 'Passwords do not match';
       }
-    }
 
-    // Validate confirm password
-    if (!formData.confirmPassword.trim()) {
-      newErrors.confirmPassword = 'Please confirm your password';
-    } else if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
+      if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors);
+        return;
+      }
     }
 
     setIsSubmitting(true);
     setSubmitError('');
 
     try {
-      // Get restaurant data from Step 2
-      const step2Data = location.state?.step2Data || {};
-      const locationData = location.state?.locationData || null;
-
-      // Create restaurant listing and user account in one API call
-      const result = await restaurantSetupService.createRestaurantListing({
-        // User account data
+      const payload = {
+        // Location data from Step 1
+        location: selectedLocation,
+        locationData: selectedLocationData,
+        // Restaurant data from Step 2
+        restaurantName: step2Data.restaurantName || '',
+        subcategoryId: step2Data.subcategoryId || '',
+        description: step2Data.description || '',
+        // User account data from Step 3
         firstName: formData.firstName,
         lastName: formData.lastName,
-        email: formData.email,
-        phone: formData.phone,
         countryCode: formData.countryCode,
-        password: formData.password,
-        // Restaurant data
-        restaurantName: step2Data.restaurantName,
-        restaurantType: step2Data.restaurantType,
-        restaurantTypeName: step2Data.restaurantTypeName,
-        subcategoryId: parseInt(step2Data.subcategoryId),
-        description: step2Data.description,
-        restaurantPhone: step2Data.phone,
-        currency: step2Data.currency,
-        location: location.state?.location || '',
-        locationData: locationData,
-        wantsNotifications: step2Data.wantsNotifications || 'no',
-        notificationReceiver: step2Data.notificationReceiver || ''
-      });
+        phone: formData.phone || `${formData.countryCode}${step2Data.phoneNumber || ''}`,
+        email: formData.email,
+        password: formData.password
+      };
 
-      // Extract data from response
-      const restaurantId = result.restaurantId || result.data?.restaurantId;
-      const userId = result.userId || result.data?.userId;
-      const token = result.token || result.data?.token;
-      const userCreated = result.userCreated || result.data?.userCreated;
+      const apiResponse = await restaurantSetupService.createRestaurantListing(payload);
+      const responseData = apiResponse || {};
 
-      // Validate required data before proceeding
-      if (!userId) {
-        throw new Error('User ID not received from server. Please try again.');
+      const restaurantId = responseData.restaurantId || responseData.restaurant_id;
+      const userId = responseData.userId || responseData.user_id;
+      const token = responseData.token;
+
+      if (!restaurantId || !userId) {
+        toast.error('Something went wrong. Please try again.');
+        setIsSubmitting(false);
+        return;
       }
 
-      if (!restaurantId) {
-        throw new Error('Restaurant ID not received from server. Please try again.');
-      }
-
-      // Store token if user was created
+      // Store token using tokenManager
       if (token) {
-        localStorage.setItem('token', token);
-        localStorage.setItem('auth_token', token);
+        setToken(SERVICES.RESTAURANT, token);
       }
 
-      // Store user data in localStorage if user was created
-      if (userCreated && userId) {
-        const userData = {
-          id: userId,
-          user_id: userId,
-          email: formData.email,
-          name: `${formData.firstName} ${formData.lastName}`.trim(),
-          role: 'vendor'
-        };
-        localStorage.setItem('user', JSON.stringify(userData));
-        // Store service type to prevent cross-service conflicts
-        localStorage.setItem('service_type', 'restaurant');
-        setUser(userData);
-      }
+      // Store user data
+      const derivedName = `${formData.firstName} ${formData.lastName}`.trim() || formData.email.split('@')[0];
+      const createdUser = {
+        id: userId,
+        user_id: userId,
+        role: 'vendor',
+        name: derivedName,
+        email: formData.email,
+        phone: formData.phone || null,
+        restaurant_id: restaurantId,
+        restaurant_status: 'pending'
+      };
+      localStorage.setItem('user', JSON.stringify(createdUser));
+      localStorage.setItem('restaurant_id', restaurantId);
+      localStorage.setItem('service_type', 'restaurant');
+      setUser(createdUser);
 
-      // Store restaurantId in localStorage for persistence
-      if (restaurantId) {
-        localStorage.setItem('restaurant_id', restaurantId);
-      }
+      toast.success('Restaurant registration saved successfully!');
 
-      toast.success('Account and restaurant listing created successfully!');
-      
-      // Small delay to ensure state is ready, then navigate to email verification
+      // Navigate to email verification
+      const finalEmail = formData.email;
+      const finalUserName = `${formData.firstName} ${formData.lastName}`.trim() || formData.email.split('@')[0];
+
       setTimeout(() => {
         navigate('/restaurant/setup/email-verification', {
-          replace: true,
           state: {
-            location: location.state?.location || '',
-            locationData: locationData,
+            ...location.state,
+            location: selectedLocation,
+            locationData: selectedLocationData,
             step2Data: step2Data,
-            userId: userId,
-            email: formData.email,
-            userName: `${formData.firstName} ${formData.lastName}`.trim() || formData.email.split('@')[0],
-            restaurantId: restaurantId
+            restaurantId,
+            userId,
+            email: finalEmail,
+            userName: finalUserName
           }
         });
       }, 100);
-
-      // ACTUAL API CALL - Uncomment when backend is ready
-      // // Register as vendor
-      // await registerApi({
-      //   role: 'vendor',
-      //   name: `${formData.firstName} ${formData.lastName}`.trim(),
-      //   email: formData.email,
-      //   phone: `${formData.countryCode}${formData.phone}`,
-      //   password: formData.password,
-      //   confirmPassword: formData.password,
-      //   address: '',
-      // });
-
-      // // Login to get token and user
-      // const auth = await loginApi({ 
-      //   email: formData.email, 
-      //   password: formData.password 
-      // });
-
-      // if (auth?.tokens?.accessToken) {
-      //   localStorage.setItem('token', auth.tokens.accessToken);
-      // }
-      // if (auth?.user) {
-      //   setAuthUser(auth.user);
-      // }
-
-      // toast.success('Account created successfully!');
-
-      // // Navigate to business details step
-      // navigate('/restaurant/setup/business-details', {
-      //   state: {
-      //     location: location.state?.location || '',
-      //     locationData: location.state?.locationData || null,
-      //     step2Data: location.state?.step2Data || {},
-      //     userId: auth?.user?.user_id || auth?.user?.id,
-      //     email: formData.email,
-      //     userName: `${formData.firstName} ${formData.lastName}`.trim() || formData.email.split('@')[0]
-      //   }
-      // });
     } catch (error) {
-      console.error('Error creating account:', error);
-      
-      // Handle validation errors
-      if (error.response?.data?.errors) {
+      console.error('Error creating restaurant:', error);
+
+      if (error.errors) {
         const validationErrors = {};
-        error.response.data.errors.forEach(err => {
-          // Map backend field names to frontend field names
+        error.errors.forEach((err) => {
           if (err.field === 'email') validationErrors.email = err.message;
           if (err.field === 'password') validationErrors.password = err.message;
           if (err.field === 'phone') validationErrors.phone = err.message;
         });
         setErrors(validationErrors);
       } else {
-        setSubmitError(error.response?.data?.message || error.message || 'Failed to create account. Please try again.');
+        setSubmitError(error.message || 'Failed to create restaurant. Please try again.');
       }
-      toast.error(error.response?.data?.message || error.message || 'Failed to create account');
+
+      toast.error(error.message || 'Failed to create restaurant');
     } finally {
       setIsSubmitting(false);
     }
@@ -457,454 +299,262 @@ export default function ListYourRestaurantStep3() {
               Sign in to set up your new restaurant if you already have an account.{' '}
               <button
                 type="button"
-                onClick={() => navigate('/login')}
+                onClick={() => navigate('/restaurant/login')}
                 className="text-[#3CAF54] hover:underline font-medium"
               >
                 Sign in
               </button>
             </p>
 
-            {checkingUser ? (
-              <div className="space-y-6">
-                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <p className="text-sm text-gray-600 text-center">
-                    Checking account status...
-                  </p>
-                </div>
-              </div>
-            ) : isDifferentService ? (
-              <div className="space-y-6">
-                <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-300 flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-yellow-900 mb-1">
-                      You are logged in to a different service
-                    </p>
-                    <p className="text-xs text-yellow-800 mb-3">
-                      You're currently logged in as <strong>{user.name}</strong> ({user.email}) for a different service. 
-                      To create a new restaurant account with the same email, please logout first.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        localStorage.clear();
-                        window.location.href = '/restaurant/list-your-restaurant';
-                      }}
-                      className="text-xs px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
-                    >
-                      Logout and Start Fresh
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : isVendor && isRestaurantUser ? (
-              <div className="space-y-6">
-                <div className="p-4 bg-green-50 rounded-lg border border-green-200 flex items-start gap-3">
-                  <Check className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-green-900 mb-1">
-                      You are logged in as <strong>{user.name}</strong>
-                    </p>
-                    <p className="text-xs text-green-700">
-                      ({user.email})
-                    </p>
-                    <p className="text-xs text-green-700 mt-2">
-                      We'll use your existing restaurant account to complete the registration.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-4 pt-4">
-                  <button
-                    type="button"
-                    onClick={handleBack}
-                    className="flex-1 px-6 py-3 border-2 rounded-lg font-medium transition-colors text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
-                    style={{ borderColor: '#d1d5db' }}
-                  >
-                    <ArrowLeft className="h-5 w-5" />
-                    <span>Back</span>
-                  </button>
-                  <button
-                    onClick={handleSubmit}
-                    disabled={isSubmitting || isDifferentService}
-                    className="flex-1 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ backgroundColor: isSubmitting ? '#2d8f42' : '#3CAF54' }}
-                    onMouseEnter={(e) => !isSubmitting && !isDifferentService && (e.target.style.backgroundColor = '#2d8f42')}
-                    onMouseLeave={(e) => !isSubmitting && !isDifferentService && (e.target.style.backgroundColor = '#3CAF54')}
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        <span>Creating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Continue</span>
-                        <ArrowRight className="h-5 w-5" />
-                      </>
-                    )}
-                  </button>
-                  {submitError && (
-                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-sm text-red-800">{submitError}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* First Name and Last Name - Side by Side */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      name="firstName"
-                      value={formData.firstName}
-                      onChange={handleChange}
-                      onFocus={() => setFocusedFields(prev => ({ ...prev, firstName: true }))}
-                      onBlur={() => setFocusedFields(prev => ({ ...prev, firstName: false }))}
-                      className={`w-full px-4 pt-6 pb-2 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 ${
-                        errors.firstName ? 'border-red-500' : ''
-                      }`}
-                    />
-                    <label
-                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        focusedFields.firstName || formData.firstName
-                          ? 'top-2 text-xs text-gray-500'
-                          : 'top-1/2 -translate-y-1/2 text-base text-gray-400'
-                      }`}
-                    >
-                      First name
-                    </label>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      name="lastName"
-                      value={formData.lastName}
-                      onChange={handleChange}
-                      onFocus={() => setFocusedFields(prev => ({ ...prev, lastName: true }))}
-                      onBlur={() => setFocusedFields(prev => ({ ...prev, lastName: false }))}
-                      className={`w-full px-4 pt-6 pb-2 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 ${
-                        errors.lastName ? 'border-red-500' : ''
-                      }`}
-                    />
-                    <label
-                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        focusedFields.lastName || formData.lastName
-                          ? 'top-2 text-xs text-gray-500'
-                          : 'top-1/2 -translate-y-1/2 text-base text-gray-400'
-                      }`}
-                    >
-                      Last name
-                    </label>
-                  </div>
-                </div>
-
-                {/* Phone Number */}
-                <div className="flex gap-2">
-                  <div className="relative w-32">
-                    <select
-                      name="countryCode"
-                      value={formData.countryCode}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 appearance-none"
-                    >
-                      {countryCodes.map(country => (
-                        <option key={country.code} value={country.code}>
-                          {country.code}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="relative flex-1">
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      onFocus={() => setFocusedFields(prev => ({ ...prev, phone: true }))}
-                      onBlur={() => setFocusedFields(prev => ({ ...prev, phone: false }))}
-                      className={`w-full px-4 pt-6 pb-2 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 ${
-                        errors.phone ? 'border-red-500' : ''
-                      }`}
-                    />
-                    <label
-                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        focusedFields.phone || formData.phone
-                          ? 'top-2 text-xs text-gray-500'
-                          : 'top-1/2 -translate-y-1/2 text-base text-gray-400'
-                      }`}
-                    >
-                      Phone
-                    </label>
-                  </div>
-                </div>
-
-                {/* Email */}
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* First Name and Last Name */}
+              <div className="grid grid-cols-2 gap-4">
                 <div className="relative">
                   <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
+                    type="text"
+                    name="firstName"
+                    value={formData.firstName}
                     onChange={handleChange}
-                    onFocus={() => setFocusedFields(prev => ({ ...prev, email: true }))}
-                    onBlur={() => setFocusedFields(prev => ({ ...prev, email: false }))}
+                    onFocus={() => setFocusedFields(prev => ({ ...prev, firstName: true }))}
+                    onBlur={() => setFocusedFields(prev => ({ ...prev, firstName: false }))}
                     className={`w-full px-4 pt-6 pb-2 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 ${
-                      errors.email ? 'border-red-500' : ''
+                      errors.firstName ? 'border-red-500' : ''
                     }`}
                   />
                   <label
                     className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                      focusedFields.email || formData.email
+                      focusedFields.firstName || formData.firstName
                         ? 'top-2 text-xs text-gray-500'
                         : 'top-1/2 -translate-y-1/2 text-base text-gray-400'
                     }`}
                   >
-                    Email address
+                    First name
                   </label>
-                  {errors.email && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <AlertCircle className="h-5 w-5 text-red-500" />
-                    </div>
-                  )}
-                  {errors.email && (
-                    <p className="mt-1 ml-1 text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="h-4 w-4" />
-                      {errors.email}
-                    </p>
-                  )}
                 </div>
-
-                {/* Password */}
-                <div>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      onFocus={() => setFocusedFields(prev => ({ ...prev, password: true }))}
-                      onBlur={() => setFocusedFields(prev => ({ ...prev, password: false }))}
-                      className={`w-full px-4 pt-6 pb-2 pr-12 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 ${
-                        errors.password ? 'border-red-500' : ''
-                      }`}
-                    />
-                    <label
-                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        focusedFields.password || formData.password
-                          ? 'top-2 text-xs text-gray-500'
-                          : 'top-1/2 -translate-y-1/2 text-base text-gray-400'
-                      }`}
-                    >
-                      Password
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-5 w-5" />
-                      ) : (
-                        <Eye className="h-5 w-5" />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Password Strength Indicator */}
-                  {formData.password && (
-                    <div className="mt-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-700">Password strength</span>
-                        {passwordStrength.label && (
-                          <span 
-                            className={`text-sm font-semibold ${
-                              passwordStrength.level === 'strong' ? 'text-green-600' :
-                              passwordStrength.level === 'medium' ? 'text-yellow-600' :
-                              'text-red-600'
-                            }`}
-                          >
-                            {passwordStrength.label}
-                          </span>
-                        )}
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full transition-all duration-300 ${
-                            passwordStrength.level === 'strong' ? 'bg-green-500' :
-                            passwordStrength.level === 'medium' ? 'bg-yellow-500' :
-                            'bg-red-500'
-                          }`}
-                          style={{ width: `${passwordStrength.percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Password Guidelines */}
-                  {formData.password && (
-                    <div className="mt-4">
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Password guidelines</h4>
-                      <ul className="space-y-2">
-                        <li className={`flex items-center gap-2 text-sm ${
-                          passwordGuidelines.minLength ? 'text-green-600' : 'text-gray-500'
-                        }`}>
-                          <Check className={`h-4 w-4 ${passwordGuidelines.minLength ? 'text-green-600' : 'text-gray-300'}`} />
-                          At least 7 characters
-                        </li>
-                        <li className={`flex items-center gap-2 text-sm ${
-                          passwordGuidelines.hasLetter ? 'text-green-600' : 'text-gray-500'
-                        }`}>
-                          <Check className={`h-4 w-4 ${passwordGuidelines.hasLetter ? 'text-green-600' : 'text-gray-300'}`} />
-                          At least one letter
-                        </li>
-                        <li className={`flex items-center gap-2 text-sm ${
-                          passwordGuidelines.noNames ? 'text-green-600' : 'text-gray-500'
-                        }`}>
-                          <Check className={`h-4 w-4 ${passwordGuidelines.noNames ? 'text-green-600' : 'text-gray-300'}`} />
-                          No use of first and last names
-                        </li>
-                        <li className={`flex items-center gap-2 text-sm ${
-                          passwordGuidelines.hasNumber ? 'text-green-600' : 'text-gray-500'
-                        }`}>
-                          <Check className={`h-4 w-4 ${passwordGuidelines.hasNumber ? 'text-green-600' : 'text-gray-300'}`} />
-                          At least one number
-                        </li>
-                        <li className={`flex items-center gap-2 text-sm ${
-                          passwordGuidelines.notCommon ? 'text-green-600' : 'text-gray-500'
-                        }`}>
-                          <Check className={`h-4 w-4 ${passwordGuidelines.notCommon ? 'text-green-600' : 'text-gray-300'}`} />
-                          No easy guesses and banned passwords
-                        </li>
-                      </ul>
-                    </div>
-                  )}
-
-                  {errors.password && (
-                    <p className="mt-2 ml-1 text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="h-4 w-4" />
-                      {errors.password}
-                    </p>
-                  )}
+                <div className="relative">
+                  <input
+                    type="text"
+                    name="lastName"
+                    value={formData.lastName}
+                    onChange={handleChange}
+                    onFocus={() => setFocusedFields(prev => ({ ...prev, lastName: true }))}
+                    onBlur={() => setFocusedFields(prev => ({ ...prev, lastName: false }))}
+                    className={`w-full px-4 pt-6 pb-2 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 ${
+                      errors.lastName ? 'border-red-500' : ''
+                    }`}
+                  />
+                  <label
+                    className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                      focusedFields.lastName || formData.lastName
+                        ? 'top-2 text-xs text-gray-500'
+                        : 'top-1/2 -translate-y-1/2 text-base text-gray-400'
+                    }`}
+                  >
+                    Last name
+                  </label>
                 </div>
+              </div>
 
-                {/* Confirm Password */}
-                <div>
-                  <div className="relative">
-                    <input
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      name="confirmPassword"
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      onFocus={() => setFocusedFields(prev => ({ ...prev, confirmPassword: true }))}
-                      onBlur={() => setFocusedFields(prev => ({ ...prev, confirmPassword: false }))}
-                      className={`w-full px-4 pt-6 pb-2 pr-12 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 ${
-                        errors.confirmPassword ? 'border-red-500' : ''
-                      }`}
-                    />
-                    <label
-                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        focusedFields.confirmPassword || formData.confirmPassword
-                          ? 'top-2 text-xs text-gray-500'
-                          : 'top-1/2 -translate-y-1/2 text-base text-gray-400'
-                      }`}
-                    >
-                      Confirm password
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="h-5 w-5" />
-                      ) : (
-                        <Eye className="h-5 w-5" />
-                      )}
-                    </button>
-                  </div>
+              {/* Phone Number */}
+              <div>
+                <PhoneInput
+                  countryCode={formData.countryCode}
+                  phone={formData.phone || step2Data.phoneNumber || ''}
+                  onChange={(code, phoneNum) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      countryCode: code,
+                      phone: phoneNum
+                    }));
+                    setFocusedFields(prev => ({ ...prev, phone: true }));
+                    if (errors.phone) {
+                      setErrors(prev => ({
+                        ...prev,
+                        phone: ''
+                      }));
+                    }
+                  }}
+                  placeholder="7XX XXX XXX"
+                  error={!!errors.phone}
+                  errorMessage={errors.phone}
+                  required
+                />
+              </div>
 
-                  {/* Password Match Indicator */}
-                  {formData.confirmPassword && formData.password && (
-                    <div className="mt-2">
-                      {formData.password === formData.confirmPassword ? (
-                        <p className="text-sm text-green-600 flex items-center gap-1">
-                          <Check className="h-4 w-4" />
-                          Passwords match
-                        </p>
-                      ) : (
-                        <p className="text-sm text-red-600 flex items-center gap-1">
-                          <AlertCircle className="h-4 w-4" />
-                          Passwords do not match
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {errors.confirmPassword && (
-                    <p className="mt-2 ml-1 text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="h-4 w-4" />
-                      {errors.confirmPassword}
-                    </p>
-                  )}
-                </div>
-
-                {/* Disclaimer */}
-                <div className="bg-gray-50 rounded-lg p-4 border" style={{ borderColor: '#e5e7eb' }}>
-                  <p className="text-xs text-gray-600">
-                    By continuing, you agree to allow Travooz to contact you regarding your restaurant registration, including via text message.
-                  </p>
-                </div>
-
-                {/* Submit Error */}
-                {submitError && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <p className="text-sm text-red-600 flex items-center gap-2">
-                      <AlertCircle className="h-4 w-4" />
-                      {submitError}
-                    </p>
+              {/* Email */}
+              <div className="relative">
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  onFocus={() => setFocusedFields(prev => ({ ...prev, email: true }))}
+                  onBlur={() => setFocusedFields(prev => ({ ...prev, email: false }))}
+                  className={`w-full px-4 pt-6 pb-2 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 ${
+                    errors.email ? 'border-red-500' : ''
+                  }`}
+                />
+                <label
+                  className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                    focusedFields.email || formData.email
+                      ? 'top-2 text-xs text-gray-500'
+                      : 'top-1/2 -translate-y-1/2 text-base text-gray-400'
+                  }`}
+                >
+                  Email address
+                </label>
+                {errors.email && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <AlertCircle className="h-5 w-5 text-red-500" />
                   </div>
                 )}
+                {errors.email && (
+                  <p className="mt-1 ml-1 text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    {errors.email}
+                  </p>
+                )}
+              </div>
 
-                {/* Navigation Buttons */}
-                <div className="flex gap-4 pt-4">
+              {/* Password */}
+              <div>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    onFocus={() => setFocusedFields(prev => ({ ...prev, password: true }))}
+                    onBlur={() => setFocusedFields(prev => ({ ...prev, password: false }))}
+                    className={`w-full px-4 pt-6 pb-2 pr-12 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 ${
+                      errors.password ? 'border-red-500' : ''
+                    }`}
+                  />
+                  <label
+                    className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                      focusedFields.password || formData.password
+                        ? 'top-2 text-xs text-gray-500'
+                        : 'top-1/2 -translate-y-1/2 text-base text-gray-400'
+                    }`}
+                  >
+                    Password
+                  </label>
                   <button
                     type="button"
-                    onClick={handleBack}
-                    className="flex-1 px-6 py-3 border-2 rounded-lg font-medium transition-colors text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
-                    style={{ borderColor: '#d1d5db' }}
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
-                    <ArrowLeft className="h-5 w-5" />
-                    <span>Back</span>
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex-1 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ backgroundColor: isSubmitting ? '#2d8f42' : '#3CAF54' }}
-                    onMouseEnter={(e) => !isSubmitting && (e.target.style.backgroundColor = '#2d8f42')}
-                    onMouseLeave={(e) => !isSubmitting && (e.target.style.backgroundColor = '#3CAF54')}
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        <span>Submitting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Create Account</span>
-                        <ArrowRight className="h-5 w-5" />
-                      </>
-                    )}
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
-              </form>
-            )}
+                {errors.password && (
+                  <p className="mt-1 ml-1 text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    {errors.password}
+                  </p>
+                )}
+                
+                {/* Password Strength Indicator */}
+                {formData.password && !errors.password && (
+                  <div className="mt-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-gray-600">Password strength</span>
+                      <span className={`text-xs font-medium ${
+                        passwordStrength.level === 'strong' ? 'text-green-600' :
+                        passwordStrength.level === 'medium' ? 'text-yellow-600' : 'text-gray-400'
+                      }`}>
+                        {passwordStrength.label}
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          passwordStrength.level === 'strong' ? 'bg-green-500' :
+                          passwordStrength.level === 'medium' ? 'bg-yellow-500' : 'bg-gray-300'
+                        }`}
+                        style={{ width: `${passwordStrength.percentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Confirm Password */}
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  onFocus={() => setFocusedFields(prev => ({ ...prev, confirmPassword: true }))}
+                  onBlur={() => setFocusedFields(prev => ({ ...prev, confirmPassword: false }))}
+                  className={`w-full px-4 pt-6 pb-2 pr-12 border-2 rounded-lg focus:outline-none transition-all bg-white text-gray-900 border-gray-300 focus:border-[#3CAF54] focus:ring-2 focus:ring-[#3CAF54]/20 ${
+                    errors.confirmPassword ? 'border-red-500' : ''
+                  }`}
+                />
+                <label
+                  className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                    focusedFields.confirmPassword || formData.confirmPassword
+                      ? 'top-2 text-xs text-gray-500'
+                      : 'top-1/2 -translate-y-1/2 text-base text-gray-400'
+                  }`}
+                >
+                  Confirm password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
+              {errors.confirmPassword && (
+                <p className="mt-1 ml-1 text-sm text-red-600 flex items-center gap-1">
+                  <AlertCircle className="h-4 w-4" />
+                  {errors.confirmPassword}
+                </p>
+              )}
+
+              {submitError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-800">{submitError}</p>
+                </div>
+              )}
+
+              {/* Buttons */}
+              <div className="flex gap-4 pt-4">
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="flex-1 px-6 py-3 border-2 rounded-lg font-medium transition-colors text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
+                  style={{ borderColor: '#d1d5db' }}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                  <span>Back</span>
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: isSubmitting ? '#2d8f42' : '#3CAF54' }}
+                  onMouseEnter={(e) => !isSubmitting && (e.target.style.backgroundColor = '#2d8f42')}
+                  onMouseLeave={(e) => !isSubmitting && (e.target.style.backgroundColor = '#3CAF54')}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span>Creating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Create Account</span>
+                      <ArrowRight className="h-5 w-5" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       </div>

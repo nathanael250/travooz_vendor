@@ -28,6 +28,25 @@ const buildImageUrl = (imageUrl) => {
   return `${serverUrl}${normalizedImageUrl}`;
 };
 
+const renderMultilineList = (value) => {
+  const items = (value || '')
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (items.length === 0) {
+    return <span className="text-gray-500">Not provided</span>;
+  }
+
+  return (
+    <ul className="mt-1 list-disc space-y-1 pl-5 text-gray-700">
+      {items.map((item, index) => (
+        <li key={`${item}-${index}`}>{item}</li>
+      ))}
+    </ul>
+  );
+};
+
 const CreateTourPackage = () => {
   const navigate = useNavigate();
   const { packageId: urlPackageId } = useParams();
@@ -50,7 +69,6 @@ const CreateTourPackage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
-  const autoSaveTimeoutRef = useRef(null);
   const [commission, setCommission] = useState(null); // Global commission from database
   const [formData, setFormData] = useState({
     // Step 1: Basic Informations
@@ -849,31 +867,6 @@ const CreateTourPackage = () => {
     fetchCommission();
   }, []);
 
-  // Auto-save to backend and localStorage
-  // Only trigger on formData changes, not on packageId changes
-  useEffect(() => {
-    // Clear existing timeout
-    if (autoSaveTimeoutRef.current) {
-      clearTimeout(autoSaveTimeoutRef.current);
-    }
-
-    // Don't auto-save on initial load or if no business ID
-    if (isLoading || !businessId) return;
-
-    // Auto-save after 2 seconds of inactivity
-    autoSaveTimeoutRef.current = setTimeout(() => {
-      savePackageData();
-    }, 2000);
-
-    return () => {
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current);
-      }
-    };
-    // Only depend on formData and businessId - NOT packageId to prevent infinite loops
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData, businessId, isLoading]);
-
   // Check if package is 100% complete
   const isPackageComplete = (data) => {
     // Check all required fields from all steps
@@ -1269,6 +1262,15 @@ const CreateTourPackage = () => {
         setCurrentStep(6);
         setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       }
+    }
+  };
+
+  const handleSaveAndExit = async () => {
+    try {
+      await savePackageData(true);
+      navigate('/tours/dashboard/packages');
+    } catch (error) {
+      console.error('Error saving package before exit:', error);
     }
   };
 
@@ -1944,7 +1946,7 @@ const CreateTourPackage = () => {
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                   <button
                     type="button"
-                    onClick={() => navigate('/tours/dashboard/packages')}
+                    onClick={handleSaveAndExit}
                     className="px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto text-center"
                   >
                     Save and exit
@@ -2503,7 +2505,7 @@ const CreateTourPackage = () => {
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                   <button
                     type="button"
-                    onClick={() => navigate('/tours/dashboard/packages')}
+                    onClick={handleSaveAndExit}
                     className="px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto text-center"
                   >
                     Save and exit
@@ -2926,7 +2928,7 @@ const CreateTourPackage = () => {
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                   <button
                     type="button"
-                    onClick={() => navigate('/tours/dashboard/packages')}
+                    onClick={handleSaveAndExit}
                     className="px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto text-center"
                   >
                     Save and exit
@@ -3183,7 +3185,7 @@ const CreateTourPackage = () => {
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                   <button
                     type="button"
-                    onClick={() => navigate('/tours/dashboard/packages')}
+                    onClick={handleSaveAndExit}
                     className="px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto text-center"
                   >
                     Save and exit
@@ -3537,7 +3539,7 @@ const CreateTourPackage = () => {
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                       <button
                         type="button"
-                        onClick={() => navigate('/tours/dashboard/packages')}
+                        onClick={handleSaveAndExit}
                         className="px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto text-center"
                       >
                         Save and exit
@@ -3830,7 +3832,7 @@ const CreateTourPackage = () => {
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                       <button
                         type="button"
-                        onClick={() => navigate('/tours/dashboard/packages')}
+                        onClick={handleSaveAndExit}
                         className="px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto text-center"
                       >
                         Save and exit
@@ -4547,7 +4549,7 @@ const CreateTourPackage = () => {
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                       <button
                         type="button"
-                        onClick={() => navigate('/tours/dashboard/packages')}
+                        onClick={handleSaveAndExit}
                         className="px-4 sm:px-6 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto text-center"
                       >
                         Save and exit
@@ -4611,7 +4613,14 @@ const CreateTourPackage = () => {
                     </button>
                   </div>
                   <div className="space-y-2 text-sm">
-                    <p><span className="font-medium">What's Included:</span> {formData.whatsIncluded || 'Not provided'}</p>
+                    <div>
+                      <span className="font-medium">What's Included:</span>
+                      {renderMultilineList(formData.whatsIncluded)}
+                    </div>
+                    <div>
+                      <span className="font-medium">What's Not Included:</span>
+                      {renderMultilineList(formData.whatsNotIncluded)}
+                    </div>
                     <p><span className="font-medium">Guide Type:</span> {formData.guideType || 'Not provided'}</p>
                     <p><span className="font-medium">Food Included:</span> {formData.foodIncluded ? 'Yes' : 'No'}</p>
                     <p><span className="font-medium">Transportation:</span> {formData.transportationUsed ? 'Yes' : 'No'}</p>
@@ -4730,4 +4739,3 @@ const CreateTourPackage = () => {
 };
 
 export default CreateTourPackage;
-

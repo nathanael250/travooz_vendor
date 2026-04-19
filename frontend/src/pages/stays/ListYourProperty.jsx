@@ -442,6 +442,8 @@ export default function ListYourProperty() {
     localStorage.removeItem('stays_contract_accepted');
     localStorage.removeItem('stays_policies');
     localStorage.removeItem('stays_amenities');
+    localStorage.removeItem('stays_tax_data');
+    localStorage.removeItem('stays_taxes_complete');
     localStorage.removeItem('stays_setup_complete');
     console.log('✅ Old data cleared - starting fresh property creation!');
     

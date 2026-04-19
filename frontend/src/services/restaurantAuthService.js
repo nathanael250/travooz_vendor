@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { setToken, getToken, removeToken, SERVICES } from '../utils/tokenManager';
 
 const restaurantAuthService = {
   /**
@@ -12,10 +13,16 @@ const restaurantAuthService = {
       });
 
       if (response.data.success) {
-        // Store token and user data
-        localStorage.setItem('restaurant_token', response.data.data.token);
-        localStorage.setItem('restaurant_user', JSON.stringify(response.data.data.user));
-        return response.data.data;
+        const data = response.data.data;
+        // Store token using tokenManager
+        if (data.token) {
+          setToken(SERVICES.RESTAURANT, data.token);
+        }
+        // Also store user data in localStorage for backward compatibility
+        if (data.user) {
+          localStorage.setItem('restaurant_user', JSON.stringify(data.user));
+        }
+        return data;
       } else {
         throw new Error(response.data.message || 'Login failed');
       }
@@ -83,7 +90,7 @@ const restaurantAuthService = {
    * Logout user
    */
   logout() {
-    localStorage.removeItem('restaurant_token');
+    removeToken(SERVICES.RESTAURANT);
     localStorage.removeItem('restaurant_user');
   },
 
@@ -91,7 +98,7 @@ const restaurantAuthService = {
    * Check if user is authenticated
    */
   isAuthenticated() {
-    return !!localStorage.getItem('restaurant_token');
+    return !!getToken(SERVICES.RESTAURANT);
   },
 
   /**
@@ -106,7 +113,7 @@ const restaurantAuthService = {
    * Get authentication token
    */
   getToken() {
-    return localStorage.getItem('restaurant_token');
+    return getToken(SERVICES.RESTAURANT);
   },
 };
 

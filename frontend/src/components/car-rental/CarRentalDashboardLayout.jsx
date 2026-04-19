@@ -22,6 +22,7 @@ import {
 import toast from 'react-hot-toast';
 import useTranslation from '../../hooks/useTranslation';
 import LanguageSelector from '../common/LanguageSelector';
+import { getToken, removeToken, SERVICES } from '../../utils/tokenManager';
 
 const CarRentalDashboardLayout = () => {
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ const CarRentalDashboardLayout = () => {
     // Check authentication
     const checkAuth = async () => {
       const userData = localStorage.getItem('user');
-      const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+      const token = getToken(SERVICES.CAR_RENTAL);
       
       if (!userData || !token) {
         navigate('/car-rental/login', { replace: true });
@@ -74,9 +75,9 @@ const CarRentalDashboardLayout = () => {
   }, [navigate]);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('auth_token');
+    removeToken(SERVICES.CAR_RENTAL);
     localStorage.removeItem('user');
+    localStorage.removeItem('service_type');
     localStorage.removeItem('car_rental_business_id');
     localStorage.removeItem('car_rental_setup_data');
     toast.success('Logged out successfully');

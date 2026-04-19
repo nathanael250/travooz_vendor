@@ -263,7 +263,10 @@ const DashboardOverview = () => {
   if (!loading && !hasPackages) {
     return (
       <NoTourPackagesCard 
-        onCreateClick={() => navigate('/tours/dashboard/packages')}
+        onCreateClick={() => {
+          const businessId = localStorage.getItem('tour_business_id') || '';
+          navigate(`/tours/dashboard/packages/create${businessId ? `?businessId=${businessId}` : ''}`);
+        }}
       />
     );
   }
@@ -599,4 +602,3 @@ const DashboardOverview = () => {
 };
 
 export default DashboardOverview;
-

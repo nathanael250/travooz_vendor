@@ -300,6 +300,7 @@ export const restaurantSetupService = {
 
       const response = await apiClient.post('/eating-out/setup/menu', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120000, // menu setup can include multiple images
       });
       return response.data.data || response.data;
     } catch (error) {

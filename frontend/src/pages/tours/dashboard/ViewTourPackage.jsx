@@ -2,6 +2,25 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit, MapPin, Clock, DollarSign, Users, Camera, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { getTourPackage } from '../../../services/tourPackageService';
+
+const renderMultilineList = (value) => {
+  const items = (value || '')
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (items.length === 0) {
+    return <p className="text-gray-900 mt-1">N/A</p>;
+  }
+
+  return (
+    <ul className="mt-2 list-disc space-y-1 pl-5 text-gray-900">
+      {items.map((item, index) => (
+        <li key={`${item}-${index}`}>{item}</li>
+      ))}
+    </ul>
+  );
+};
 import { transformApiDataToFormData } from '../../../services/tourPackageService';
 import toast from 'react-hot-toast';
 
@@ -220,12 +239,12 @@ const ViewTourPackage = () => {
         <div className="grid gap-4 md:grid-cols-2">
           <div className="md:col-span-2">
             <label className="text-sm font-medium text-gray-500">What's Included</label>
-            <p className="text-gray-900 mt-1 whitespace-pre-wrap">{packageData.whatsIncluded || 'N/A'}</p>
+            {renderMultilineList(packageData.whatsIncluded)}
           </div>
           {packageData.whatsNotIncluded && (
             <div className="md:col-span-2">
               <label className="text-sm font-medium text-gray-500">What's Not Included</label>
-              <p className="text-gray-900 mt-1 whitespace-pre-wrap">{packageData.whatsNotIncluded}</p>
+              {renderMultilineList(packageData.whatsNotIncluded)}
             </div>
           )}
           <div>
@@ -499,4 +518,3 @@ const ViewTourPackage = () => {
 };
 
 export default ViewTourPackage;
-

@@ -24,6 +24,7 @@ import toast from 'react-hot-toast';
 import logo from '../../assets/images/cdc_logo.jpg';
 import useTranslation from '../../hooks/useTranslation';
 import LanguageSelector from '../common/LanguageSelector';
+import { getToken, removeToken, SERVICES } from '../../utils/tokenManager';
 
 const TourDashboardLayout = () => {
   const navigate = useNavigate();
@@ -38,7 +39,7 @@ const TourDashboardLayout = () => {
     // Check authentication and verification
     const checkAuth = async () => {
       const userData = localStorage.getItem('user');
-      const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+      const token = getToken(SERVICES.TOURS);
       
       if (!userData || !token) {
         navigate('/tours/login', { replace: true });
@@ -134,9 +135,9 @@ const TourDashboardLayout = () => {
   }, [navigate]);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('auth_token');
+    removeToken(SERVICES.TOURS);
     localStorage.removeItem('user');
+    localStorage.removeItem('service_type');
     localStorage.removeItem('tour_business_id');
     localStorage.removeItem('tour_setup_data');
     localStorage.removeItem('tour_setup_complete');
@@ -200,12 +201,13 @@ const TourDashboardLayout = () => {
           <nav className="px-2 pb-4">
             {menuItems.map((item) => {
               const Icon = item.icon;
-              const isActive = location.pathname === item.path;
-              
+              const exactMatchOnly = item.path === '/tours/dashboard';
+
               return (
                 <NavLink
                   key={item.path}
                   to={item.path}
+                  end={exactMatchOnly}
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-4 py-3 rounded-lg mb-1 ${
                       isActive
@@ -298,4 +300,3 @@ const TourDashboardLayout = () => {
 };
 
 export default TourDashboardLayout;
-

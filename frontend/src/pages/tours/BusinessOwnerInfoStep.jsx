@@ -4,6 +4,7 @@ import { ArrowRight, ArrowLeft, User, Mail, Globe, Shield } from 'lucide-react';
 import StaysNavbar from '../../components/stays/StaysNavbar';
 import StaysFooter from '../../components/stays/StaysFooter';
 import { tourPackageSetupService } from '../../services/tourPackageService';
+import toursAuthService from '../../services/toursAuthService';
 import toast from 'react-hot-toast';
 import apiClient from '../../services/apiClient';
 
@@ -27,10 +28,26 @@ export default function BusinessOwnerInfoStep() {
 
   // Get existing data from location state
   const existingBusinessOwnerInfo = location.state?.businessOwnerInfo || {};
+  const currentUser = toursAuthService.getCurrentUser();
+
+  const splitAccountName = (name) => {
+    const trimmedName = (name || '').trim();
+    if (!trimmedName) {
+      return { firstName: '', lastName: '' };
+    }
+
+    const nameParts = trimmedName.split(/\s+/);
+    return {
+      firstName: nameParts[0] || '',
+      lastName: nameParts.slice(1).join(' ') || ''
+    };
+  };
+
+  const accountNameParts = splitAccountName(userName || currentUser?.name);
 
   const [formData, setFormData] = useState({
-    firstName: existingBusinessOwnerInfo.firstName || '',
-    lastName: existingBusinessOwnerInfo.lastName || '',
+    firstName: existingBusinessOwnerInfo.firstName || accountNameParts.firstName,
+    lastName: existingBusinessOwnerInfo.lastName || accountNameParts.lastName,
     countryOfResidence: existingBusinessOwnerInfo.countryOfResidence || '',
     email: existingBusinessOwnerInfo.email || email || '',
   });
@@ -408,4 +425,3 @@ export default function BusinessOwnerInfoStep() {
     </div>
   );
 }
-

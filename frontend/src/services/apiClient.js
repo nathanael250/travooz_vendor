@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getTokenForRequest, detectServiceFromUrl, SERVICES, removeToken, getToken } from '../utils/tokenManager';
 
 // Ensure base URL doesn't have trailing slash to avoid double slashes
 const getBaseURL = () => {
@@ -88,23 +89,20 @@ apiClient.interceptors.request.use((config) => {
   
   // Only add token for non-public endpoints
   if (!isPublicEndpoint) {
-    const isAdminRoute = config.url && config.url.includes('/admin/');
+    // Check if this is an admin route first - admin routes need admin_token
+    const isAdminRoute = config.url?.startsWith('/admin/');
     let token = null;
-
-    if (isClientAuthProtectedRoute) {
-      token = localStorage.getItem('client_token');
-    } else if (isAdminRoute) {
-      token = localStorage.getItem('admin_token') || localStorage.getItem('token') || localStorage.getItem('auth_token');
+    
+    if (isAdminRoute) {
+      // For admin routes, use admin_token from localStorage
+      token = localStorage.getItem('admin_token');
+      if (!token) {
+        // Fallback: try to get from tokenManager
+        token = getToken(SERVICES.ADMIN);
+      }
     } else {
-      token = localStorage.getItem('token') || 
-        localStorage.getItem('auth_token') || 
-        localStorage.getItem('stays_token') ||
-        localStorage.getItem('admin_token');
-    }
-
-    // Fallback to client token for other protected client endpoints
-    if (!token && config.url?.startsWith('/client/')) {
-      token = localStorage.getItem('client_token');
+      // For other routes, use service-aware token manager
+      token = getTokenForRequest(config.url);
     }
 
     if (token) {
@@ -114,6 +112,8 @@ apiClient.interceptors.request.use((config) => {
       }
     } else if (config.url && config.url.includes('/restaurant/menu/categories')) {
       console.warn('No token found in localStorage for categories request');
+    } else if (isAdminRoute && !token) {
+      console.warn('No admin token found for admin request:', config.url);
     }
   } else {
     if (config.url && config.url.includes('/restaurant/menu/categories')) {
@@ -250,15 +250,80 @@ apiClient.interceptors.response.use(
         console.log('401 on restaurant dashboard route - preserving tokens, letting layout handle redirect');
         // Don't clear tokens - let RestaurantDashboardLayout handle authentication
         // Don't redirect here - let the component handle it
-      } else if (!isStaysRoute && !isTourRoute && !isCarRentalRoute) {
-        // Only clear token if we're NOT on a specific service route
-        // This prevents clearing tokens when navigating between service dashboards
-        localStorage.removeItem('token');
-        localStorage.removeItem('auth_token');
+      } else if (isTourRoute) {
+        // For tours routes, clear tours token and redirect to login
+        console.log('🚪 401 on tours route - clearing tours token and logging out');
+        removeToken(SERVICES.TOURS);
+        // Clear user data
+        localStorage.removeItem('user');
+        localStorage.removeItem('tour_business_id');
+        // Redirect to tours login
+        window.location.href = '/tours/login';
+        return Promise.reject(error);
+      } else if (isStaysRoute) {
+        // For stays routes, clear stays token and redirect to login
+        console.log('🚪 401 on stays route - clearing stays token and logging out');
+        removeToken(SERVICES.STAYS);
+        // Clear user data
+        localStorage.removeItem('user');
+        localStorage.removeItem('property_id');
+        // Redirect to stays login
+        window.location.href = '/stays/login';
+        return Promise.reject(error);
+      } else if (isCarRentalRoute) {
+        // Check if user is in registration/setup flow (has business_id but no token)
+        const { getToken, SERVICES } = await import('../utils/tokenManager');
+        const carRentalToken = getToken(SERVICES.CAR_RENTAL);
+        const carRentalBusinessId = localStorage.getItem('car_rental_business_id');
+        const isSetupRoute = config?.url?.includes('/car-rental/setup/') || 
+                            config?.url?.includes('/car-rental/onboarding/') ||
+                            config?.url?.includes('/car-rental/business-details') ||
+                            config?.url?.includes('/car-rental/tax-payment') ||
+                            config?.url?.includes('/car-rental/register') ||
+                            config?.url?.includes('/car-rental/agreement') ||
+                            config?.url?.includes('/car-rental/email-verification');
+        const isSetupPage = currentPath.includes('/car-rental/setup/') || 
+                           currentPath.includes('/car-rental/list-your-car-rental');
+        
+        // If user is in registration flow (has business_id but no token) and on setup route, don't redirect
+        if ((!carRentalToken && carRentalBusinessId) && (isSetupRoute || isSetupPage)) {
+          console.log('🚪 401 on car rental setup route during registration - not redirecting (user in registration flow)');
+          // Just reject the promise, let the component handle it
+          return Promise.reject(error);
+        }
+        
+        // For car rental routes, clear car rental token and redirect to login
+        console.log('🚪 401 on car rental route - clearing car rental token and logging out');
+        removeToken(SERVICES.CAR_RENTAL);
+        // Clear user data
+        localStorage.removeItem('user');
+        localStorage.removeItem('car_rental_business_id');
+        // Redirect to car rental login
+        window.location.href = '/car-rental/login';
+        return Promise.reject(error);
+      } else {
+        // Check if this is an admin route - don't remove admin token on 401
+        const isAdminRoute = config?.url?.startsWith('/admin/') || currentPath.includes('/admin/');
+        
+        if (isAdminRoute) {
+          // For admin routes, don't automatically remove tokens on 401
+          // Let the admin pages handle authentication errors
+          console.log('401 on admin route - preserving admin token, letting admin pages handle redirect');
+        } else {
+          // Detect service from URL and clear only that service's token
+          const service = detectServiceFromUrl(config?.url || window.location.pathname);
+          if (service) {
+            removeToken(service);
+          } else {
+            // Fallback: clear legacy tokens
+            localStorage.removeItem('token');
+            localStorage.removeItem('auth_token');
+          }
+        }
       }
       
       if (isClientRoute || isClientRequest) {
-        localStorage.removeItem('client_token');
+        removeToken(SERVICES.CLIENT);
         localStorage.removeItem('client_user');
       }
       // Don't redirect here - let the component handle it

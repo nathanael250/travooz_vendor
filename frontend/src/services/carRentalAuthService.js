@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { setToken, getToken as getTokenFromManager, removeToken, SERVICES } from '../utils/tokenManager';
 
 const carRentalAuthService = {
   /**
@@ -12,8 +13,11 @@ const carRentalAuthService = {
       });
 
       if (response.data.success) {
-        // Store token and user data
-        localStorage.setItem('car_rental_token', response.data.data.token);
+        // Store token using tokenManager
+        const token = response.data.data.token;
+        setToken(SERVICES.CAR_RENTAL, token);
+        
+        // Store user data
         localStorage.setItem('car_rental_user', JSON.stringify(response.data.data.user));
         return response.data.data;
       } else {
@@ -83,7 +87,7 @@ const carRentalAuthService = {
    * Logout user
    */
   logout() {
-    localStorage.removeItem('car_rental_token');
+    removeToken(SERVICES.CAR_RENTAL);
     localStorage.removeItem('car_rental_user');
   },
 
@@ -91,7 +95,7 @@ const carRentalAuthService = {
    * Check if user is authenticated
    */
   isAuthenticated() {
-    return !!localStorage.getItem('car_rental_token');
+    return !!getTokenFromManager(SERVICES.CAR_RENTAL);
   },
 
   /**
@@ -106,7 +110,7 @@ const carRentalAuthService = {
    * Get authentication token
    */
   getToken() {
-    return localStorage.getItem('car_rental_token');
+    return getTokenFromManager(SERVICES.CAR_RENTAL);
   },
 };
 

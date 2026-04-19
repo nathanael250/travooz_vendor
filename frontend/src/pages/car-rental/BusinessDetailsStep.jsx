@@ -46,8 +46,19 @@ export default function BusinessDetailsStep() {
     const fromEmailVerification = location.state?.fromEmailVerification;
     if (!fromEmailVerification && resolvedUserId && email) {
       // Check if email is verified by checking user profile
+      // Only check if we have a token (user is logged in)
       const checkEmailVerification = async () => {
         try {
+          // Check if user has a token before trying to verify email status
+          const { getToken, SERVICES } = await import('../../utils/tokenManager');
+          const token = getToken(SERVICES.CAR_RENTAL) || localStorage.getItem('token') || localStorage.getItem('auth_token');
+          
+          // If no token, skip profile check (user is in registration flow, not logged in yet)
+          if (!token) {
+            console.log('BusinessDetailsStep - No token found, skipping email verification check (user in registration flow)');
+            return;
+          }
+          
           // Try to get user profile to check email verification status
           const apiClient = (await import('../../services/apiClient')).default;
           try {
@@ -70,7 +81,12 @@ export default function BusinessDetailsStep() {
               return;
             }
           } catch (profileError) {
-            // If profile check fails, assume email needs verification
+            // If profile check fails with 401, user is not logged in - skip check
+            if (profileError.response?.status === 401) {
+              console.log('BusinessDetailsStep - Not authenticated (401), skipping email verification check (user in registration flow)');
+              return;
+            }
+            // For other errors, assume email needs verification
             console.warn('BusinessDetailsStep - Could not verify email status, redirecting to email verification');
             navigate('/car-rental/setup/email-verification', {
               state: {
@@ -172,15 +188,24 @@ export default function BusinessDetailsStep() {
         businessDetails: formData
       });
       
-      // Save step progress
+      // Save step progress (only if user has token - during registration flow, skip this)
       try {
-        await carRentalSetupService.saveStepData(carRentalBusinessId, 2, {
-          businessName: formData.businessName,
-          businessType: formData.businessType,
-          shortDescription: formData.shortDescription
-        });
-        // Mark step as complete
-        await carRentalSetupService.completeStep('business-details', carRentalBusinessId);
+        const { getToken, SERVICES } = await import('../../utils/tokenManager');
+        const token = getToken(SERVICES.CAR_RENTAL) || localStorage.getItem('token') || localStorage.getItem('auth_token');
+        
+        // Only save progress if user is authenticated (has token)
+        // During registration flow, user doesn't have token yet, so skip progress saving
+        if (token) {
+          await carRentalSetupService.saveStepData(carRentalBusinessId, 2, {
+            businessName: formData.businessName,
+            businessType: formData.businessType,
+            shortDescription: formData.shortDescription
+          });
+          // Mark step as complete
+          await carRentalSetupService.completeStep('business-details', carRentalBusinessId);
+        } else {
+          console.log('⚠️ Skipping progress save - user in registration flow (no token)');
+        }
       } catch (progressError) {
         console.error('⚠️ Failed to save progress:', progressError);
         // Don't block navigation if progress save fails

@@ -42,8 +42,10 @@ export default function BusinessDetailsStep() {
   // Check authentication and email verification on mount
   useEffect(() => {
     const checkAuth = async () => {
+      // Use tokenManager to get the restaurant token
+      const { getToken, SERVICES } = await import('../../utils/tokenManager');
       const storedUser = localStorage.getItem('user');
-      const storedToken = localStorage.getItem('token') || localStorage.getItem('auth_token');
+      const storedToken = getToken(SERVICES.RESTAURANT) || localStorage.getItem('token') || localStorage.getItem('auth_token') || localStorage.getItem('restaurant_token');
       
       // Check if user is logged in
       if (!storedUser || !storedToken) {
@@ -63,9 +65,12 @@ export default function BusinessDetailsStep() {
         } catch (authError) {
           if (authError.response?.status === 401) {
             console.warn('BusinessDetailsStep - Token invalid, redirecting to login');
+            const { removeToken, SERVICES } = await import('../../utils/tokenManager');
+            removeToken(SERVICES.RESTAURANT);
             localStorage.removeItem('user');
             localStorage.removeItem('token');
             localStorage.removeItem('auth_token');
+            localStorage.removeItem('restaurant_token');
             navigate('/restaurant/login', { replace: true });
             return;
           }
