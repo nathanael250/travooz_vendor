@@ -14,9 +14,12 @@ class AdminAuthService {
                 throw new Error('Email and password are required');
             }
 
-            // Find user in travooz_user table
+            // Find user in unified users table with service='admin'
             const users = await executeQuery(
-                `SELECT * FROM travooz_user WHERE email = ?`,
+                `SELECT u.*, ap.name, ap.phone 
+                 FROM users u
+                 LEFT JOIN admin_profiles ap ON u.id = ap.user_id
+                 WHERE u.email = ? AND u.service = 'admin'`,
                 [email]
             );
 
@@ -37,20 +40,26 @@ class AdminAuthService {
                 throw new Error('Invalid email or password');
             }
 
-            // Update last login
-            await executeQuery(
-                `UPDATE travooz_user SET last_login = NOW() WHERE user_id = ?`,
-                [user.user_id]
-            );
+            // Update last login (note: users table may not have last_login, so we'll skip if it doesn't exist)
+            try {
+                await executeQuery(
+                    `UPDATE users SET last_login = NOW() WHERE id = ?`,
+                    [user.id]
+                );
+            } catch (updateError) {
+                // Ignore if last_login column doesn't exist
+                console.log('Note: last_login column may not exist in users table');
+            }
 
             // Generate JWT token
             const token = jwt.sign(
                 {
-                    id: user.user_id,
-                    userId: user.user_id,
+                    id: user.id,
+                    userId: user.id,
                     email: user.email,
-                    role: user.role,
-                    name: user.name
+                    role: user.role || 'admin',
+                    name: user.name || user.email.split('@')[0],
+                    service: 'admin'
                 },
                 process.env.JWT_SECRET || 'your-secret-key',
                 { expiresIn: '7d' }
@@ -59,12 +68,13 @@ class AdminAuthService {
             return {
                 token,
                 user: {
-                    id: user.user_id,
-                    userId: user.user_id,
+                    id: user.id,
+                    userId: user.id,
                     email: user.email,
-                    role: user.role,
-                    name: user.name,
-                    phone: user.phone
+                    role: user.role || 'admin',
+                    name: user.name || user.email.split('@')[0],
+                    phone: user.phone || null,
+                    service: 'admin'
                 }
             };
         } catch (error) {
@@ -80,8 +90,11 @@ class AdminAuthService {
     async getProfile(userId) {
         try {
             const users = await executeQuery(
-                `SELECT user_id, role, name, email, phone, is_active, last_login, created_at 
-                 FROM travooz_user WHERE user_id = ?`,
+                `SELECT u.id, u.user_id, u.role, u.email, u.is_active, u.email_verified, u.created_at, u.updated_at,
+                        ap.name, ap.phone
+                 FROM users u
+                 LEFT JOIN admin_profiles ap ON u.id = ap.user_id
+                 WHERE u.id = ? AND u.service = 'admin'`,
                 [userId]
             );
 
@@ -89,7 +102,19 @@ class AdminAuthService {
                 throw new Error('User not found');
             }
 
-            return users[0];
+            const user = users[0];
+            return {
+                id: user.id,
+                user_id: user.id,
+                role: user.role || 'admin',
+                email: user.email,
+                name: user.name || user.email.split('@')[0],
+                phone: user.phone || null,
+                is_active: user.is_active,
+                email_verified: user.email_verified,
+                created_at: user.created_at,
+                updated_at: user.updated_at
+            };
         } catch (error) {
             console.error('Get admin profile error:', error);
             throw error;

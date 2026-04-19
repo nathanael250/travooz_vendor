@@ -2,8 +2,7 @@ const EmailService = require('../../utils/email.service');
 
 class ToursApprovalNotificationService {
     /**
-     * Send approval email to vendor once admin verifies listing
-     * Mirrors the verification email flow by verifying SMTP connection first
+     * Send approval email to vendor once admin approves the tours business.
      */
     static async sendApprovalEmail({ email, name, businessName, dashboardUrl }) {
         if (!email) {
@@ -17,17 +16,57 @@ class ToursApprovalNotificationService {
                 businessName
             });
 
-            const isConnected = await EmailService.verifyConnection();
-            if (!isConnected) {
-                console.warn('⚠️  SMTP connection verification failed before approval email, attempting send anyway...');
-            }
+            const safeDashboardUrl = dashboardUrl || 'https://vendor.travoozapp.com/tours/dashboard';
+            const safeName = name || 'there';
+            const safeBusinessName = businessName || 'your tours business';
+            const html = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <div style="background-color: #3CAF54; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+                        <h1 style="color: white; margin: 0;">Travooz</h1>
+                    </div>
+                    <div style="background-color: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+                        <h2 style="color: #1f2937; margin-top: 0;">Your tours business is approved</h2>
+                        <p style="color: #4b5563; font-size: 16px;">Hi ${safeName},</p>
+                        <p style="color: #4b5563; font-size: 16px;">
+                            Great news. Your tours business <strong>${safeBusinessName}</strong> has been reviewed and approved by our team.
+                        </p>
+                        <p style="color: #4b5563; font-size: 16px;">
+                            You can now access your vendor dashboard, finish your setup, and create your first tour package.
+                        </p>
+                        <div style="margin: 30px 0; text-align: center;">
+                            <a href="${safeDashboardUrl}" style="display: inline-block; background-color: #3CAF54; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold;">
+                                Go to Dashboard
+                            </a>
+                        </div>
+                        <p style="color: #4b5563; font-size: 14px;">
+                            If the button above doesn’t work, copy and paste this link into your browser:<br />
+                            <a href="${safeDashboardUrl}" style="color: #3CAF54;">${safeDashboardUrl}</a>
+                        </p>
+                    </div>
+                    <div style="background-color: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; text-align: center; border: 1px solid #e5e7eb; border-top: none;">
+                        <p style="color: #6b7280; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} Travooz. All rights reserved.</p>
+                    </div>
+                </div>
+            `;
+            const text = `
+Your tours business is approved
 
-            await EmailService.sendVendorApprovalEmail({
+Hi ${safeName},
+
+Great news. Your tours business "${safeBusinessName}" has been reviewed and approved by our team.
+
+You can now access your vendor dashboard, finish your setup, and create your first tour package:
+${safeDashboardUrl}
+
+© ${new Date().getFullYear()} Travooz. All rights reserved.
+            `;
+
+            await EmailService.sendEmail({
                 email,
-                name,
-                businessName,
-                dashboardUrl,
-                serviceName: 'Tours'
+                to: email,
+                subject: 'Your tours business is approved',
+                html,
+                text
             });
 
             console.log('✅ Tour approval email sent successfully');
@@ -61,11 +100,6 @@ class ToursApprovalNotificationService {
                 stepUrl
             });
 
-            const isConnected = await EmailService.verifyConnection();
-            if (!isConnected) {
-                console.warn('⚠️  SMTP connection verification failed before rejection email, attempting send anyway...');
-            }
-
             await EmailService.sendVendorRejectionEmail({
                 email,
                 name,
@@ -92,4 +126,3 @@ class ToursApprovalNotificationService {
 }
 
 module.exports = ToursApprovalNotificationService;
-

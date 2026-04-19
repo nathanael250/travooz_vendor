@@ -43,32 +43,29 @@ class StaysPropertyService {
                 : null;
 
             if (!userId && data.email && data.password) {
-                // Create new user account
-                const hashedPassword = await bcrypt.hash(data.password, 10);
+                // Create new user account using unified users table
+                const UnifiedUserService = require('../shared/unifiedUser.service');
+                const { SERVICES } = require('../../constants/services');
                 
-                // Combine first_name and last_name into a single name field (matching main users table)
+                // Combine first_name and last_name into a single name field
                 const fullName = [data.firstName || '', data.lastName || ''].filter(Boolean).join(' ').trim() || data.email.split('@')[0];
                 
-                // Insert into stays_users table (will be merged with main users table later)
-                const userResult = await executeQuery(
-                    `INSERT INTO stays_users (
-                        role, name, email, phone, password_hash, 
-                        address, gender, is_active, email_verified
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                        'vendor',
-                        fullName,
-                        data.email,
-                        userPhone,
-                        hashedPassword,
-                        null, // address
-                        null, // gender
-                        1, // is_active
-                        0 // email_verified
-                    ]
-                );
-                
-                userId = userResult.insertId;
+                try {
+                    const newUser = await UnifiedUserService.createUser({
+                        service: SERVICES.STAYS,
+                        email: data.email,
+                        password: data.password, // plain text, will be hashed by service
+                        name: fullName,
+                        phone: userPhone,
+                        role: 'vendor'
+                    });
+                    
+                    userId = newUser.id;
+                    console.log(`✅ Created new user in unified users table with ID: ${userId}`);
+                } catch (createError) {
+                    console.error('Error creating user:', createError);
+                    throw new Error(`Failed to create user account: ${createError.message}`);
+                }
             }
 
             // Create property

@@ -19,9 +19,9 @@ class ToursAdminService {
                     tb.tour_type_name,
                     tb.location,
                     tb.currency,
-                    u.name as owner_name,
+                    COALESCE(tp.name, 'N/A') as owner_name,
                     u.email as owner_email,
-                    u.phone as owner_phone,
+                    COALESCE(tp.phone, NULL) as owner_phone,
                     boi.first_name,
                     boi.last_name,
                     boi.country_of_residence,
@@ -32,7 +32,8 @@ class ToursAdminService {
                     bp.professional_certificate_url
                 FROM tours_setup_submissions s
                 JOIN tours_businesses tb ON s.tour_business_id = tb.tour_business_id
-                JOIN tours_users u ON s.user_id = u.user_id
+                JOIN users u ON s.user_id = u.id AND u.service = 'tours'
+                LEFT JOIN tour_profiles tp ON u.id = tp.user_id
                 LEFT JOIN tours_business_owner_info boi ON s.tour_business_id = boi.tour_business_id AND s.user_id = boi.user_id
                 LEFT JOIN tours_identity_proof ip ON s.tour_business_id = ip.tour_business_id AND s.user_id = ip.user_id
                 LEFT JOIN tours_business_proof bp ON s.tour_business_id = bp.tour_business_id AND s.user_id = bp.user_id
@@ -46,7 +47,7 @@ class ToursAdminService {
             }
 
             if (search) {
-                query += ' AND (tb.tour_business_name LIKE ? OR u.name LIKE ? OR u.email LIKE ? OR boi.first_name LIKE ? OR boi.last_name LIKE ?)';
+                query += ' AND (tb.tour_business_name LIKE ? OR COALESCE(tp.name, \'\') LIKE ? OR u.email LIKE ? OR boi.first_name LIKE ? OR boi.last_name LIKE ?)';
                 const searchTerm = `%${search}%`;
                 params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
             }
@@ -61,7 +62,8 @@ class ToursAdminService {
                 SELECT COUNT(*) as total
                 FROM tours_setup_submissions s
                 JOIN tours_businesses tb ON s.tour_business_id = tb.tour_business_id
-                JOIN tours_users u ON s.user_id = u.user_id
+                JOIN users u ON s.user_id = u.id AND u.service = 'tours'
+                LEFT JOIN tour_profiles tp ON u.id = tp.user_id
                 WHERE 1=1
             `;
             const countParams = [];
@@ -72,7 +74,7 @@ class ToursAdminService {
             }
 
             if (search) {
-                countQuery += ' AND (tb.tour_business_name LIKE ? OR u.name LIKE ? OR u.email LIKE ?)';
+                countQuery += ' AND (tb.tour_business_name LIKE ? OR COALESCE(tp.name, \'\') LIKE ? OR u.email LIKE ?)';
                 const searchTerm = `%${search}%`;
                 countParams.push(searchTerm, searchTerm, searchTerm);
             }
@@ -105,9 +107,9 @@ class ToursAdminService {
                 `SELECT 
                     s.*,
                     tb.*,
-                    u.name as owner_name,
+                    COALESCE(tp.name, 'N/A') as owner_name,
                     u.email as owner_email,
-                    u.phone as owner_phone,
+                    COALESCE(tp.phone, NULL) as owner_phone,
                     boi.*,
                     ip.*,
                     bp.*,
@@ -120,7 +122,8 @@ class ToursAdminService {
                     sp.current_step
                 FROM tours_setup_submissions s
                 JOIN tours_businesses tb ON s.tour_business_id = tb.tour_business_id
-                JOIN tours_users u ON s.user_id = u.user_id
+                JOIN users u ON s.user_id = u.id AND u.service = 'tours'
+                LEFT JOIN tour_profiles tp ON u.id = tp.user_id
                 LEFT JOIN tours_business_owner_info boi ON s.tour_business_id = boi.tour_business_id AND s.user_id = boi.user_id
                 LEFT JOIN tours_identity_proof ip ON s.tour_business_id = ip.tour_business_id AND s.user_id = ip.user_id
                 LEFT JOIN tours_business_proof bp ON s.tour_business_id = bp.tour_business_id AND s.user_id = bp.user_id
@@ -198,15 +201,15 @@ class ToursAdminService {
                     [existing[0].tour_business_id]
                 );
 
-                // Fetch vendor details for notification (supports tours_users and stays_users)
+                // Fetch vendor details for notification from unified users table
                 const [ownerInfo] = await executeQuery(
                     `SELECT 
-                        COALESCE(tu.email, su.email) AS email,
-                        COALESCE(tu.name, su.name) AS name,
+                        u.email,
+                        COALESCE(tp.name, u.email) AS name,
                         tb.tour_business_name
                     FROM tours_businesses tb
-                    LEFT JOIN tours_users tu ON tb.user_id = tu.user_id
-                    LEFT JOIN stays_users su ON tb.user_id = su.user_id
+                    JOIN users u ON tb.user_id = u.id AND u.service = 'tours'
+                    LEFT JOIN tour_profiles tp ON u.id = tp.user_id
                     WHERE tb.tour_business_id = ?
                     LIMIT 1`,
                     [existing[0].tour_business_id]

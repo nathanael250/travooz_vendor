@@ -23,7 +23,8 @@ const createTourBusiness = async (req, res) => {
                     userId: tourBusiness.user_id,
                     id: tourBusiness.user_id,
                     email: req.body.email,
-                    role: 'vendor'
+                    role: 'vendor',
+                    service: 'tours' // CRITICAL: Service scoping for serviceGuard
                 },
                 process.env.JWT_SECRET,
                 { expiresIn: process.env.JWT_EXPIRE || '24h' }

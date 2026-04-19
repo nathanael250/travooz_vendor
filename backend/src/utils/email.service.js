@@ -1,23 +1,59 @@
 const nodemailer = require('nodemailer');
 
 class EmailService {
+    static isEmailEnabled() {
+        if (process.env.EMAIL_ENABLED) {
+            return process.env.EMAIL_ENABLED === 'true';
+        }
+
+        return process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'dev';
+    }
+
+    static getRequiredConfig() {
+        const config = {
+            host: process.env.SMTP_HOST,
+            port: parseInt(process.env.SMTP_PORT, 10),
+            secure: process.env.SMTP_SECURE === 'true',
+            user: process.env.SMTP_USERNAME,
+            pass: process.env.SMTP_PASSWORD,
+            from: process.env.EMAIL_FROM
+        };
+
+        const missing = [];
+        if (!config.host) missing.push('SMTP_HOST');
+        if (!config.port || Number.isNaN(config.port)) missing.push('SMTP_PORT');
+        if (!process.env.SMTP_SECURE) missing.push('SMTP_SECURE');
+        if (!config.user) missing.push('SMTP_USERNAME');
+        if (!config.pass) missing.push('SMTP_PASSWORD');
+
+        if (missing.length) {
+            throw new Error(`Missing required email configuration: ${missing.join(', ')}`);
+        }
+
+        return config;
+    }
+
     /**
      * Create email transporter using SMTP configuration
      */
     static createTransporter() {
+        const smtpConfig = this.getRequiredConfig();
+
         // SMTP configuration from environment variables
         const config = {
-            host: process.env.SMTP_HOST || 'smtp.dreamhost.com',
-            port: parseInt(process.env.SMTP_PORT) || 465,
-            secure: true, // true for 465, false for other ports
+            host: smtpConfig.host,
+            port: smtpConfig.port,
+            secure: smtpConfig.secure,
+            family: 4,
             auth: {
-                user: process.env.SMTP_USERNAME || 'admin@panacea-soft.co',
-                pass: process.env.SMTP_PASSWORD || 'Ft!dzg+UDM83UsSu'
+                user: smtpConfig.user,
+                pass: smtpConfig.pass
             },
             // Additional options for better compatibility
             tls: {
                 rejectUnauthorized: false // For development - remove in production or use proper certificates
             },
+            requireTLS: !smtpConfig.secure,
             // Connection timeout
             connectionTimeout: 10000, // 10 seconds
             greetingTimeout: 10000,
@@ -27,6 +63,7 @@ class EmailService {
         console.log(' Creating SMTP transporter with config:');
         console.log('   Host:', config.host);
         console.log('   Port:', config.port);
+        console.log('   Secure:', config.secure);
         console.log('   User:', config.auth.user);
 
         return nodemailer.createTransport(config);
@@ -37,6 +74,11 @@ class EmailService {
      */
     static async verifyConnection() {
         try {
+            if (!this.isEmailEnabled()) {
+                console.log('📧 Email sending disabled for local development; skipping SMTP verification.');
+                return true;
+            }
+
             const transporter = this.createTransporter();
             console.log('🔍 Verifying SMTP connection...');
             await transporter.verify();
@@ -69,11 +111,23 @@ class EmailService {
             console.log('📧 Starting email send process...');
             console.log('📧 To:', options.to);
             console.log('📧 Subject:', options.subject);
+
+            if (!this.isEmailEnabled()) {
+                console.log('📧 Email sending disabled for local development; skipping SMTP send.');
+                console.log('📧 ==========================================\n');
+
+                return {
+                    success: true,
+                    messageId: 'dev-mode-email-skipped',
+                    response: 'Email sending skipped in development'
+                };
+            }
             
             const transporter = this.createTransporter();
+            const smtpConfig = this.getRequiredConfig();
 
             const mailOptions = {
-                from: options.from || `"Travooz" <${process.env.SMTP_USERNAME || 'admin@panacea-soft.co'}>`,
+                from: options.from || smtpConfig.from || `"Travooz" <${smtpConfig.user}>`,
                 to: options.to,
                 subject: options.subject,
                 html: options.html,
@@ -386,4 +440,3 @@ This link will expire in 1 hour. If you didn't request a password reset, please 
 }
 
 module.exports = EmailService;
-

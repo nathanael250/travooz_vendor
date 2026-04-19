@@ -17,15 +17,9 @@ class ToursEmailVerificationService {
         try {
             console.log(`\n📧 Attempting to send verification email to: ${email}`);
             console.log(`📧 Verification code: ${code}`);
-            
-            // Verify SMTP connection first
-            const isConnected = await EmailService.verifyConnection();
-            if (!isConnected) {
-                console.warn('⚠️  SMTP connection verification failed, but attempting to send anyway...');
-            }
 
             // Send email using EmailService
-            const result = await EmailService.sendVerificationCode(email, code, userName);
+            await EmailService.sendVerificationCode(email, code, userName);
             
             console.log('✅ Verification email sent successfully!');
             return true;
@@ -114,11 +108,11 @@ class ToursEmailVerificationService {
                 [result[0].verification_id]
             );
 
-            // Update user email_verified status in tours_users table
-            await executeQuery(
-                `UPDATE tours_users SET email_verified = 1 WHERE user_id = ?`,
-                [userId]
-            );
+            // Update user email_verified status in unified users table
+            const UnifiedUserService = require('../shared/unifiedUser.service');
+            const { SERVICES } = require('../../constants/services');
+            
+            await UnifiedUserService.updateEmailVerification(SERVICES.TOURS, userId, true);
 
             return true;
         } catch (error) {
@@ -138,8 +132,20 @@ class ToursEmailVerificationService {
             // Store code in database
             await this.storeVerificationCode(userId, email, code);
 
-            // Send email
-            await this.sendVerificationCode(email, code, userName);
+            // Send email - if sending fails, in development return the code so the flow can continue
+            try {
+                await this.sendVerificationCode(email, code, userName);
+            } catch (emailErr) {
+                console.error('Warning: failed to send verification email:', emailErr.message || emailErr);
+                if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev') {
+                    return {
+                        message: 'Verification code generated (email sending failed in development)',
+                        expiresIn: 300,
+                        code: code
+                    };
+                }
+                throw emailErr;
+            }
 
             return {
                 message: 'Verification code sent successfully',
@@ -239,11 +245,6 @@ If the link doesn’t work, copy and paste it into your browser. Need help? Just
 © ${new Date().getFullYear()} Travooz. All rights reserved.
             `;
 
-            const isConnected = await EmailService.verifyConnection();
-            if (!isConnected) {
-                console.warn('⚠️  SMTP verification failed before post-verification email, attempting send anyway...');
-            }
-
             await EmailService.sendEmail({
                 to: email,
                 subject: 'You’re verified! Access your Travooz dashboard',
@@ -265,22 +266,16 @@ If the link doesn’t work, copy and paste it into your browser. Need help? Just
 
         try {
             const [result] = await executeQuery(
-                `SELECT name FROM tours_users WHERE user_id = ? LIMIT 1`,
+                `SELECT COALESCE(tp.name, u.email) as name
+                 FROM users u
+                 LEFT JOIN tour_profiles tp ON tp.user_id = u.id
+                 WHERE u.id = ? AND u.service = 'tours'
+                 LIMIT 1`,
                 [userId]
             );
             if (result?.name) return result.name;
         } catch (error) {
-            console.warn('⚠️  Failed to get user name from tours_users:', error.message);
-        }
-
-        try {
-            const [result] = await executeQuery(
-                `SELECT name FROM stays_users WHERE user_id = ? LIMIT 1`,
-                [userId]
-            );
-            if (result?.name) return result.name;
-        } catch (error) {
-            console.warn('⚠️  Failed to get user name from stays_users:', error.message);
+            console.warn('⚠️  Failed to get user name from unified users:', error.message);
         }
 
         return null;
@@ -303,4 +298,3 @@ If the link doesn’t work, copy and paste it into your browser. Need help? Just
 }
 
 module.exports = ToursEmailVerificationService;
-

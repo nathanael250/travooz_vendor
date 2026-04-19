@@ -17,15 +17,9 @@ class CarRentalEmailVerificationService {
         try {
             console.log(`\n📧 Attempting to send verification email to: ${email}`);
             console.log(`📧 Verification code: ${code}`);
-            
-            // Verify SMTP connection first
-            const isConnected = await EmailService.verifyConnection();
-            if (!isConnected) {
-                console.warn('⚠️  SMTP connection verification failed, but attempting to send anyway...');
-            }
 
             // Send email using EmailService
-            const result = await EmailService.sendVerificationCode(email, code, userName);
+            await EmailService.sendVerificationCode(email, code, userName);
             
             console.log('✅ Verification email sent successfully!');
             return true;
@@ -253,33 +247,13 @@ class CarRentalEmailVerificationService {
                 throw new Error('email_verified column does not exist and could not be created');
             }
 
-            // Update user email_verified status in car_rental_users table (use userIdInt because user_id is INT)
-            const updateResult = await executeQuery(
-                `UPDATE car_rental_users SET email_verified = 1 WHERE user_id = ?`,
-                [userIdInt]
-            );
+            // Update user email_verified status in unified users table
+            const UnifiedUserService = require('../shared/unifiedUser.service');
+            const { SERVICES } = require('../../constants/services');
             
-            // Check if update affected any rows (user exists)
-            if (!updateResult || (updateResult.affectedRows !== undefined && updateResult.affectedRows === 0)) {
-                console.error(`❌ User not found in car_rental_users table: user_id ${userIdInt}`);
-                throw new Error('User not found in car_rental_users table');
-            }
+            await UnifiedUserService.updateEmailVerification(SERVICES.CAR_RENTAL, userIdInt, true);
             
-            console.log(`📝 Update query executed. Rows affected: ${updateResult.affectedRows || 'unknown'}`);
-            
-            // Verify the update was successful by querying the updated value
-            const verifyResult = await executeQuery(
-                `SELECT email_verified FROM car_rental_users WHERE user_id = ?`,
-                [userIdInt]
-            );
-            
-            // executeQuery returns an array of rows, so verifyResult[0] is the first row
-            if (verifyResult && verifyResult.length > 0 && verifyResult[0].email_verified === 1) {
-                console.log(`✅ Email verified successfully for user_id: ${userIdInt}`);
-            } else {
-                console.error(`❌ Failed to update email_verified for user_id: ${userIdInt}. Current value:`, verifyResult?.[0]?.email_verified);
-                throw new Error('Failed to update email verification status');
-            }
+            console.log(`✅ Email verification updated for user_id: ${userIdInt}`);
 
             return true;
         } catch (error) {
@@ -359,4 +333,3 @@ class CarRentalEmailVerificationService {
 }
 
 module.exports = CarRentalEmailVerificationService;
-

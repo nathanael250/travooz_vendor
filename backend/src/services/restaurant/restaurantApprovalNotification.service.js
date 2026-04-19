@@ -17,11 +17,6 @@ class RestaurantApprovalNotificationService {
                 businessName
             });
 
-            const isConnected = await EmailService.verifyConnection();
-            if (!isConnected) {
-                console.warn('⚠️  SMTP connection verification failed before approval email, attempting send anyway...');
-            }
-
             await EmailService.sendVendorApprovalEmail({
                 email,
                 name,
@@ -61,11 +56,6 @@ class RestaurantApprovalNotificationService {
                 stepUrl
             });
 
-            const isConnected = await EmailService.verifyConnection();
-            if (!isConnected) {
-                console.warn('⚠️  SMTP connection verification failed before rejection email, attempting send anyway...');
-            }
-
             await EmailService.sendVendorRejectionEmail({
                 email,
                 name,
@@ -92,4 +82,3 @@ class RestaurantApprovalNotificationService {
 }
 
 module.exports = RestaurantApprovalNotificationService;
-

@@ -17,15 +17,9 @@ class RestaurantEmailVerificationService {
         try {
             console.log(`\n📧 Attempting to send verification email to: ${email}`);
             console.log(`📧 Verification code: ${code}`);
-            
-            // Verify SMTP connection first
-            const isConnected = await EmailService.verifyConnection();
-            if (!isConnected) {
-                console.warn('⚠️  SMTP connection verification failed, but attempting to send anyway...');
-            }
 
             // Send email using EmailService
-            const result = await EmailService.sendVerificationCode(email, code, userName);
+            await EmailService.sendVerificationCode(email, code, userName);
             
             console.log('✅ Verification email sent successfully!');
             return true;
@@ -166,25 +160,16 @@ class RestaurantEmailVerificationService {
                 [result[0].verification_id]
             );
 
-            // Update user email_verified status in restaurant_users table (use userIdInt because user_id is INT)
-            // Note: executeQuery for UPDATE returns result info, not rows
-            const updateResult = await executeQuery(
-                `UPDATE restaurant_users SET email_verified = 1 WHERE user_id = ?`,
-                [userIdInt]
-            );
+            // Update user email_verified status in unified users table
+            const UnifiedUserService = require('../shared/unifiedUser.service');
+            const { SERVICES } = require('../../constants/services');
             
-            // Check if update affected any rows (user exists)
-            if (!updateResult || (updateResult.affectedRows !== undefined && updateResult.affectedRows === 0)) {
-                console.error(`❌ User not found in restaurant_users table: user_id ${userIdInt}`);
-                throw new Error('User not found in restaurant_users table');
-            }
+            await UnifiedUserService.updateEmailVerification(SERVICES.RESTAURANT, userIdInt, true);
             
-            console.log(`📝 Update query executed. Rows affected: ${updateResult.affectedRows || 'unknown'}`);
-            
-            // Verify the update was successful by querying the updated value
+            // Verify the update was successful by querying the updated value from unified users table
             const verifyResult = await executeQuery(
-                `SELECT email_verified FROM restaurant_users WHERE user_id = ?`,
-                [userIdInt]
+                `SELECT email_verified FROM users WHERE service = ? AND id = ?`,
+                [SERVICES.RESTAURANT, userIdInt]
             );
             
             // executeQuery returns an array of rows, so verifyResult[0] is the first row
@@ -264,4 +249,3 @@ class RestaurantEmailVerificationService {
 }
 
 module.exports = RestaurantEmailVerificationService;
-

@@ -78,82 +78,43 @@ class ToursBusinessService {
             if (needsUserCreation) {
                 console.log('✅ Creating user account for email:', email);
                 
-                // Check if user already exists in tours_users table
+                // Check if user already exists in unified users table
+                const UnifiedUserService = require('../shared/unifiedUser.service');
+                const { SERVICES } = require('../../constants/services');
+                
                 let existingUser;
                 try {
-                    existingUser = await executeQuery(
-                        `SELECT user_id FROM tours_users WHERE email = ?`,
-                        [email]
-                    );
-                } catch (tableError) {
-                    // If tours_users table doesn't exist, try stays_users as fallback
-                    console.warn('tours_users table not found, trying stays_users:', tableError.message);
-                    existingUser = await executeQuery(
-                        `SELECT user_id FROM stays_users WHERE email = ?`,
-                        [email]
-                    );
+                    existingUser = await UnifiedUserService.getUserByEmail(SERVICES.TOURS, email);
+                } catch (error) {
+                    console.warn('Error checking for existing user:', error.message);
+                    existingUser = null;
                 }
 
-                if (existingUser && existingUser.length > 0) {
-                    userId = existingUser[0].user_id;
+                if (existingUser) {
+                    userId = existingUser.id;
                     console.log(`✅ Found existing user with ID: ${userId}`);
                 } else {
-                    // Create new user account - try tours_users first, fallback to stays_users
-                    const hashedPassword = await bcrypt.hash(password, 10);
+                    // Create new user account using unified users table
 
                     // Combine first_name and last_name into a single name field
                     const fullName = [data.firstName || '', data.lastName || ''].filter(Boolean).join(' ').trim() || email.split('@')[0];
                     
-                    let userResult;
                     try {
-                        // Try tours_users table first
-                        userResult = await executeQuery(
-                            `INSERT INTO tours_users (
-                                role, name, email, phone, password_hash, 
-                                address, gender, is_active, email_verified
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                            [
-                                'vendor',
-                                fullName,
-                                email,
-                                userPhone,
-                                hashedPassword,
-                                null, // address
-                                null, // gender
-                                1, // is_active
-                                0 // email_verified
-                            ]
-                        );
-                        console.log(`✅ Created new user in tours_users with ID: ${userResult.insertId}`);
-                    } catch (insertError) {
-                        // If tours_users table doesn't exist, use stays_users as fallback
-                        console.warn('tours_users table not found, using stays_users:', insertError.message);
-                        userResult = await executeQuery(
-                            `INSERT INTO stays_users (
-                                role, name, email, phone, password_hash, 
-                                address, gender, is_active, email_verified
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                            [
-                                'vendor',
-                                fullName,
-                                email,
-                                userPhone,
-                                hashedPassword,
-                                null, // address
-                                null, // gender
-                                1, // is_active
-                                0 // email_verified
-                            ]
-                        );
-                        console.log(`✅ Created new user in stays_users with ID: ${userResult.insertId}`);
+                        const newUser = await UnifiedUserService.createUser({
+                            service: SERVICES.TOURS,
+                            email,
+                            password, // plain text, will be hashed by service
+                            name: fullName,
+                            phone: userPhone,
+                            role: 'vendor'
+                        });
+                        
+                        userId = newUser.id;
+                        console.log(`✅ Created new user in unified users table with ID: ${userId}`);
+                    } catch (createError) {
+                        console.error('Error creating user:', createError);
+                        throw new Error(`Failed to create user account: ${createError.message}`);
                     }
-                    
-                    if (!userResult || !userResult.insertId) {
-                        throw new Error('Failed to create user account. insertId is missing.');
-                    }
-                    
-                    userId = userResult.insertId;
-                    console.log(`✅ User created successfully with ID: ${userId}`);
                 }
             }
             

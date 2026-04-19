@@ -902,14 +902,11 @@ class PropertySetupService {
 
             const tax = taxes[0];
             
-            // Convert to frontend format
+            // Convert to frontend format (matching the fields used in saveTaxDetails)
             return {
-                vatNumber: tax.vat_number || '',
-                tourismTaxNumber: tax.tourism_tax_number || '',
-                vatPercentage: tax.vat_percentage || 18.00,
-                tourismTaxPercentage: tax.tourism_tax_percentage || 3.00,
-                taxesIncludedInRate: tax.taxes_included_in_rate === 1,
-                requestTaxTeamAssistance: tax.request_tax_team_assistance === 1
+                legalName: tax.legal_name || '',
+                vatRegistered: tax.vat_registered || 'no',
+                vatId: tax.vat_id || ''
             };
         } catch (error) {
             console.error('Error getting tax details:', error);

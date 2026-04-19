@@ -17,15 +17,9 @@ class EmailVerificationService {
         try {
             console.log(`\n📧 Attempting to send verification email to: ${email}`);
             console.log(`📧 Verification code: ${code}`);
-            
-            // Verify SMTP connection first
-            const isConnected = await EmailService.verifyConnection();
-            if (!isConnected) {
-                console.warn('⚠️  SMTP connection verification failed, but attempting to send anyway...');
-            }
 
             // Send email using EmailService
-            const result = await EmailService.sendVerificationCode(email, code, userName);
+            await EmailService.sendVerificationCode(email, code, userName);
             
             console.log('✅ Verification email sent successfully!');
             return true;
@@ -114,13 +108,11 @@ class EmailVerificationService {
                 [result[0].verification_id]
             );
 
-            // Update user's email_verified status (using stays_users table)
-            await executeQuery(
-                `UPDATE stays_users 
-                 SET email_verified = 1 
-                 WHERE user_id = ? AND email = ?`,
-                [userId, email]
-            );
+            // Update user's email_verified status in unified users table
+            const UnifiedUserService = require('../shared/unifiedUser.service');
+            const { SERVICES } = require('../../constants/services');
+            
+            await UnifiedUserService.updateEmailVerification(SERVICES.STAYS, userId, true);
 
             return true;
         } catch (error) {
@@ -140,8 +132,20 @@ class EmailVerificationService {
             // Store code in database
             await this.storeVerificationCode(userId, email, code);
 
-            // Send email
-            await this.sendVerificationCode(email, code, userName);
+            // Send email - if sending fails, in development return the code so the flow can continue
+            try {
+                await this.sendVerificationCode(email, code, userName);
+            } catch (emailErr) {
+                console.error('Warning: failed to send verification email:', emailErr.message || emailErr);
+                if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev') {
+                    return {
+                        message: 'Verification code generated (email sending failed in development)',
+                        expiresIn: 300,
+                        code: code
+                    };
+                }
+                throw emailErr;
+            }
 
             return {
                 message: 'Verification code sent successfully',
@@ -178,4 +182,3 @@ class EmailVerificationService {
 }
 
 module.exports = EmailVerificationService;
-

@@ -14,11 +14,12 @@ class AdminPropertyController {
             let query = `
                 SELECT 
                     p.*,
-                    u.name as owner_name,
+                    sp.name as owner_name,
                     u.email as owner_email,
-                    u.phone as owner_phone
+                    sp.phone as owner_phone
                 FROM stays_properties p
-                LEFT JOIN stays_users u ON p.user_id = u.user_id
+                LEFT JOIN users u ON p.user_id = u.id AND u.service = 'stays'
+                LEFT JOIN stay_profiles sp ON u.id = sp.user_id
                 WHERE 1=1
             `;
             const params = [];
@@ -30,7 +31,7 @@ class AdminPropertyController {
             // If status is 'all', don't add any status filter - show all properties
             
             if (search) {
-                query += ' AND (p.property_name LIKE ? OR u.name LIKE ? OR u.email LIKE ?)';
+                query += ' AND (p.property_name LIKE ? OR sp.name LIKE ? OR u.email LIKE ?)';
                 const searchTerm = `%${search}%`;
                 params.push(searchTerm, searchTerm, searchTerm);
             }
@@ -44,7 +45,8 @@ class AdminPropertyController {
             let countQuery = `
                 SELECT COUNT(*) as total
                 FROM stays_properties p
-                LEFT JOIN stays_users u ON p.user_id = u.user_id
+                LEFT JOIN users u ON p.user_id = u.id AND u.service = 'stays'
+                LEFT JOIN stay_profiles sp ON u.id = sp.user_id
                 WHERE 1=1
             `;
             const countParams = [];
@@ -56,7 +58,7 @@ class AdminPropertyController {
             // If status is 'all', don't add any status filter - show all properties
             
             if (search) {
-                countQuery += ' AND (p.property_name LIKE ? OR u.name LIKE ? OR u.email LIKE ?)';
+                countQuery += ' AND (p.property_name LIKE ? OR sp.name LIKE ? OR u.email LIKE ?)';
                 const searchTerm = `%${search}%`;
                 countParams.push(searchTerm, searchTerm, searchTerm);
             }
@@ -111,15 +113,16 @@ class AdminPropertyController {
         try {
             const { id } = req.params;
             
-            // Get property with owner info (using stays_users table)
+            // Get property with owner info (using unified users table)
             const properties = await executeQuery(`
                 SELECT 
                     p.*,
-                    u.name as owner_name,
+                    sp.name as owner_name,
                     u.email as owner_email,
-                    u.phone as owner_phone
+                    sp.phone as owner_phone
                 FROM stays_properties p
-                LEFT JOIN stays_users u ON p.user_id = u.user_id
+                LEFT JOIN users u ON p.user_id = u.id AND u.service = 'stays'
+                LEFT JOIN stay_profiles sp ON u.id = sp.user_id
                 WHERE p.property_id = ?
             `, [id]);
             

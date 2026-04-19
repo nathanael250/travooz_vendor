@@ -16,9 +16,12 @@ class RestaurantAuthService {
 
             console.log('🔍 Restaurant login attempt for email:', email);
 
-            // Find user in restaurant_users table
+            // Find user in unified users table with service filter
             const users = await executeQuery(
-                `SELECT * FROM restaurant_users WHERE email = ?`,
+                `SELECT u.*, rp.name, rp.phone, rp.restaurant_id, rp.status as profile_status
+                 FROM users u
+                 LEFT JOIN restaurant_profiles rp ON rp.user_id = u.id
+                 WHERE u.service = 'restaurant' AND u.email = ?`,
                 [email]
             );
 
@@ -32,13 +35,13 @@ class RestaurantAuthService {
             const user = users[0];
 
             // Check if user is active
-            if (user.is_active !== undefined && !user.is_active) {
+            if (!user.is_active) {
                 console.log('❌ User account is deactivated:', email);
                 throw new Error('Your account has been deactivated. Please contact support.');
             }
 
             // Verify password
-            console.log('🔍 Verifying password for user:', user.user_id);
+            console.log('🔍 Verifying password for user:', user.id);
             const isPasswordValid = await bcrypt.compare(password, user.password_hash);
             if (!isPasswordValid) {
                 console.log('❌ Invalid password for user:', email);
@@ -48,47 +51,68 @@ class RestaurantAuthService {
             console.log('✅ Password verified successfully for user:', email);
 
             // Get restaurant business for this user
-            const businesses = await executeQuery(
-                `SELECT restaurant_id, business_name, status 
-                 FROM restaurants 
-                 WHERE user_id = ? 
-                 ORDER BY created_at DESC 
-                 LIMIT 1`,
-                [user.user_id]
-            );
-
-            // Update last login (if the column exists)
-            if (user.last_login !== undefined) {
-                await executeQuery(
-                    `UPDATE restaurant_users SET last_login = NOW() WHERE user_id = ?`,
-                    [user.user_id]
+            // First try to find by restaurant_id in profile
+            let businesses = [];
+            if (user.restaurant_id) {
+                businesses = await executeQuery(
+                    `SELECT id as restaurant_id, name as business_name, status 
+                     FROM restaurants 
+                     WHERE id = ? 
+                     ORDER BY created_at DESC 
+                     LIMIT 1`,
+                    [user.restaurant_id]
+                );
+            }
+            
+            // Fallback: try to find by user_id directly (unified architecture)
+            // The restaurants table user_id should match the unified users.id
+            if (businesses.length === 0) {
+                businesses = await executeQuery(
+                    `SELECT id as restaurant_id, name as business_name, status 
+                     FROM restaurants 
+                     WHERE user_id = ? OR CAST(user_id AS CHAR) = ?
+                     ORDER BY created_at DESC 
+                     LIMIT 1`,
+                    [user.id, String(user.id)]
                 );
             }
 
-            // Generate JWT token
+            // Update last login
+            await executeQuery(
+                `UPDATE users SET last_login = NOW() WHERE id = ?`,
+                [user.id]
+            );
+
+            // Generate JWT token with service scoping
             const token = jwt.sign(
                 {
-                    userId: user.user_id,
-                    id: user.user_id,
+                    userId: user.id,
+                    id: user.id,
                     email: user.email,
-                    role: user.role || 'vendor'
+                    role: user.role || 'vendor',
+                    service: 'restaurant' // CRITICAL: Service scoping
                 },
                 process.env.JWT_SECRET,
                 { expiresIn: process.env.JWT_EXPIRE || '24h' }
             );
 
+            const restaurant = businesses.length > 0 ? businesses[0] : null;
+            
             return {
                 user: {
-                    id: user.user_id,
-                    user_id: user.user_id,
+                    id: user.id,
+                    user_id: user.id,
                     email: user.email,
-                    name: user.name,
+                    name: user.name || null,
                     role: user.role || 'vendor',
-                    phone: user.phone
+                    phone: user.phone || null,
+                    restaurant_id: restaurant?.restaurant_id || null,
+                    restaurant_status: restaurant?.status || null,
+                    restaurant_name: restaurant?.business_name || null
                 },
                 token,
-                restaurantId: businesses.length > 0 ? businesses[0].restaurant_id : null,
-                restaurant: businesses.length > 0 ? businesses[0] : null
+                restaurantId: restaurant?.restaurant_id || null,
+                restaurant: restaurant
             };
         } catch (error) {
             console.error('Error in restaurant login:', error);
@@ -103,9 +127,11 @@ class RestaurantAuthService {
     async getProfile(userId) {
         try {
             const users = await executeQuery(
-                `SELECT user_id, role, name, email, phone, created_at 
-                 FROM restaurant_users 
-                 WHERE user_id = ?`,
+                `SELECT u.id, u.role, u.email, u.email_verified, u.is_active, u.created_at,
+                        rp.name, rp.phone, rp.restaurant_id, rp.status as profile_status
+                 FROM users u
+                 LEFT JOIN restaurant_profiles rp ON rp.user_id = u.id
+                 WHERE u.id = ? AND u.service = 'restaurant'`,
                 [userId]
             );
 
@@ -113,7 +139,20 @@ class RestaurantAuthService {
                 throw new Error('User not found');
             }
 
-            return users[0];
+            const user = users[0];
+            return {
+                user_id: user.id,
+                id: user.id,
+                role: user.role,
+                email: user.email,
+                name: user.name,
+                phone: user.phone,
+                email_verified: Boolean(user.email_verified),
+                is_active: Boolean(user.is_active),
+                created_at: user.created_at,
+                restaurant_id: user.restaurant_id,
+                profile_status: user.profile_status
+            };
         } catch (error) {
             console.error('Error getting profile:', error);
             throw error;
@@ -129,9 +168,12 @@ class RestaurantAuthService {
         try {
             console.log('🔍 [Restaurant Service] Searching for email:', email);
             
-            // Find user by email
+            // Find user by email in unified users table with service filter
             const users = await executeQuery(
-                `SELECT * FROM restaurant_users WHERE email = ?`,
+                `SELECT u.*, rp.name 
+                 FROM users u
+                 LEFT JOIN restaurant_profiles rp ON rp.user_id = u.id
+                 WHERE u.service = 'restaurant' AND u.email = ?`,
                 [email]
             );
 
@@ -144,7 +186,7 @@ class RestaurantAuthService {
             }
 
             const user = users[0];
-            console.log('✅ [Restaurant Service] User found:', { user_id: user.user_id, email: user.email, name: user.name });
+            console.log('✅ [Restaurant Service] User found:', { user_id: user.id, email: user.email, name: user.name });
 
             // Generate reset token (random 32-character string)
             const crypto = require('crypto');
@@ -155,10 +197,10 @@ class RestaurantAuthService {
             // Update user with reset token
             console.log('💾 [Restaurant Service] Updating user with reset token...');
             const updateResult = await executeQuery(
-                `UPDATE restaurant_users 
+                `UPDATE users 
                  SET password_reset_token = ?, password_reset_expires = ? 
-                 WHERE user_id = ?`,
-                [resetToken, resetExpires, user.user_id]
+                 WHERE id = ? AND service = 'restaurant'`,
+                [resetToken, resetExpires, user.id]
             );
             console.log('✅ [Restaurant Service] Update result:', updateResult);
 
@@ -166,7 +208,8 @@ class RestaurantAuthService {
             return {
                 resetToken,
                 user: {
-                    user_id: user.user_id,
+                    user_id: user.id,
+                    id: user.id,
                     email: user.email,
                     name: user.name
                 }
@@ -185,10 +228,11 @@ class RestaurantAuthService {
      */
     async resetPassword(token, newPassword) {
         try {
-            // Find user by reset token
+            // Find user by reset token in unified users table with service filter
             const users = await executeQuery(
-                `SELECT * FROM restaurant_users 
-                 WHERE password_reset_token = ? 
+                `SELECT * FROM users 
+                 WHERE service = 'restaurant'
+                 AND password_reset_token = ? 
                  AND password_reset_expires > NOW()`,
                 [token]
             );
@@ -204,18 +248,19 @@ class RestaurantAuthService {
 
             // Update password and clear reset token
             await executeQuery(
-                `UPDATE restaurant_users 
+                `UPDATE users 
                  SET password_hash = ?, 
                      password_reset_token = NULL, 
                      password_reset_expires = NULL 
-                 WHERE user_id = ?`,
-                [hashedPassword, user.user_id]
+                 WHERE id = ? AND service = 'restaurant'`,
+                [hashedPassword, user.id]
             );
 
             return {
                 message: 'Password reset successfully',
                 user: {
-                    user_id: user.user_id,
+                    user_id: user.id,
+                    id: user.id,
                     email: user.email
                 }
             };

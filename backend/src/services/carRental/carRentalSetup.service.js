@@ -1,5 +1,7 @@
 const bcrypt = require('bcryptjs');
 const { pool, executeQuery } = require('../../../config/database');
+const UnifiedUserService = require('../shared/unifiedUser.service');
+const { SERVICES } = require('../../constants/services');
 
 let tablesInitialized = false;
 
@@ -298,14 +300,14 @@ class CarRentalSetupService {
     // Use the existing business's userId to ensure foreign key constraint is satisfied
     const existingUserId = existingBusiness[0].user_id;
 
-    // Verify the user exists in car_rental_users
-    const [userCheck] = await pool.execute(
-      `SELECT user_id FROM car_rental_users WHERE user_id = ?`,
-      [existingUserId]
+    // Verify the user exists in unified users table
+    const userCheck = await executeQuery(
+      `SELECT id FROM users WHERE id = ? AND service = ?`,
+      [existingUserId, SERVICES.CAR_RENTAL]
     );
 
     if (!userCheck || userCheck.length === 0) {
-      throw new Error(`User with ID ${existingUserId} does not exist in car_rental_users. Please ensure the user account is properly created.`);
+      throw new Error(`User with ID ${existingUserId} does not exist. Please ensure the user account is properly created.`);
     }
 
     await pool.execute(
@@ -509,21 +511,6 @@ class CarRentalSetupService {
   }
 
   async #getOrCreateUser(user = {}, business = {}) {
-    // If user.id is provided, verify it exists in car_rental_users
-    if (user.id) {
-      const [userCheck] = await pool.execute(
-        `SELECT user_id FROM car_rental_users WHERE user_id = ?`,
-        [user.id]
-      );
-
-      if (userCheck && userCheck.length > 0) {
-        return userCheck[0].user_id;
-      }
-
-      // If user.id doesn't exist in car_rental_users, try to find by email or create new
-      // Don't just return user.id as it might be from a different table
-    }
-
     if (!user.email) {
       throw new Error('User email is required');
     }
@@ -531,35 +518,39 @@ class CarRentalSetupService {
     // Normalize email for comparison (trim and lowercase)
     const normalizedEmail = (user.email || '').trim().toLowerCase();
 
-    const existingUsers = await executeQuery(
-      `SELECT user_id, password_hash, email FROM car_rental_users WHERE LOWER(TRIM(email)) = ?`,
-      [normalizedEmail]
-    );
+    // Check if user exists in unified users table
+    const existingUser = await UnifiedUserService.getUserByEmail(SERVICES.CAR_RENTAL, normalizedEmail);
 
-    if (existingUsers && existingUsers.length > 0) {
-      const existingUser = existingUsers[0];
-      // If user exists and a password is provided, update the password
+    if (existingUser) {
+      // User exists - update password if provided
       if (user.password && user.password.trim()) {
-        const hashedPassword = await bcrypt.hash(user.password, 10);
-        await pool.execute(
-          `UPDATE car_rental_users SET password_hash = ? WHERE user_id = ?`,
-          [hashedPassword, existingUser.user_id]
-        );
+        await UnifiedUserService.updatePassword(SERVICES.CAR_RENTAL, existingUser.id, user.password);
         console.log(`✅ Updated password for existing car rental user: ${normalizedEmail}`);
       } else {
         // If user exists but no password is provided, check if they have a password_hash
-        // If they don't have one, they'll need to use forgot password
         if (!existingUser.password_hash) {
           console.log(`⚠️  Existing user ${normalizedEmail} has no password_hash. They'll need to use forgot password.`);
         } else {
           console.log(`ℹ️  Existing user ${normalizedEmail} already has a password_hash. Password not updated.`);
         }
       }
-      return existingUser.user_id;
+      return existingUser.id;
     }
 
-    // If no password is provided (e.g., for vendors from other services),
-    // generate a random password that they'll need to reset later
+    // If user.id is provided, verify it exists in unified users table
+    if (user.id) {
+      const userCheck = await executeQuery(
+        `SELECT id FROM users WHERE id = ? AND service = ?`,
+        [user.id, SERVICES.CAR_RENTAL]
+      );
+
+      if (userCheck && userCheck.length > 0) {
+        return userCheck[0].id;
+      }
+    }
+
+    // User doesn't exist - create new user using UnifiedUserService
+    // If no password is provided, generate a random password that they'll need to reset later
     let passwordToHash = user.password;
     if (!passwordToHash || !passwordToHash.trim()) {
       // Generate a random password for vendors who don't provide one
@@ -569,8 +560,6 @@ class CarRentalSetupService {
       console.log(`⚠️  Generated temporary password for vendor: ${normalizedEmail} (no password provided)`);
     }
 
-    const hashedPassword = await bcrypt.hash(passwordToHash, 10);
-
     const fullName = [user.firstName || '', user.lastName || '']
       .filter(Boolean)
       .join(' ')
@@ -578,62 +567,42 @@ class CarRentalSetupService {
 
     const formattedPhone = this.#formatPhone(user.phone, user.countryCode, { allowDefault: true });
 
-    // normalizedEmail is already declared above, reuse it for insert
     try {
-      const insertResult = await pool.execute(
-        `INSERT INTO car_rental_users (role, name, email, phone, password_hash, email_verified)
-         VALUES (?, ?, ?, ?, ?, 0)`,
-        [
-          'vendor',
-          fullName,
-          normalizedEmail,
-          formattedPhone,
-          hashedPassword
-        ]
-      );
+      const newUser = await UnifiedUserService.createUser({
+        service: SERVICES.CAR_RENTAL,
+        email: normalizedEmail,
+        password: passwordToHash,
+        name: fullName,
+        phone: formattedPhone,
+        role: 'vendor'
+      });
 
-      const [result] = insertResult;
-      console.log(`✅ Created new car rental user: ${normalizedEmail} (user_id: ${result.insertId})`);
-      return result.insertId;
-    } catch (insertError) {
-      // Handle duplicate email error (MySQL error code 1062)
-      if (insertError.code === 'ER_DUP_ENTRY' || insertError.errno === 1062) {
-        console.log(`⚠️  Duplicate email detected during insert: ${normalizedEmail}. Checking existing user...`);
+      console.log(`✅ Created new car rental user: ${normalizedEmail} (user_id: ${newUser.id})`);
+      return newUser.id;
+    } catch (createError) {
+      // Handle duplicate email error (shouldn't happen if we checked above, but handle it)
+      if (createError.message && createError.message.includes('already exists')) {
+        console.log(`⚠️  Duplicate email detected: ${normalizedEmail}. Fetching existing user...`);
         
-        // Double-check: query again to get the existing user (case-insensitive)
-        const duplicateCheck = await executeQuery(
-          `SELECT user_id, password_hash, email_verified FROM car_rental_users WHERE LOWER(TRIM(email)) = ?`,
-          [normalizedEmail]
-        );
-        
-        if (duplicateCheck && duplicateCheck.length > 0) {
-          const existingUser = duplicateCheck[0];
-          console.log(`✅ Found existing user with email ${normalizedEmail} (user_id: ${existingUser.user_id})`);
-          console.log(`ℹ️  Existing user has password_hash: ${!!existingUser.password_hash}`);
-          console.log(`ℹ️  Existing user email_verified: ${existingUser.email_verified}`);
+        // Try to get the existing user
+        const duplicateUser = await UnifiedUserService.getUserByEmail(SERVICES.CAR_RENTAL, normalizedEmail);
+        if (duplicateUser) {
+          console.log(`✅ Found existing user with email ${normalizedEmail} (user_id: ${duplicateUser.id})`);
           
-          // If password was provided, update it (even if one exists - user might be resetting)
+          // If password was provided, update it
           if (user.password && user.password.trim()) {
-            const hashedPassword = await bcrypt.hash(user.password, 10);
-            await pool.execute(
-              `UPDATE car_rental_users SET password_hash = ? WHERE user_id = ?`,
-              [hashedPassword, existingUser.user_id]
-            );
+            await UnifiedUserService.updatePassword(SERVICES.CAR_RENTAL, duplicateUser.id, user.password);
             console.log(`✅ Updated password for existing user: ${normalizedEmail}`);
-          } else if (!existingUser.password_hash) {
-            // If no password provided and user has no password_hash, they'll need to use forgot password
-            console.log(`⚠️  Existing user ${normalizedEmail} has no password_hash and no password was provided. They'll need to use forgot password.`);
           }
           
-          return existingUser.user_id;
+          return duplicateUser.id;
         } else {
-          // This shouldn't happen, but handle it
           throw new Error(`Email ${normalizedEmail} already exists, but could not retrieve user information.`);
         }
       } else {
         // Re-throw other errors
-        console.error('❌ Error creating car rental user:', insertError);
-        throw insertError;
+        console.error('❌ Error creating car rental user:', createError);
+        throw createError;
       }
     }
   }
@@ -652,15 +621,15 @@ class CarRentalSetupService {
                       locationData?.longitude || 
                       null;
 
-    // Verify userId exists in car_rental_users before proceeding
+    // Verify userId exists in unified users table before proceeding
     if (userId) {
-      const [userCheck] = await pool.execute(
-        `SELECT user_id FROM car_rental_users WHERE user_id = ?`,
-        [userId]
+      const userCheck = await executeQuery(
+        `SELECT id FROM users WHERE id = ? AND service = ?`,
+        [userId, SERVICES.CAR_RENTAL]
       );
 
       if (!userCheck || userCheck.length === 0) {
-        throw new Error(`User with ID ${userId} does not exist in car_rental_users. Please ensure the user account is properly created.`);
+        throw new Error(`User with ID ${userId} does not exist. Please ensure the user account is properly created.`);
       }
     }
 

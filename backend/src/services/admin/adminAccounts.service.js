@@ -37,13 +37,14 @@ class AdminAccountsService {
                             crb.location,
                             crb.status,
                             COALESCE(crss.submitted_at, crb.created_at) as submitted_at,
-                            cu.name as owner_name,
-                            cu.email as owner_email,
-                            cu.phone as owner_phone,
+                            COALESCE(crp.name, 'N/A') as owner_name,
+                            u.email as owner_email,
+                            COALESCE(crp.phone, NULL) as owner_phone,
                             COALESCE(crss.status, crsp.status, crb.status) as submission_status,
                             crsp.current_step
                         FROM car_rental_businesses crb
-                        JOIN car_rental_users cu ON crb.user_id = cu.user_id
+                        JOIN users u ON crb.user_id = u.id AND u.service = 'car_rental'
+                        LEFT JOIN car_rental_profiles crp ON u.id = crp.user_id
                         LEFT JOIN car_rental_setup_submissions crss ON crb.car_rental_business_id = crss.car_rental_business_id
                         LEFT JOIN car_rental_setup_progress crsp ON crb.car_rental_business_id = crsp.car_rental_business_id
                         WHERE 1=1
@@ -57,7 +58,7 @@ class AdminAccountsService {
                     }
 
                     if (search) {
-                        carRentalQuery += ' AND (crb.business_name LIKE ? OR cu.name LIKE ? OR cu.email LIKE ?)';
+                        carRentalQuery += ' AND (crb.business_name LIKE ? OR COALESCE(crp.name, \'\') LIKE ? OR u.email LIKE ?)';
                         const searchTerm = `%${search}%`;
                         carRentalParams.push(searchTerm, searchTerm, searchTerm);
                     }
@@ -75,40 +76,51 @@ class AdminAccountsService {
                 try {
                     let toursQuery = `
                         SELECT 
-                            tss.submission_id as account_id,
+                            COALESCE(tss.submission_id, tb.tour_business_id) as account_id,
                             'tours' as service_type,
                             tb.tour_business_name as business_name,
                             tb.location,
-                            tss.status as submission_status,
-                            tss.submitted_at,
-                            tu.name as owner_name,
-                            tu.email as owner_email,
-                            tu.phone as owner_phone,
+                            COALESCE(tss.status, tb.status) as submission_status,
+                            COALESCE(tss.submitted_at, tb.created_at) as submitted_at,
+                            COALESCE(tp.name, 'N/A') as owner_name,
+                            u.email as owner_email,
+                            COALESCE(tp.phone, NULL) as owner_phone,
                             tb.status
-                        FROM tours_setup_submissions tss
-                        JOIN tours_businesses tb ON tss.tour_business_id = tb.tour_business_id
-                        JOIN tours_users tu ON tss.user_id = tu.user_id
+                        FROM tours_businesses tb
+                        JOIN users u ON tb.user_id = u.id AND u.service = 'tours'
+                        LEFT JOIN tour_profiles tp ON u.id = tp.user_id
+                        LEFT JOIN tours_setup_submissions tss ON tb.tour_business_id = tss.tour_business_id
                         WHERE 1=1
                     `;
                     const toursParams = [];
 
                     if (statusList) {
                         const placeholders = statusList.map(() => '?').join(',');
-                        toursQuery += ` AND tss.status IN (${placeholders})`;
-                        toursParams.push(...statusList);
+                        // Check both submission status and business status
+                        // Also include 'draft' status when looking for 'pending_review' or 'pending'
+                        const statusesToCheck = [...statusList];
+                        if (statusList.includes('pending_review') || statusList.includes('pending')) {
+                            if (!statusesToCheck.includes('draft')) {
+                                statusesToCheck.push('draft');
+                            }
+                        }
+                        const placeholdersExpanded = statusesToCheck.map(() => '?').join(',');
+                        toursQuery += ` AND (COALESCE(tss.status, tb.status) IN (${placeholdersExpanded}) OR tb.status IN (${placeholdersExpanded}))`;
+                        toursParams.push(...statusesToCheck, ...statusesToCheck);
                     }
 
                     if (search) {
-                        toursQuery += ' AND (tb.tour_business_name LIKE ? OR tu.name LIKE ? OR tu.email LIKE ?)';
+                        toursQuery += ' AND (tb.tour_business_name LIKE ? OR COALESCE(tp.name, \'\') LIKE ? OR u.email LIKE ?)';
                         const searchTerm = `%${search}%`;
                         toursParams.push(searchTerm, searchTerm, searchTerm);
                     }
 
-                    toursQuery += ' ORDER BY tss.submitted_at DESC';
+                    toursQuery += ' ORDER BY COALESCE(tss.submitted_at, tb.created_at) DESC';
                     const toursAccounts = await executeQuery(toursQuery, toursParams);
                     accounts.push(...toursAccounts.map(acc => ({ ...acc, service_type: 'tours' })));
                 } catch (err) {
                     console.log('Tours accounts query skipped:', err.message);
+                    console.error('Tours query error details:', err);
                 }
             }
 
@@ -117,38 +129,39 @@ class AdminAccountsService {
                 try {
                     let staysQuery = `
                         SELECT 
-                            sp.property_id as account_id,
+                            stays_prop.property_id as account_id,
                             'stays' as service_type,
-                            sp.property_name as business_name,
+                            stays_prop.property_name as business_name,
                             COALESCE(
-                                sp.location,
-                                JSON_UNQUOTE(JSON_EXTRACT(sp.location_data, '$.formatted_address'))
+                                stays_prop.location,
+                                JSON_UNQUOTE(JSON_EXTRACT(stays_prop.location_data, '$.formatted_address'))
                             ) as location,
-                            sp.status,
-                            sp.created_at as submitted_at,
-                            COALESCE(su.name, 'N/A') as owner_name,
-                            COALESCE(su.email, 'N/A') as owner_email,
-                            COALESCE(su.phone, NULL) as owner_phone,
-                            sp.status as submission_status
-                        FROM stays_properties sp
-                        LEFT JOIN stays_users su ON sp.user_id = su.user_id
+                            stays_prop.status,
+                            stays_prop.created_at as submitted_at,
+                            COALESCE(stay_prof.name, 'N/A') as owner_name,
+                            COALESCE(u.email, 'N/A') as owner_email,
+                            COALESCE(stay_prof.phone, NULL) as owner_phone,
+                            stays_prop.status as submission_status
+                        FROM stays_properties stays_prop
+                        LEFT JOIN users u ON stays_prop.user_id = u.id AND u.service = 'stays'
+                        LEFT JOIN stay_profiles stay_prof ON u.id = stay_prof.user_id
                         WHERE 1=1
                     `;
                     const staysParams = [];
 
                     if (!showAllStatuses) {
                         const placeholders = statusList.map(() => '?').join(',');
-                        staysQuery += ` AND sp.status IN (${placeholders})`;
+                        staysQuery += ` AND stays_prop.status IN (${placeholders})`;
                         staysParams.push(...statusList);
                     }
 
                     if (search) {
-                        staysQuery += ' AND (sp.property_name LIKE ? OR su.name LIKE ? OR su.email LIKE ?)';
+                        staysQuery += ' AND (stays_prop.property_name LIKE ? OR COALESCE(stay_prof.name, \'\') LIKE ? OR u.email LIKE ?)';
                         const searchTerm = `%${search}%`;
                         staysParams.push(searchTerm, searchTerm, searchTerm);
                     }
 
-                    staysQuery += ' ORDER BY sp.created_at DESC';
+                    staysQuery += ' ORDER BY stays_prop.created_at DESC';
                     const staysAccounts = await executeQuery(staysQuery, staysParams);
                     accounts.push(...staysAccounts.map(acc => ({ ...acc, service_type: 'stays' })));
                 } catch (err) {
@@ -168,18 +181,13 @@ class AdminAccountsService {
                             r.address as location,
                             r.status,
                             r.created_at as submitted_at,
-                            ru.name as owner_name,
-                            ru.email as owner_email,
-                            ru.phone as owner_phone,
+                            COALESCE(rp.name, 'N/A') as owner_name,
+                            COALESCE(u.email, 'N/A') as owner_email,
+                            COALESCE(rp.phone, NULL) as owner_phone,
                             r.status as submission_status
                         FROM restaurants r
-                        LEFT JOIN restaurant_users ru ON (
-                            r.user_id IS NOT NULL AND (
-                                (r.user_id REGEXP '^[0-9]+$' AND CAST(r.user_id AS UNSIGNED) = ru.user_id)
-                                OR 
-                                (r.user_id NOT REGEXP '^[0-9]+$' AND CAST(r.user_id AS CHAR) = CAST(ru.user_id AS CHAR))
-                            )
-                        )
+                        LEFT JOIN users u ON r.user_id = u.id AND u.service = 'restaurant'
+                        LEFT JOIN restaurant_profiles rp ON u.id = rp.user_id
                         WHERE 1=1
                     `;
                     const restaurantParams = [];
@@ -191,7 +199,7 @@ class AdminAccountsService {
                     }
 
                     if (search) {
-                        restaurantQuery += ' AND (r.name LIKE ? OR ru.name LIKE ? OR ru.email LIKE ?)';
+                        restaurantQuery += ' AND (r.name LIKE ? OR COALESCE(rp.name, \'\') LIKE ? OR u.email LIKE ?)';
                         const searchTerm = `%${search}%`;
                         restaurantParams.push(searchTerm, searchTerm, searchTerm);
                     }
@@ -361,10 +369,11 @@ class AdminAccountsService {
                             crb.business_name,
                             crb.wants_notifications,
                             crb.notification_receiver,
-                            cu.email,
-                            cu.name
+                            u.email,
+                            COALESCE(crp.name, 'N/A') as name
                          FROM car_rental_businesses crb
-                         JOIN car_rental_users cu ON crb.user_id = cu.user_id
+                         JOIN users u ON crb.user_id = u.id AND u.service = 'car_rental'
+                         LEFT JOIN car_rental_profiles crp ON u.id = crp.user_id
                          WHERE crb.car_rental_business_id = ?`,
                         [accountId]
                     );
@@ -421,14 +430,16 @@ class AdminAccountsService {
                         `SELECT 
                             tss.tour_business_id,
                             tb.tour_business_name,
-                            tu.email,
-                            tu.name
+                            u.email,
+                            COALESCE(tp.name, 'N/A') as name
                          FROM tours_setup_submissions tss
                          JOIN tours_businesses tb ON tss.tour_business_id = tb.tour_business_id
-                         JOIN tours_users tu ON tss.user_id = tu.user_id
+                         JOIN users u ON tss.user_id = u.id AND u.service = 'tours'
+                         LEFT JOIN tour_profiles tp ON u.id = tp.user_id
                          WHERE tss.submission_id = ?`,
                         [accountId]
                     );
+                    
                     if (tourSubmission.length > 0) {
                         const { tour_business_id: tourBusinessId, tour_business_name, email, name } = tourSubmission[0];
                         await executeQuery(
@@ -438,15 +449,26 @@ class AdminAccountsService {
                             [tourBusinessId]
                         );
 
-                        const dashboardUrl = process.env.TOUR_VENDOR_DASHBOARD_URL || 'https://vendor.travoozapp.com/tours/dashboard';
-                        await ToursApprovalNotificationService.sendApprovalEmail({
-                            email,
-                            name,
-                            businessName: tour_business_name,
-                            dashboardUrl
-                        });
+                        // Send approval email (non-blocking - don't fail approval if email fails)
+                        try {
+                            const dashboardUrl = process.env.TOUR_VENDOR_DASHBOARD_URL || 'https://vendor.travoozapp.com/tours/dashboard';
+                            await ToursApprovalNotificationService.sendApprovalEmail({
+                                email,
+                                name,
+                                businessName: tour_business_name,
+                                dashboardUrl
+                            });
+                        } catch (emailError) {
+                            console.error('Failed to send approval email for tours:', emailError);
+                            // Don't fail the approval if email fails
+                        }
                     }
-                    break;
+                    
+                    return {
+                        accountId,
+                        serviceType: 'tours',
+                        status: 'approved'
+                    };
 
                 case 'stays':
                     // Update stays property
@@ -460,13 +482,14 @@ class AdminAccountsService {
                     // Fetch property and owner info for notification
                     const staysProperty = await executeQuery(
                         `SELECT 
-                            sp.property_id,
-                            sp.property_name,
-                            su.email,
-                            su.name
-                         FROM stays_properties sp
-                         LEFT JOIN stays_users su ON sp.user_id = su.user_id
-                         WHERE sp.property_id = ?`,
+                            stays_prop.property_id,
+                            stays_prop.property_name,
+                            u.email,
+                            COALESCE(stay_prof.name, 'N/A') as name
+                         FROM stays_properties stays_prop
+                         LEFT JOIN users u ON stays_prop.user_id = u.id AND u.service = 'stays'
+                         LEFT JOIN stay_profiles stay_prof ON u.id = stay_prof.user_id
+                         WHERE stays_prop.property_id = ?`,
                         [accountId]
                     );
                     
@@ -509,10 +532,11 @@ class AdminAccountsService {
                         `SELECT 
                             r.id,
                             r.name as business_name,
-                            ru.email,
-                            ru.name
+                            u.email,
+                            COALESCE(rp.name, 'N/A') as name
                          FROM restaurants r
-                         LEFT JOIN restaurant_users ru ON r.user_id = ru.user_id
+                         LEFT JOIN users u ON r.user_id = u.id AND u.service = 'restaurant'
+                         LEFT JOIN restaurant_profiles rp ON u.id = rp.user_id
                          WHERE r.id = ?`,
                         [String(accountId)]
                     );
@@ -595,10 +619,11 @@ class AdminAccountsService {
                             crb.business_name,
                             crb.wants_notifications,
                             crb.notification_receiver,
-                            cu.email,
-                            cu.name
+                            u.email,
+                            COALESCE(crp.name, 'N/A') as name
                          FROM car_rental_businesses crb
-                         JOIN car_rental_users cu ON crb.user_id = cu.user_id
+                         JOIN users u ON crb.user_id = u.id AND u.service = 'car_rental'
+                         LEFT JOIN car_rental_profiles crp ON u.id = crp.user_id
                          WHERE crb.car_rental_business_id = ?`,
                         [accountId]
                     );
@@ -653,11 +678,12 @@ class AdminAccountsService {
                         `SELECT 
                             tss.tour_business_id,
                             tb.tour_business_name,
-                            tu.email,
-                            tu.name
+                            u.email,
+                            COALESCE(tp.name, 'N/A') as name
                          FROM tours_setup_submissions tss
                          JOIN tours_businesses tb ON tss.tour_business_id = tb.tour_business_id
-                         JOIN tours_users tu ON tss.user_id = tu.user_id
+                         JOIN users u ON tss.user_id = u.id AND u.service = 'tours'
+                         LEFT JOIN tour_profiles tp ON u.id = tp.user_id
                          WHERE tss.submission_id = ?`,
                         [accountId]
                     );
@@ -745,13 +771,14 @@ class AdminAccountsService {
                     // Fetch property and owner info for notification
                     const staysPropertyReject = await executeQuery(
                         `SELECT 
-                            sp.property_id,
-                            sp.property_name,
-                            su.email,
-                            su.name
-                         FROM stays_properties sp
-                         LEFT JOIN stays_users su ON sp.user_id = su.user_id
-                         WHERE sp.property_id = ?`,
+                            stays_prop.property_id,
+                            stays_prop.property_name,
+                            u.email,
+                            COALESCE(stay_prof.name, 'N/A') as name
+                         FROM stays_properties stays_prop
+                         LEFT JOIN users u ON stays_prop.user_id = u.id AND u.service = 'stays'
+                         LEFT JOIN stay_profiles stay_prof ON u.id = stay_prof.user_id
+                         WHERE stays_prop.property_id = ?`,
                         [accountId]
                     );
                     
@@ -796,10 +823,11 @@ class AdminAccountsService {
                         `SELECT 
                             r.id,
                             r.name as business_name,
-                            ru.email,
-                            ru.name
+                            u.email,
+                            COALESCE(rp.name, 'N/A') as name
                          FROM restaurants r
-                         LEFT JOIN restaurant_users ru ON r.user_id = ru.user_id
+                         LEFT JOIN users u ON r.user_id = u.id AND u.service = 'restaurant'
+                         LEFT JOIN restaurant_profiles rp ON u.id = rp.user_id
                          WHERE r.id = ?`,
                         [String(accountId)]
                     );
@@ -881,16 +909,17 @@ class AdminAccountsService {
                 crss.agreement_signed_at,
                 crsp.current_step,
                 crsp.status AS progress_status,
-                cu.user_id,
-                cu.name AS user_name,
-                cu.email AS user_email,
-                cu.phone AS user_phone,
+                u.id AS user_id,
+                COALESCE(crp.name, 'N/A') AS user_name,
+                u.email AS user_email,
+                COALESCE(crp.phone, NULL) AS user_phone,
                 cti.tin,
                 cti.legal_business_name,
                 cti.payment_method,
                 cti.documents
             FROM car_rental_businesses crb
-            JOIN car_rental_users cu ON crb.user_id = cu.user_id
+            JOIN users u ON crb.user_id = u.id AND u.service = 'car_rental'
+            LEFT JOIN car_rental_profiles crp ON u.id = crp.user_id
             LEFT JOIN car_rental_setup_submissions crss ON crb.car_rental_business_id = crss.car_rental_business_id
             LEFT JOIN car_rental_setup_progress crsp ON crb.car_rental_business_id = crsp.car_rental_business_id
             LEFT JOIN car_rental_tax_info cti ON crb.car_rental_business_id = cti.car_rental_business_id
@@ -982,11 +1011,11 @@ class AdminAccountsService {
                 tb.phone AS business_phone,
                 tb.country_code,
                 tb.status AS business_status,
-                tu.user_id,
-                tu.name AS user_name,
-                tu.email AS user_email,
-                tu.phone AS user_phone,
-                tu.password_hash,
+                u.id AS user_id,
+                COALESCE(tp.name, 'N/A') AS user_name,
+                u.email AS user_email,
+                COALESCE(tp.phone, NULL) AS user_phone,
+                u.password_hash,
                 boi.first_name AS owner_first_name,
                 boi.last_name AS owner_last_name,
                 boi.email AS owner_email,
@@ -1004,15 +1033,16 @@ class AdminAccountsService {
                 tsp.current_step
             FROM tours_setup_submissions tss
             JOIN tours_businesses tb ON tss.tour_business_id = tb.tour_business_id
-            JOIN tours_users tu ON tss.user_id = tu.user_id
+            JOIN users u ON tss.user_id = u.id AND u.service = 'tours'
+            LEFT JOIN tour_profiles tp ON u.id = tp.user_id
             LEFT JOIN tours_business_owner_info boi 
-                ON boi.tour_business_id = tb.tour_business_id AND boi.user_id = tu.user_id
+                ON boi.tour_business_id = tb.tour_business_id AND boi.user_id = u.id
             LEFT JOIN tours_identity_proof tip 
-                ON tip.tour_business_id = tb.tour_business_id AND tip.user_id = tu.user_id
+                ON tip.tour_business_id = tb.tour_business_id AND tip.user_id = u.id
             LEFT JOIN tours_business_proof tbp 
-                ON tbp.tour_business_id = tb.tour_business_id AND tbp.user_id = tu.user_id
+                ON tbp.tour_business_id = tb.tour_business_id AND tbp.user_id = u.id
             LEFT JOIN tours_setup_progress tsp 
-                ON tsp.tour_business_id = tb.tour_business_id AND tsp.user_id = tu.user_id
+                ON tsp.tour_business_id = tb.tour_business_id AND tsp.user_id = u.id
             WHERE tss.submission_id = ?
             LIMIT 1`,
             [submissionId]

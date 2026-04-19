@@ -33,7 +33,7 @@ class AdminPackagesService {
 
             // Search filter
             if (search) {
-                whereConditions.push('(tp.name LIKE ? OR tb.tour_business_name LIKE ? OR tu.name LIKE ?)');
+                whereConditions.push('(tp.name LIKE ? OR tb.tour_business_name LIKE ? OR COALESCE(tprof.name, \'\') LIKE ?)');
                 const searchTerm = `%${search}%`;
                 queryParams.push(searchTerm, searchTerm, searchTerm);
             }
@@ -52,7 +52,7 @@ class AdminPackagesService {
                 `SELECT COUNT(*) as total
                  FROM tours_packages tp
                  JOIN tours_businesses tb ON tp.tour_business_id = tb.tour_business_id
-                 JOIN tours_users tu ON tb.user_id = tu.user_id
+                 JOIN users u ON tb.user_id = u.id AND u.service = 'tours'
                  ${whereClause}`,
                 queryParams
             );
@@ -72,12 +72,13 @@ class AdminPackagesService {
                     tb.tour_business_id,
                     tb.tour_business_name,
                     tb.status as business_status,
-                    tu.user_id,
-                    tu.name as vendor_name,
-                    tu.email as vendor_email
+                    u.id AS user_id,
+                    COALESCE(tprof.name, 'N/A') as vendor_name,
+                    u.email as vendor_email
                  FROM tours_packages tp
                  JOIN tours_businesses tb ON tp.tour_business_id = tb.tour_business_id
-                 JOIN tours_users tu ON tb.user_id = tu.user_id
+                 JOIN users u ON tb.user_id = u.id AND u.service = 'tours'
+                 LEFT JOIN tour_profiles tprof ON u.id = tprof.user_id
                  ${whereClause}
                  ORDER BY tp.created_at DESC
                  LIMIT ? OFFSET ?`,
@@ -163,13 +164,14 @@ class AdminPackagesService {
                     tb.tour_business_id,
                     tb.tour_business_name,
                     tb.status as business_status,
-                    tu.user_id,
-                    tu.name as vendor_name,
-                    tu.email as vendor_email,
-                    tu.phone as vendor_phone
+                    u.id AS user_id,
+                    COALESCE(tprof.name, 'N/A') as vendor_name,
+                    u.email as vendor_email,
+                    COALESCE(tprof.phone, NULL) as vendor_phone
                  FROM tours_packages tp
                  JOIN tours_businesses tb ON tp.tour_business_id = tb.tour_business_id
-                 JOIN tours_users tu ON tb.user_id = tu.user_id
+                 JOIN users u ON tb.user_id = u.id AND u.service = 'tours'
+                 LEFT JOIN tour_profiles tprof ON u.id = tprof.user_id
                  WHERE tp.package_id = ?`,
                 [packageId]
             );

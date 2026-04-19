@@ -16,6 +16,7 @@ const toursCommissionController = require('../controllers/tours/toursCommission.
 const toursBookingController = require('../controllers/tours/toursBooking.controller');
 const toursReviewController = require('../controllers/tours/toursReview.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
+const serviceGuard = require('../middlewares/serviceGuard.middleware');
 
 // Configure multer for file uploads
 const { TOURS } = require('../config/uploads.config');
@@ -83,63 +84,63 @@ const tourPackagePhotoUpload = multer({
 
 // Auth routes (no authentication required)
 router.post('/auth/login', toursAuthController.login);
-router.get('/auth/profile', authenticate, toursAuthController.getProfile);
+router.get('/auth/profile', authenticate, serviceGuard('tours'), toursAuthController.getProfile);
 router.post('/auth/forgot-password', toursAuthController.requestPasswordReset);
 router.post('/auth/reset-password', toursAuthController.resetPassword);
 
 // Tour business routes
 router.post('/businesses', toursBusinessController.createTourBusiness);
-router.get('/businesses/my', authenticate, toursBusinessController.getMyTourBusinesses);
+router.get('/businesses/my', authenticate, serviceGuard('tours'), toursBusinessController.getMyTourBusinesses);
 router.get('/businesses/by-user/:userId', toursBusinessController.getTourBusinessesByUserId); // No auth required for setup flow
 router.get('/businesses/:id', toursBusinessController.getTourBusinessById);
-router.put('/businesses/:id', authenticate, toursBusinessController.updateTourBusiness);
-router.delete('/businesses/:id', authenticate, toursBusinessController.deleteTourBusiness);
+router.put('/businesses/:id', authenticate, serviceGuard('tours'), toursBusinessController.updateTourBusiness);
+router.delete('/businesses/:id', authenticate, serviceGuard('tours'), toursBusinessController.deleteTourBusiness);
 
 // Email verification routes
 router.post('/email-verification/send', toursEmailVerificationController.sendVerificationCode);
 router.post('/email-verification/verify', toursEmailVerificationController.verifyCode);
 
 // Business owner info routes
-router.post('/setup/business-owner-info', authenticate, toursBusinessOwnerInfoController.saveBusinessOwnerInfo);
-router.get('/setup/business-owner-info', authenticate, toursBusinessOwnerInfoController.getBusinessOwnerInfo);
+router.post('/setup/business-owner-info', authenticate, serviceGuard('tours'), toursBusinessOwnerInfoController.saveBusinessOwnerInfo);
+router.get('/setup/business-owner-info', authenticate, serviceGuard('tours'), toursBusinessOwnerInfoController.getBusinessOwnerInfo);
 
 // Identity proof routes
-router.post('/setup/identity-proof', authenticate, upload.single('idCardPhoto'), toursIdentityProofController.saveIdentityProof);
-router.get('/setup/identity-proof', authenticate, toursIdentityProofController.getIdentityProof);
+router.post('/setup/identity-proof', authenticate, serviceGuard('tours'), upload.single('idCardPhoto'), toursIdentityProofController.saveIdentityProof);
+router.get('/setup/identity-proof', authenticate, serviceGuard('tours'), toursIdentityProofController.getIdentityProof);
 
 // Business proof routes
-router.post('/setup/business-proof', authenticate, upload.single('professionalCertificate'), toursBusinessProofController.saveBusinessProof);
-router.get('/setup/business-proof', authenticate, toursBusinessProofController.getBusinessProof);
+router.post('/setup/business-proof', authenticate, serviceGuard('tours'), upload.single('professionalCertificate'), toursBusinessProofController.saveBusinessProof);
+router.get('/setup/business-proof', authenticate, serviceGuard('tours'), toursBusinessProofController.getBusinessProof);
 
 // Setup progress routes
-router.post('/setup/progress', authenticate, toursSetupProgressController.updateStepProgress);
-router.get('/setup/progress', authenticate, toursSetupProgressController.getProgress);
+router.post('/setup/progress', authenticate, serviceGuard('tours'), toursSetupProgressController.updateStepProgress);
+router.get('/setup/progress', authenticate, serviceGuard('tours'), toursSetupProgressController.getProgress);
 
 // Submission routes
-router.post('/setup/submit', authenticate, toursSetupSubmissionController.submitForVerification);
-router.get('/setup/submission-status', authenticate, toursSetupSubmissionController.getSubmissionStatus);
+router.post('/setup/submit', authenticate, serviceGuard('tours'), toursSetupSubmissionController.submitForVerification);
+router.get('/setup/submission-status', authenticate, serviceGuard('tours'), toursSetupSubmissionController.getSubmissionStatus);
 
 // Tour package routes
-router.post('/packages', authenticate, tourPackagePhotoUpload.array('photos', 20), toursPackageController.savePackage);
-router.put('/packages/:packageId', authenticate, tourPackagePhotoUpload.array('photos', 20), toursPackageController.savePackage);
-router.get('/packages/:id', authenticate, toursPackageController.getPackage);
-router.get('/packages/business/:businessId', authenticate, toursPackageController.getPackagesByBusiness);
-router.delete('/packages/:id', authenticate, toursPackageController.deletePackage);
+router.post('/packages', authenticate, serviceGuard('tours'), tourPackagePhotoUpload.array('photos', 20), toursPackageController.savePackage);
+router.put('/packages/:packageId', authenticate, serviceGuard('tours'), tourPackagePhotoUpload.array('photos', 20), toursPackageController.savePackage);
+router.get('/packages/:id', authenticate, serviceGuard('tours'), toursPackageController.getPackage);
+router.get('/packages/business/:businessId', authenticate, serviceGuard('tours'), toursPackageController.getPackagesByBusiness);
+router.delete('/packages/:id', authenticate, serviceGuard('tours'), toursPackageController.deletePackage);
 
 // Commission routes
-router.get('/commission/active', authenticate, toursCommissionController.getActiveCommission);
+router.get('/commission/active', authenticate, serviceGuard('tours'), toursCommissionController.getActiveCommission);
 
 // Booking routes
-router.get('/bookings', authenticate, toursBookingController.getBookings);
-router.get('/bookings/:id', authenticate, toursBookingController.getBookingById);
-router.patch('/bookings/:id/status', authenticate, toursBookingController.updateBookingStatus);
-router.get('/bookings/participants/all', authenticate, toursBookingController.getParticipants);
+router.get('/bookings', authenticate, serviceGuard('tours'), toursBookingController.getBookings);
+router.get('/bookings/:id', authenticate, serviceGuard('tours'), toursBookingController.getBookingById);
+router.patch('/bookings/:id/status', authenticate, serviceGuard('tours'), toursBookingController.updateBookingStatus);
+router.get('/bookings/participants/all', authenticate, serviceGuard('tours'), toursBookingController.getParticipants);
 
 // Review routes
-router.get('/reviews', authenticate, toursReviewController.getReviews);
-router.get('/reviews/stats', authenticate, toursReviewController.getReviewStats);
-router.get('/reviews/:id', authenticate, toursReviewController.getReviewById);
-router.patch('/reviews/:id/response', authenticate, toursReviewController.updateVendorResponse);
+router.get('/reviews', authenticate, serviceGuard('tours'), toursReviewController.getReviews);
+router.get('/reviews/stats', authenticate, serviceGuard('tours'), toursReviewController.getReviewStats);
+router.get('/reviews/:id', authenticate, serviceGuard('tours'), toursReviewController.getReviewById);
+router.patch('/reviews/:id/response', authenticate, serviceGuard('tours'), toursReviewController.updateVendorResponse);
 
 module.exports = router;
 

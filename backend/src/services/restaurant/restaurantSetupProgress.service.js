@@ -185,7 +185,7 @@ class RestaurantSetupProgressService {
 
             // For steps 4-11, check email verification status
             if (targetStep >= 4) {
-                // Convert userId to integer if it's a string (user_id is INT in restaurant_users)
+                // Convert userId to integer if it's a string
                 const userIdInt = typeof userId === 'string' ? parseInt(userId, 10) : userId;
                 
                 if (isNaN(userIdInt)) {
@@ -195,13 +195,14 @@ class RestaurantSetupProgressService {
                 
                 console.log(`🔍 Checking email verification for user_id: ${userIdInt}, restaurant_id: ${restaurantId}, step: ${targetStep}`);
                 
+                // Query unified users table with service filter
                 const userResult = await executeQuery(
-                    `SELECT email_verified, email FROM restaurant_users WHERE user_id = ?`,
+                    `SELECT email_verified, email FROM users WHERE id = ? AND service = 'restaurant'`,
                     [userIdInt]
                 );
 
                 if (!userResult || userResult.length === 0) {
-                    console.error('❌ User not found in restaurant_users:', userIdInt);
+                    console.error('❌ User not found in users table:', userIdInt);
                     return { allowed: false, reason: 'User not found' };
                 }
 

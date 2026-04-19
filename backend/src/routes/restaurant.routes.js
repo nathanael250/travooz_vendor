@@ -52,7 +52,7 @@ const cleanBusinessPhone = (phone) => {
 };
 
 /**
- * Check if user exists in restaurant_users table
+ * Check if user exists in unified users table for restaurant service
  * POST /api/v1/restaurant/check-user
  */
 router.post('/check-user', async (req, res) => {
@@ -67,7 +67,10 @@ router.post('/check-user', async (req, res) => {
     }
     
     const [users] = await pool.execute(
-      'SELECT user_id, email, name FROM restaurant_users WHERE email = ?',
+      `SELECT u.id as user_id, u.email, rp.name 
+       FROM users u
+       LEFT JOIN restaurant_profiles rp ON rp.user_id = u.id
+       WHERE u.service = 'restaurant' AND u.email = ?`,
       [email]
     );
     
@@ -180,14 +183,14 @@ router.post('/listing', async (req, res) => {
         const decoded = jwt.default.verify(token, process.env.JWT_SECRET || 'your-secret-key');
         userId = decoded.id;
         
-        // Verify user exists in restaurant_users
-        const [userCheck] = await pool.execute(
-          'SELECT user_id FROM restaurant_users WHERE user_id = ?',
-          [userId]
-        );
-        if (userCheck.length === 0) {
-          userId = null; // User not in restaurant_users, will create new account
-        }
+            // Verify user exists in unified users table for restaurant service
+            const [userCheck] = await pool.execute(
+              `SELECT id FROM users WHERE id = ? AND service = 'restaurant'`,
+              [userId]
+            );
+            if (userCheck.length === 0) {
+              userId = null; // User not in users table for restaurant service, will create new account
+            }
       }
     } catch (authError) {
       // Token invalid or missing - will create new user
@@ -197,13 +200,13 @@ router.post('/listing', async (req, res) => {
     // Create user account if not already logged in
     let userCreated = false;
     if (!userId) {
-      // First check if user exists in restaurant_users (new system)
-      const [existingRestaurantUsers] = await pool.execute(
-        'SELECT user_id, email, name FROM restaurant_users WHERE email = ?',
-        [email]
-      );
+      // Check if user exists in unified users table for restaurant service
+      const UnifiedUserService = require('../services/shared/unifiedUser.service');
+      const { SERVICES } = require('../constants/services');
 
-      if (existingRestaurantUsers.length > 0) {
+      const existingUser = await UnifiedUserService.getUserByEmail(SERVICES.RESTAURANT, email);
+
+      if (existingUser) {
         // User exists - they need to login instead
         return res.status(400).json({ 
           success: false,
@@ -211,36 +214,28 @@ router.post('/listing', async (req, res) => {
         });
       }
 
-      // Check profiles table for backward compatibility
-      const [existingProfiles] = await pool.execute(
-        'SELECT id FROM profiles WHERE email = ?',
-        [email]
-      );
-
-      if (existingProfiles.length > 0) {
-        // User exists in profiles - they need to login
-        return res.status(400).json({ 
-          success: false,
-          message: 'An account with this email already exists. Please login to continue.' 
-        });
-      }
-
-      // Create new user in restaurant_users table (new system)
-      const bcrypt = await import('bcryptjs');
-      const hashedPassword = await bcrypt.default.hash(password, 10);
+      // Create new user in unified users table
       const fullName = [firstName || '', lastName || ''].filter(Boolean).join(' ').trim() || email.split('@')[0];
 
-      // Insert into restaurant_users table (INT user_id, AUTO_INCREMENT)
-      // Set email_verified to 0 (false) - requires verification
-      const [result] = await pool.execute(
-        `INSERT INTO restaurant_users (email, password_hash, name, phone, role, is_active, email_verified)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [email, hashedPassword, fullName, normalizedUserPhone, 'vendor', 1, 0]
-      );
-      
-      // Get the AUTO_INCREMENT user_id
-      userId = result.insertId.toString();
-      userCreated = true;
+      try {
+        const newUser = await UnifiedUserService.createUser({
+          service: SERVICES.RESTAURANT,
+          email,
+          password, // plain text, will be hashed by service
+          name: fullName,
+          phone: normalizedUserPhone,
+          role: 'vendor'
+        });
+        
+        userId = newUser.id.toString();
+        userCreated = true;
+      } catch (userError) {
+        console.error('Error creating user:', userError);
+        return res.status(400).json({
+          success: false,
+          message: userError.message || 'Failed to create user account'
+        });
+      }
     }
 
     if (!restaurantName) {

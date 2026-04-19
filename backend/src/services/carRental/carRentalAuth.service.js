@@ -16,11 +16,12 @@ class CarRentalAuthService {
 
             console.log('🔍 Car rental login attempt for email:', email);
 
-            // Find user in car_rental_users table (include email_verified)
-            // Note: is_active column may not exist, so we don't select it
+            // Find user in unified users table with service filter
             const users = await executeQuery(
-                `SELECT user_id, role, name, email, phone, password_hash, email_verified, created_at 
-                 FROM car_rental_users WHERE email = ?`,
+                `SELECT u.*, crp.name, crp.phone, crp.car_rental_business_id, crp.status as profile_status
+                 FROM users u
+                 LEFT JOIN car_rental_profiles crp ON crp.user_id = u.id
+                 WHERE u.service = 'car_rental' AND u.email = ?`,
                 [email]
             );
 
@@ -33,11 +34,14 @@ class CarRentalAuthService {
 
             const user = users[0];
 
-            // Note: is_active column doesn't exist in car_rental_users table
-            // Skip the is_active check (matching restaurant pattern)
+            // Check if user is active
+            if (!user.is_active) {
+                console.log('❌ User account is deactivated:', email);
+                throw new Error('Your account has been deactivated. Please contact support.');
+            }
 
-            // Verify password (matching restaurant implementation)
-            console.log('🔍 Verifying password for user:', user.user_id);
+            // Verify password
+            console.log('🔍 Verifying password for user:', user.id);
             const isPasswordValid = await bcrypt.compare(password, user.password_hash);
             if (!isPasswordValid) {
                 console.log('❌ Invalid password for user:', email);
@@ -47,30 +51,71 @@ class CarRentalAuthService {
             console.log('✅ Password verified successfully for user:', email);
 
             // Get car rental business for this user
-            const businesses = await executeQuery(
-                `SELECT car_rental_business_id, business_name, status 
-                 FROM car_rental_businesses 
-                 WHERE user_id = ? 
-                 ORDER BY created_at DESC 
-                 LIMIT 1`,
-                [user.user_id]
-            );
-
-            // Update last login (if the column exists)
-            if (user.last_login !== undefined) {
-                await executeQuery(
-                    `UPDATE car_rental_users SET last_login = NOW() WHERE user_id = ?`,
-                    [user.user_id]
+            let businesses = [];
+            
+            // First, try to find by business_id from profile
+            if (user.car_rental_business_id) {
+                businesses = await executeQuery(
+                    `SELECT car_rental_business_id, business_name, status 
+                     FROM car_rental_businesses 
+                     WHERE car_rental_business_id = ? 
+                     ORDER BY created_at DESC 
+                     LIMIT 1`,
+                    [user.car_rental_business_id]
                 );
             }
+            
+            // Fallback: try to find businesses by user_id directly
+            // Note: car_rental_businesses.user_id might reference old car_rental_users table
+            // or the unified users table, so we try both approaches
+            if (businesses.length === 0) {
+                // Try with the unified user ID (for newly created businesses)
+                businesses = await executeQuery(
+                    `SELECT car_rental_business_id, business_name, status 
+                     FROM car_rental_businesses 
+                     WHERE user_id = ? 
+                     ORDER BY created_at DESC 
+                     LIMIT 1`,
+                    [user.id]
+                );
+            }
+            
+            // If still not found, try to find via car_rental_profiles
+            if (businesses.length === 0) {
+                const profileBusiness = await executeQuery(
+                    `SELECT crp.car_rental_business_id 
+                     FROM car_rental_profiles crp
+                     WHERE crp.user_id = ? AND crp.car_rental_business_id IS NOT NULL
+                     LIMIT 1`,
+                    [user.id]
+                );
+                
+                if (profileBusiness.length > 0 && profileBusiness[0].car_rental_business_id) {
+                    businesses = await executeQuery(
+                        `SELECT car_rental_business_id, business_name, status 
+                         FROM car_rental_businesses 
+                         WHERE car_rental_business_id = ? 
+                         ORDER BY created_at DESC 
+                         LIMIT 1`,
+                        [profileBusiness[0].car_rental_business_id]
+                    );
+                }
+            }
 
-            // Generate JWT token
+            // Update last login
+            await executeQuery(
+                `UPDATE users SET last_login = NOW() WHERE id = ?`,
+                [user.id]
+            );
+
+            // Generate JWT token with service scoping
             const token = jwt.sign(
                 {
-                    userId: user.user_id,
-                    id: user.user_id,
+                    userId: user.id,
+                    id: user.id,
                     email: user.email,
-                    role: user.role || 'vendor'
+                    role: user.role || 'vendor',
+                    service: 'car_rental' // CRITICAL: Service scoping
                 },
                 process.env.JWT_SECRET,
                 { expiresIn: process.env.JWT_EXPIRE || '24h' }
@@ -78,12 +123,12 @@ class CarRentalAuthService {
 
             return {
                 user: {
-                    id: user.user_id,
-                    user_id: user.user_id,
+                    id: user.id,
+                    user_id: user.id,
                     email: user.email,
-                    name: user.name,
+                    name: user.name || null,
                     role: user.role || 'vendor',
-                    phone: user.phone,
+                    phone: user.phone || null,
                     email_verified: Boolean(user.email_verified)
                 },
                 token,
@@ -103,9 +148,11 @@ class CarRentalAuthService {
     async getProfile(userId) {
         try {
             const users = await executeQuery(
-                `SELECT user_id, role, name, email, phone, email_verified, created_at 
-                 FROM car_rental_users 
-                 WHERE user_id = ?`,
+                `SELECT u.id, u.user_id, u.role, u.email, u.email_verified, u.is_active, u.created_at,
+                        crp.name, crp.phone, crp.car_rental_business_id, crp.status as profile_status
+                 FROM users u
+                 LEFT JOIN car_rental_profiles crp ON crp.user_id = u.id
+                 WHERE u.id = ? AND u.service = 'car_rental'`,
                 [userId]
             );
 
@@ -115,8 +162,17 @@ class CarRentalAuthService {
 
             const user = users[0];
             return {
-                ...user,
-                email_verified: Boolean(user.email_verified)
+                user_id: user.id,
+                id: user.id,
+                role: user.role,
+                email: user.email,
+                name: user.name,
+                phone: user.phone,
+                email_verified: Boolean(user.email_verified),
+                is_active: user.is_active,
+                created_at: user.created_at,
+                car_rental_business_id: user.car_rental_business_id,
+                profile_status: user.profile_status
             };
         } catch (error) {
             console.error('Error getting profile:', error);
@@ -131,9 +187,12 @@ class CarRentalAuthService {
      */
     async requestPasswordReset(email) {
         try {
-            // Find user by email
+            // Find user by email in unified users table with service filter
             const users = await executeQuery(
-                `SELECT * FROM car_rental_users WHERE email = ?`,
+                `SELECT u.*, crp.name 
+                 FROM users u
+                 LEFT JOIN car_rental_profiles crp ON crp.user_id = u.id
+                 WHERE u.service = 'car_rental' AND u.email = ?`,
                 [email]
             );
 
@@ -152,16 +211,17 @@ class CarRentalAuthService {
 
             // Update user with reset token
             await executeQuery(
-                `UPDATE car_rental_users 
+                `UPDATE users 
                  SET password_reset_token = ?, password_reset_expires = ? 
-                 WHERE user_id = ?`,
-                [resetToken, resetExpires, user.user_id]
+                 WHERE id = ? AND service = 'car_rental'`,
+                [resetToken, resetExpires, user.id]
             );
 
             return {
                 resetToken,
                 user: {
-                    user_id: user.user_id,
+                    user_id: user.id,
+                    id: user.id,
                     email: user.email,
                     name: user.name
                 }
@@ -180,10 +240,11 @@ class CarRentalAuthService {
      */
     async resetPassword(token, newPassword) {
         try {
-            // Find user by reset token
+            // Find user by reset token in unified users table with service filter
             const users = await executeQuery(
-                `SELECT * FROM car_rental_users 
-                 WHERE password_reset_token = ? 
+                `SELECT * FROM users 
+                 WHERE service = 'car_rental'
+                 AND password_reset_token = ? 
                  AND password_reset_expires > NOW()`,
                 [token]
             );
@@ -199,18 +260,19 @@ class CarRentalAuthService {
 
             // Update password and clear reset token
             await executeQuery(
-                `UPDATE car_rental_users 
+                `UPDATE users 
                  SET password_hash = ?, 
                      password_reset_token = NULL, 
                      password_reset_expires = NULL 
-                 WHERE user_id = ?`,
-                [hashedPassword, user.user_id]
+                 WHERE id = ? AND service = 'car_rental'`,
+                [hashedPassword, user.id]
             );
 
             return {
                 message: 'Password reset successfully',
                 user: {
-                    user_id: user.user_id,
+                    user_id: user.id,
+                    id: user.id,
                     email: user.email
                 }
             };
