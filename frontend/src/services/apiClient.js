@@ -3,7 +3,7 @@ import { getTokenForRequest, detectServiceFromUrl, SERVICES, removeToken, getTok
 
 // Ensure base URL doesn't have trailing slash to avoid double slashes
 const getBaseURL = () => {
-  const envURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+  const envURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
   return envURL.endsWith('/') ? envURL.slice(0, -1) : envURL;
 };
 

@@ -63,23 +63,17 @@ class ToursAuthService {
                 );
             }
             
-            // Fallback: try to find by user_id mapping if business_id not in profile
+            // Fallback: try to find the business directly by the unified user ID.
+            // This keeps login independent from the legacy migration mapping table.
             if (businesses.length === 0) {
-                const mapping = await executeQuery(
-                    `SELECT old_user_id FROM user_id_mapping 
-                     WHERE service = 'tours' AND new_user_id = ?`,
+                businesses = await executeQuery(
+                    `SELECT tour_business_id, tour_business_name, status, is_live 
+                     FROM tours_businesses 
+                     WHERE user_id = ? 
+                     ORDER BY created_at DESC 
+                     LIMIT 1`,
                     [user.id]
                 );
-                if (mapping.length > 0) {
-                    businesses = await executeQuery(
-                        `SELECT tour_business_id, tour_business_name, status, is_live 
-                         FROM tours_businesses 
-                         WHERE user_id = ? 
-                         ORDER BY created_at DESC 
-                         LIMIT 1`,
-                        [mapping[0].old_user_id]
-                    );
-                }
             }
 
             // Update last login
@@ -264,4 +258,3 @@ class ToursAuthService {
 }
 
 module.exports = new ToursAuthService();
-

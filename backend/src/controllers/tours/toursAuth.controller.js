@@ -18,7 +18,15 @@ const login = async (req, res) => {
         return sendSuccess(res, result, 'Login successful', 200);
     } catch (error) {
         console.error('Error in login controller:', error);
-        return sendError(res, error.message || 'Login failed', 401);
+
+        if (
+            error.message === 'Invalid email or password' ||
+            error.message === 'Your account has been deactivated. Please contact support.'
+        ) {
+            return sendError(res, error.message, 401);
+        }
+
+        return sendError(res, error.message || 'Login failed', 500);
     }
 };
 
@@ -155,4 +163,3 @@ module.exports = {
     requestPasswordReset,
     resetPassword
 };
-
