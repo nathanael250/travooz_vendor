@@ -14,12 +14,19 @@ const fs = require('fs');
  */
 class UploadConfig {
   constructor() {
+    this.isDevelopment = process.env.NODE_ENV !== 'production';
+    this.developmentUploadsPath = path.resolve(__dirname, '../uploads');
+
     // Get configuration from environment variables
-    this.basePath = process.env.UPLOAD_BASE_PATH || '/var/www/uploads';
+    this.basePath = process.env.UPLOAD_BASE_PATH
+      || (this.isDevelopment ? this.developmentUploadsPath : '/var/www/uploads');
     this.projectName = process.env.PROJECT_NAME || 'travooz';
     
-    // Full upload path: /var/www/uploads/travooz
-    this.uploadRoot = path.join(this.basePath, this.projectName);
+    // In production keep project-name folder separation, but in local
+    // development use backend/uploads directly to match the served files.
+    this.uploadRoot = this.isDevelopment
+      ? this.basePath
+      : path.join(this.basePath, this.projectName);
     
     // Ensure root upload directory exists
     this.ensureDirectoryExists(this.uploadRoot);
@@ -156,7 +163,6 @@ class UploadConfig {
 const uploadConfig = new UploadConfig();
 
 module.exports = uploadConfig;
-
 
 
 

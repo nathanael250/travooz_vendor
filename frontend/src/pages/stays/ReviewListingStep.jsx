@@ -350,7 +350,6 @@ export default function ReviewListingStep() {
               {amenities.minCheckInAge && <p>Minimum check-in age is: {amenities.minCheckInAge}</p>}
               {amenities.checkInTime && <p>Check-in time starts at {amenities.checkInTime}</p>}
               {amenities.checkOutTime && <p>Check-out time is {amenities.checkOutTime}</p>}
-              {amenities.hasFrontDesk === 'yes' && <p>Staffed front desk</p>}
               {amenities.selfCheckInAvailable === 'yes' && <p>Self check-in available - Yes</p>}
               <p>Internet: {amenities.offerInternet === 'yes' ? 'Wi-Fi available' : 'No Wi-Fi'}</p>
               <p>Parking: {amenities.offerParking === 'yes' ? 'Available' : 'Not available'}</p>
@@ -496,4 +495,3 @@ export default function ReviewListingStep() {
     </div>
   );
 }
-

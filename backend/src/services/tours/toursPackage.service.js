@@ -68,6 +68,66 @@ class ToursPackageService {
         try {
             // Ensure price_per_person column exists
             await this.ensurePricePerPersonColumn();
+            await this.ensurePricingCategoryColumns();
+
+            const normalizedAgePricing = Array.isArray(packageData.agePricing)
+                ? packageData.agePricing.filter((row) =>
+                    row
+                    && row.label
+                    && String(row.label).trim() !== ''
+                    && row.minAge !== undefined
+                    && row.minAge !== null
+                    && row.minAge !== ''
+                    && row.maxAge !== undefined
+                    && row.maxAge !== null
+                    && row.maxAge !== ''
+                    && row.price !== undefined
+                    && row.price !== null
+                    && row.price !== ''
+                    && !Number.isNaN(parseFloat(row.price))
+                    && parseFloat(row.price) > 0
+                )
+                : [];
+            const hasAnyAgePricingInput = Array.isArray(packageData.agePricing)
+                && packageData.agePricing.some((row) =>
+                    row
+                    && (
+                        (row.label && String(row.label).trim() !== '')
+                        || (row.minAge !== undefined && row.minAge !== null && row.minAge !== '')
+                        || (row.maxAge !== undefined && row.maxAge !== null && row.maxAge !== '')
+                        || (row.price !== undefined && row.price !== null && row.price !== '')
+                    )
+                );
+            const effectivePricingCategory = (normalizedAgePricing.length > 0 || hasAnyAgePricingInput)
+                ? 'age-based'
+                : (packageData.pricingCategory || packageData.pricing_category || 'same-price');
+            const effectivePricingType = (effectivePricingCategory === 'age-based' || hasAnyAgePricingInput)
+                ? (packageData.pricingType || packageData.pricing_type || 'per-person')
+                : (packageData.pricingType || packageData.pricing_type);
+            const hasWizardScheduleData = Boolean(
+                packageData.availabilityType
+                || packageData.pricingType
+                || packageData.pricing_type
+                || packageData.pricingCategory
+                || packageData.pricing_category
+                || normalizedAgePricing.length > 0
+                || packageData.scheduleName
+                || packageData.schedule_name
+                || packageData.scheduleStartDate
+                || packageData.schedule_start_date
+                || packageData.scheduleEndDate
+                || packageData.schedule_end_date
+                || packageData.scheduleHasEndDate !== undefined
+                || packageData.schedule_has_end_date !== undefined
+                || packageData.weeklySchedule
+                || packageData.weekly_schedule
+                || packageData.scheduleExceptions
+                || packageData.schedule_exceptions
+                || packageData.minParticipants
+                || packageData.maxParticipants
+                || (packageData.pricingTiers && packageData.pricingTiers.length > 0)
+                || (packageData.pricing_tiers && packageData.pricing_tiers.length > 0)
+            );
             
             // Transform frontend camelCase to database snake_case (like stays system does)
             const transformedData = {
@@ -113,8 +173,10 @@ class ToursPackageService {
                 drop_off_type: packageData.dropOffType || packageData.drop_off_type,
                 pickup_transportation: packageData.pickupTransportation || packageData.pickup_transportation,
                 availability_type: packageData.availabilityType || packageData.availability_type,
-                pricing_type: packageData.pricingType || packageData.pricing_type,
-                price_per_person: (packageData.pricePerPerson !== undefined && packageData.pricePerPerson !== null && packageData.pricePerPerson !== '') 
+                pricing_type: effectivePricingType,
+                price_per_person: effectivePricingCategory === 'age-based'
+                    ? null
+                    : (packageData.pricePerPerson !== undefined && packageData.pricePerPerson !== null && packageData.pricePerPerson !== '') 
                     ? packageData.pricePerPerson 
                     : (packageData.price_per_person !== undefined && packageData.price_per_person !== null && packageData.price_per_person !== '') 
                         ? packageData.price_per_person 
@@ -221,7 +283,68 @@ class ToursPackageService {
             }
 
             // Step 5: Availability & Pricing
-            if (packageData.schedules && packageData.schedules.length > 0) {
+            if (hasWizardScheduleData) {
+                // Handle single schedule from the wizard form and prefer it over stale schedules[]
+                // returned from earlier loads of the package.
+                const existingSchedules = await executeQuery(
+                    'SELECT schedule_id FROM tours_package_schedules WHERE package_id = ? LIMIT 1',
+                    [pkgId]
+                );
+                
+                // Format dates to YYYY-MM-DD format before creating schedule
+                const scheduleStartDate = this.formatDateForDB(packageData.scheduleStartDate || packageData.schedule_start_date);
+                const scheduleEndDate = this.formatDateForDB(packageData.scheduleEndDate || packageData.schedule_end_date);
+                
+                const schedule = {
+                    // If schedule exists, use its ID to update instead of creating new
+                    schedule_id: existingSchedules.length > 0 ? existingSchedules[0].schedule_id : null,
+                    schedule_name: packageData.scheduleName || packageData.schedule_name || 'Default Schedule',
+                    start_date: scheduleStartDate,
+                    has_end_date: packageData.scheduleHasEndDate || packageData.schedule_has_end_date || false,
+                    end_date: scheduleEndDate,
+                    weeklySchedule: packageData.weeklySchedule || packageData.weekly_schedule || {},
+                    exceptions: packageData.scheduleExceptions || packageData.schedule_exceptions || [],
+                    // Include pricing category
+                    pricingCategories: effectivePricingCategory
+                        ? (
+                            effectivePricingCategory === 'age-based' && normalizedAgePricing.length > 0
+                                ? normalizedAgePricing.map((row, index) => ({
+                                    category_type: 'age-based',
+                                    type: 'age-based',
+                                    participant_label: row.label,
+                                    min_age: row.minAge !== '' ? parseInt(row.minAge, 10) : null,
+                                    max_age: row.maxAge !== '' ? parseInt(row.maxAge, 10) : null,
+                                    customer_pays: row.price !== '' ? parseFloat(row.price) : null,
+                                    display_order: index
+                                }))
+                                : [{
+                                    category_type: effectivePricingCategory,
+                                    type: effectivePricingCategory
+                                }]
+                        )
+                        : [],
+                    // Include capacity data
+                    capacity: (packageData.minParticipants || packageData.maxParticipants) ? {
+                        min_participants: packageData.minParticipants ? parseInt(packageData.minParticipants) : null,
+                        max_participants: packageData.maxParticipants ? parseInt(packageData.maxParticipants) : null,
+                        exceptions_share_capacity: packageData.exceptionsShareCapacity !== undefined ? packageData.exceptionsShareCapacity : true
+                    } : null,
+                    // Include pricing tiers
+                    pricingTiers: packageData.pricingTiers || packageData.pricing_tiers || []
+                };
+                
+                console.log('📅 Schedule data to save:', {
+                    schedule_name: schedule.schedule_name,
+                    effective_pricing_type: effectivePricingType,
+                    effective_pricing_category: effectivePricingCategory,
+                    pricing_categories_count: schedule.pricingCategories ? schedule.pricingCategories.length : 0,
+                    pricing_categories_sample: schedule.pricingCategories && schedule.pricingCategories.length > 0 ? schedule.pricingCategories[0] : null,
+                    has_pricing_tiers: !!(schedule.pricingTiers && schedule.pricingTiers.length > 0),
+                    pricing_tiers_count: schedule.pricingTiers ? schedule.pricingTiers.length : 0
+                });
+                
+                await this.saveSchedules(pkgId, [schedule]);
+            } else if (packageData.schedules && packageData.schedules.length > 0) {
                 await this.saveSchedules(pkgId, packageData.schedules);
             } else if (packageData.availabilityType || packageData.pricingType || packageData.pricingCategory || 
                        packageData.scheduleName || packageData.schedule_name || 
@@ -250,10 +373,24 @@ class ToursPackageService {
                     weeklySchedule: packageData.weeklySchedule || packageData.weekly_schedule || {},
                     exceptions: packageData.scheduleExceptions || packageData.schedule_exceptions || [],
                     // Include pricing category
-                    pricingCategories: packageData.pricingCategory ? [{
-                        category_type: packageData.pricingCategory,
-                        type: packageData.pricingCategory
-                    }] : [],
+                    pricingCategories: effectivePricingCategory
+                        ? (
+                            effectivePricingCategory === 'age-based' && normalizedAgePricing.length > 0
+                                ? normalizedAgePricing.map((row, index) => ({
+                                    category_type: 'age-based',
+                                    type: 'age-based',
+                                    participant_label: row.label,
+                                    min_age: row.minAge !== '' ? parseInt(row.minAge, 10) : null,
+                                    max_age: row.maxAge !== '' ? parseInt(row.maxAge, 10) : null,
+                                    customer_pays: row.price !== '' ? parseFloat(row.price) : null,
+                                    display_order: index
+                                }))
+                                : [{
+                                    category_type: effectivePricingCategory,
+                                    type: effectivePricingCategory
+                                }]
+                        )
+                        : [],
                     // Include capacity data
                     capacity: (packageData.minParticipants || packageData.maxParticipants) ? {
                         min_participants: packageData.minParticipants ? parseInt(packageData.minParticipants) : null,
@@ -946,7 +1083,12 @@ class ToursPackageService {
                 } : null,
                 pricingCategories: pricingCategories.map(cat => ({
                     category_type: cat.category_type,
-                    type: cat.category_type
+                    type: cat.category_type,
+                    participant_label: cat.participant_label,
+                    min_age: cat.min_age,
+                    max_age: cat.max_age,
+                    customer_pays: cat.customer_pays,
+                    display_order: cat.display_order
                 })),
                 pricingCategory: pricingCategories.length > 0 ? pricingCategories[0].category_type : null,
                 pricingTiers: pricingTiers.map(tier => ({
@@ -1029,11 +1171,16 @@ class ToursPackageService {
             for (const category of pricingCategories) {
                 await executeQuery(
                     `INSERT INTO tours_package_pricing_categories 
-                    (schedule_id, category_type)
-                    VALUES (?, ?)`,
+                    (schedule_id, category_type, participant_label, min_age, max_age, customer_pays, display_order)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)`,
                     [
                         scheduleId,
-                        category.category_type || category.type || 'same-price'
+                        category.category_type || category.type || 'same-price',
+                        category.participant_label || null,
+                        category.min_age !== undefined ? category.min_age : null,
+                        category.max_age !== undefined ? category.max_age : null,
+                        category.customer_pays !== undefined ? category.customer_pays : null,
+                        category.display_order || 0
                     ]
                 );
             }
@@ -1041,13 +1188,82 @@ class ToursPackageService {
             // Single category object
             await executeQuery(
                 `INSERT INTO tours_package_pricing_categories 
-                (schedule_id, category_type)
-                VALUES (?, ?)`,
+                (schedule_id, category_type, participant_label, min_age, max_age, customer_pays, display_order)
+                VALUES (?, ?, ?, ?, ?, ?, ?)`,
                 [
                     scheduleId,
-                    pricingCategories.category_type || pricingCategories.type || 'same-price'
+                    pricingCategories.category_type || pricingCategories.type || 'same-price',
+                    pricingCategories.participant_label || null,
+                    pricingCategories.min_age !== undefined ? pricingCategories.min_age : null,
+                    pricingCategories.max_age !== undefined ? pricingCategories.max_age : null,
+                    pricingCategories.customer_pays !== undefined ? pricingCategories.customer_pays : null,
+                    pricingCategories.display_order || 0
                 ]
             );
+        }
+    }
+
+    async ensurePricingCategoryColumns() {
+        const columnDefinitions = [
+            ['participant_label', 'ALTER TABLE tours_package_pricing_categories ADD COLUMN participant_label VARCHAR(100) NULL'],
+            ['min_age', 'ALTER TABLE tours_package_pricing_categories ADD COLUMN min_age INT NULL'],
+            ['max_age', 'ALTER TABLE tours_package_pricing_categories ADD COLUMN max_age INT NULL'],
+            ['customer_pays', 'ALTER TABLE tours_package_pricing_categories ADD COLUMN customer_pays DECIMAL(10,2) NULL'],
+            ['display_order', 'ALTER TABLE tours_package_pricing_categories ADD COLUMN display_order INT NOT NULL DEFAULT 0']
+        ];
+
+        for (const [columnName, alterSql] of columnDefinitions) {
+            try {
+                await executeQuery(
+                    `SELECT 1
+                     FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE()
+                       AND TABLE_NAME = 'tours_package_pricing_categories'
+                       AND COLUMN_NAME = ?`,
+                    [columnName]
+                ).then(async (result) => {
+                    if (!result || result.length === 0) {
+                        await executeQuery(alterSql);
+                    }
+                });
+            } catch (error) {
+                console.warn(`Could not ensure pricing category column ${columnName}:`, error.message);
+            }
+        }
+
+        try {
+            const uniqueScheduleIndexes = await executeQuery(
+                `SELECT INDEX_NAME
+                 FROM INFORMATION_SCHEMA.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = 'tours_package_pricing_categories'
+                   AND COLUMN_NAME = 'schedule_id'
+                   AND NON_UNIQUE = 0
+                   AND INDEX_NAME <> 'PRIMARY'`
+            );
+
+            for (const index of uniqueScheduleIndexes) {
+                await executeQuery(
+                    `ALTER TABLE tours_package_pricing_categories DROP INDEX ${index.INDEX_NAME}`
+                );
+            }
+
+            const hasNonUniqueScheduleIndex = await executeQuery(
+                `SELECT 1
+                 FROM INFORMATION_SCHEMA.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = 'tours_package_pricing_categories'
+                   AND COLUMN_NAME = 'schedule_id'
+                   AND INDEX_NAME = 'idx_pricing_categories_schedule_id'`
+            );
+
+            if (!hasNonUniqueScheduleIndex || hasNonUniqueScheduleIndex.length === 0) {
+                await executeQuery(
+                    'ALTER TABLE tours_package_pricing_categories ADD INDEX idx_pricing_categories_schedule_id (schedule_id)'
+                );
+            }
+        } catch (error) {
+            console.warn('Could not ensure pricing category indexes:', error.message);
         }
     }
 
@@ -1341,4 +1557,3 @@ class ToursPackageService {
 }
 
 module.exports = new ToursPackageService();
-

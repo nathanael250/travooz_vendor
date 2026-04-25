@@ -2,27 +2,87 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit, MapPin, Clock, DollarSign, Users, Camera, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { getTourPackage } from '../../../services/tourPackageService';
+import { transformApiDataToFormData } from '../../../services/tourPackageService';
+import toast from 'react-hot-toast';
 
-const renderMultilineList = (value) => {
-  const items = (value || '')
+const containsHtml = (value = '') => /<\/?[a-z][\s\S]*>/i.test(value);
+
+const sanitizeRichTextHtml = (value = '') => {
+  if (!value) {
+    return '';
+  }
+
+  if (typeof window === 'undefined' || typeof DOMParser === 'undefined') {
+    return value;
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(value, 'text/html');
+  const allowedTags = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'UL', 'OL', 'LI', 'P', 'BR']);
+
+  const sanitizeNode = (node) => {
+    const childNodes = Array.from(node.childNodes);
+
+    childNodes.forEach((child) => {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        if (!allowedTags.has(child.tagName)) {
+          const fragment = document.createDocumentFragment();
+          while (child.firstChild) {
+            fragment.appendChild(child.firstChild);
+          }
+          child.replaceWith(fragment);
+          sanitizeNode(node);
+          return;
+        }
+
+        Array.from(child.attributes).forEach((attribute) => {
+          child.removeAttribute(attribute.name);
+        });
+
+        sanitizeNode(child);
+      }
+    });
+  };
+
+  sanitizeNode(doc.body);
+  return doc.body.innerHTML;
+};
+
+const normalizeRichTextValue = (value = '') => {
+  if (!value) {
+    return '';
+  }
+
+  if (containsHtml(value)) {
+    return sanitizeRichTextHtml(value);
+  }
+
+  const items = value
     .split('\n')
     .map((item) => item.trim())
     .filter(Boolean);
 
   if (items.length === 0) {
+    return '';
+  }
+
+  return `<ul>${items.map((item) => `<li>${item}</li>`).join('')}</ul>`;
+};
+
+const renderFormattedContent = (value) => {
+  const normalized = normalizeRichTextValue(value);
+
+  if (!normalized) {
     return <p className="text-gray-900 mt-1">N/A</p>;
   }
 
   return (
-    <ul className="mt-2 list-disc space-y-1 pl-5 text-gray-900">
-      {items.map((item, index) => (
-        <li key={`${item}-${index}`}>{item}</li>
-      ))}
-    </ul>
+    <div
+      className="prose prose-sm mt-1 max-w-none text-gray-900 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1"
+      dangerouslySetInnerHTML={{ __html: normalized }}
+    />
   );
 };
-import { transformApiDataToFormData } from '../../../services/tourPackageService';
-import toast from 'react-hot-toast';
 
 // Helper function to build image URLs for both development and production
 const buildImageUrl = (imageUrl) => {
@@ -239,12 +299,12 @@ const ViewTourPackage = () => {
         <div className="grid gap-4 md:grid-cols-2">
           <div className="md:col-span-2">
             <label className="text-sm font-medium text-gray-500">What's Included</label>
-            {renderMultilineList(packageData.whatsIncluded)}
+            {renderFormattedContent(packageData.whatsIncluded)}
           </div>
           {packageData.whatsNotIncluded && (
             <div className="md:col-span-2">
               <label className="text-sm font-medium text-gray-500">What's Not Included</label>
-              {renderMultilineList(packageData.whatsNotIncluded)}
+              {renderFormattedContent(packageData.whatsNotIncluded)}
             </div>
           )}
           <div>
@@ -302,7 +362,7 @@ const ViewTourPackage = () => {
         <div className="grid gap-4 md:grid-cols-2">
           <div className="md:col-span-2">
             <label className="text-sm font-medium text-gray-500">Know Before You Go</label>
-            <p className="text-gray-900 mt-1 whitespace-pre-wrap">{packageData.knowBeforeYouGo || 'N/A'}</p>
+            {renderFormattedContent(packageData.knowBeforeYouGo)}
           </div>
           {packageData.notSuitableFor && packageData.notSuitableFor.length > 0 && (
             <div className="md:col-span-2">
@@ -379,50 +439,44 @@ const ViewTourPackage = () => {
         </div>
       )}
 
-      {/* Step 5: Options */}
+      {/* Step 5: Availability and booking */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <FileText className="h-5 w-5 text-[#3CAF54]" />
-          Step 5: Options
+          Step 5: Availability and booking
         </h2>
         <div className="space-y-6">
-          {/* Option Setup */}
+          {/* Setup */}
           <div>
-            <h3 className="text-md font-semibold text-gray-800 mb-3">Option Setup</h3>
+            <h3 className="text-md font-semibold text-gray-800 mb-3">Setup</h3>
             <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium text-gray-500">Reference Code</label>
-                <p className="text-gray-900 mt-1">{packageData.optionReferenceCode || 'N/A'}</p>
-              </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Max Group Size</label>
                 <p className="text-gray-900 mt-1">{packageData.maxGroupSize || 'N/A'}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Duration Type</label>
-                <p className="text-gray-900 mt-1">{packageData.durationType || 'N/A'}</p>
+                <label className="text-sm font-medium text-gray-500">Languages</label>
+                <p className="text-gray-900 mt-1">{packageData.languages?.length ? packageData.languages.join(', ') : 'N/A'}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Duration Value</label>
-                <p className="text-gray-900 mt-1">{packageData.durationValue || 'N/A'}</p>
+                <label className="text-sm font-medium text-gray-500">Private Activity</label>
+                <p className="text-gray-900 mt-1">{formatBoolean(packageData.isPrivateActivity)}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Wheelchair Accessible</label>
+                <p className="text-gray-900 mt-1">{formatBoolean(packageData.wheelchairAccessible)}</p>
               </div>
             </div>
           </div>
 
-          {/* Meeting Point */}
+          {/* Meeting point or pickup */}
           <div>
-            <h3 className="text-md font-semibold text-gray-800 mb-3">Meeting Point</h3>
+            <h3 className="text-md font-semibold text-gray-800 mb-3">Meeting point or pickup</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="text-sm font-medium text-gray-500">Customer Arrival Type</label>
                 <p className="text-gray-900 mt-1">{packageData.customerArrivalType || 'N/A'}</p>
               </div>
-              {packageData.pickupType && (
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Pickup Type</label>
-                  <p className="text-gray-900 mt-1">{packageData.pickupType}</p>
-                </div>
-              )}
               {packageData.pickupTime && (
                 <div>
                   <label className="text-sm font-medium text-gray-500">Pickup Time</label>
@@ -455,6 +509,22 @@ const ViewTourPackage = () => {
                   <div>
                     <label className="text-sm font-medium text-gray-500">Pricing Category</label>
                     <p className="text-gray-900 mt-1">{packageData.pricingCategory}</p>
+                  </div>
+                )}
+                {packageData.pricingCategory === 'age-based' && packageData.agePricing?.length > 0 && (
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-medium text-gray-500">Age-based Pricing</label>
+                    <div className="mt-2 space-y-2">
+                      {packageData.agePricing.map((row, idx) => (
+                        <div key={`${row.label}-${idx}`} className="p-3 bg-gray-50 rounded-lg flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                          <div>
+                            <p className="text-gray-900 font-medium">{row.label || `Participant type ${idx + 1}`}</p>
+                            <p className="text-sm text-gray-600">Ages {row.minAge || '?'} to {row.maxAge || '?'}</p>
+                          </div>
+                          <p className="text-gray-900 font-medium">{row.price || '0'} RWF</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {packageData.minParticipants && (

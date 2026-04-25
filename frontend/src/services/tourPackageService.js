@@ -201,6 +201,14 @@ export const transformApiDataToFormData = (apiData) => {
     availabilityType: apiData.availability_type || '',
     pricingType: apiData.pricing_type || '',
     pricingCategory: apiData.schedules?.[0]?.pricingCategories?.[0]?.category_type || apiData.schedules?.[0]?.pricingCategories?.[0]?.type || 'same-price',
+    agePricing: (apiData.schedules?.[0]?.pricingCategories || [])
+      .filter(category => (category.category_type || category.type) === 'age-based')
+      .map(category => ({
+        label: category.participant_label || '',
+        minAge: category.min_age !== null && category.min_age !== undefined ? String(category.min_age) : '',
+        maxAge: category.max_age !== null && category.max_age !== undefined ? String(category.max_age) : '',
+        price: category.customer_pays !== null && category.customer_pays !== undefined ? String(category.customer_pays) : ''
+      })),
     schedules: apiData.schedules || [],
     scheduleName: apiData.schedules?.[0]?.schedule_name || '',
     scheduleStartDate: apiData.schedules?.[0]?.start_date || '',

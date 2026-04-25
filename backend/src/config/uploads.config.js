@@ -16,12 +16,22 @@ const fs = require('fs');
  * This allows multiple projects: /var/www/uploads/project_name/
  */
 
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
+// In local development, use the repo-local backend/uploads directory so
+// uploaded files are saved and served from the same place.
+const DEVELOPMENT_UPLOADS_PATH = path.resolve(__dirname, '../../uploads');
+
 // Get configuration from environment variables
-const UPLOAD_BASE_PATH = process.env.UPLOAD_BASE_PATH || '/var/www/uploads';
+const UPLOAD_BASE_PATH = process.env.UPLOAD_BASE_PATH
+  || (isDevelopment ? DEVELOPMENT_UPLOADS_PATH : '/var/www/uploads');
 const PROJECT_NAME = process.env.PROJECT_NAME || 'travooz';
 
-// Full upload path: /var/www/uploads/travooz
-const UPLOADS_BASE_PATH = path.join(UPLOAD_BASE_PATH, PROJECT_NAME);
+// In production keep the project-name folder separation, but in development
+// serve directly from backend/uploads to match the existing local files.
+const UPLOADS_BASE_PATH = isDevelopment
+  ? UPLOAD_BASE_PATH
+  : path.join(UPLOAD_BASE_PATH, PROJECT_NAME);
 
 // Ensure the base uploads directory exists (with proper error handling)
 const ensureBaseDirectory = () => {
@@ -97,4 +107,3 @@ module.exports = {
   get MENU_ITEMS() { return getUploadPath('menu-items'); },
   get CARS() { return getUploadPath('cars'); },
 };
-

@@ -338,37 +338,6 @@ export default function PropertyAmenitiesStep() {
                 </div>
 
                 <div className="space-y-6">
-                  {/* Front Desk */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Is there a front desk at your property?
-                    </label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="hasFrontDesk"
-                          value="yes"
-                          checked={formData.hasFrontDesk === 'yes'}
-                          onChange={handleChange}
-                          className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                        />
-                        <span className="text-sm text-gray-700">Yes</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="hasFrontDesk"
-                          value="no"
-                          checked={formData.hasFrontDesk === 'no'}
-                          onChange={handleChange}
-                          className="w-4 h-4 border-gray-300 text-[#3CAF54] focus:ring-[#3CAF54]"
-                        />
-                        <span className="text-sm text-gray-700">No</span>
-                      </label>
-                    </div>
-                  </div>
-
                   {/* Check-in Time */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -713,4 +682,3 @@ export default function PropertyAmenitiesStep() {
     </div>
   );
 }
-

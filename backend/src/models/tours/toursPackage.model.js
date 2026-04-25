@@ -255,17 +255,53 @@ class ToursPackage {
                 [tourBusinessId]
             );
 
+            const packageIds = results.map((row) => row.package_id).filter(Boolean);
+            let pricingMap = new Map();
+
+            if (packageIds.length > 0) {
+                const placeholders = packageIds.map(() => '?').join(', ');
+                const pricingRows = await executeQuery(
+                    `SELECT
+                        s.package_id,
+                        MIN(pc.customer_pays) AS min_price,
+                        MAX(pc.customer_pays) AS max_price,
+                        MAX(CASE WHEN pc.category_type = 'age-based' THEN 1 ELSE 0 END) AS has_age_based_pricing
+                    FROM tours_package_schedules s
+                    INNER JOIN tours_package_pricing_categories pc ON pc.schedule_id = s.schedule_id
+                    WHERE s.package_id IN (${placeholders})
+                      AND pc.customer_pays IS NOT NULL
+                    GROUP BY s.package_id`,
+                    packageIds
+                );
+
+                pricingMap = new Map(
+                    pricingRows.map((row) => [
+                        row.package_id,
+                        {
+                            min_price: row.min_price !== null ? parseFloat(row.min_price) : null,
+                            max_price: row.max_price !== null ? parseFloat(row.max_price) : null,
+                            has_age_based_pricing: Boolean(row.has_age_based_pricing)
+                        }
+                    ])
+                );
+            }
+
             // Map results to include price_per_person (new simple pricing)
             const packagesWithPricing = results.map((row) => {
                 const pricePerPerson = row.price_per_person ? parseFloat(row.price_per_person) : null;
+                const pricingSummary = pricingMap.get(row.package_id);
+                const minPrice = pricingSummary?.min_price ?? pricePerPerson;
+                const maxPrice = pricingSummary?.max_price ?? pricePerPerson;
+                const displayPrice = pricePerPerson ?? minPrice;
                 
                 return {
                     ...row,
-                    price: pricePerPerson,
+                    price: displayPrice,
                     price_per_person: pricePerPerson,
-                    pricePerPerson: pricePerPerson, // Also include camelCase for frontend compatibility
-                    min_price: pricePerPerson, // For backward compatibility
-                    max_price: pricePerPerson, // For backward compatibility
+                    pricePerPerson: pricePerPerson,
+                    min_price: minPrice,
+                    max_price: maxPrice,
+                    has_age_based_pricing: pricingSummary?.has_age_based_pricing || false,
                     currency: 'RWF'
                 };
             });
@@ -289,6 +325,7 @@ class ToursPackage {
                 packageInstance.pricePerPerson = row.pricePerPerson;
                 packageInstance.min_price = row.min_price;
                 packageInstance.max_price = row.max_price;
+                packageInstance.has_age_based_pricing = row.has_age_based_pricing;
                 packageInstance.currency = row.currency;
                 return packageInstance;
             });
@@ -300,4 +337,3 @@ class ToursPackage {
 }
 
 module.exports = ToursPackage;
-

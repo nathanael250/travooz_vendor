@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Search, X, HelpCircle, Plus, Check } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Search, X, HelpCircle, Plus, Check, Bold, Italic, Underline, List } from 'lucide-react';
 import StaysNavbar from '../../../components/stays/StaysNavbar';
 import StaysFooter from '../../../components/stays/StaysFooter';
 import { saveTourPackage, getTourPackage, transformApiDataToFormData } from '../../../services/tourPackageService';
@@ -44,6 +44,265 @@ const renderMultilineList = (value) => {
         <li key={`${item}-${index}`}>{item}</li>
       ))}
     </ul>
+  );
+};
+
+const createDefaultAgePricing = () => ([
+  { label: 'Adult', minAge: '18', maxAge: '64', price: '' },
+  { label: 'Child', minAge: '3', maxAge: '17', price: '' },
+  { label: 'Senior', minAge: '65', maxAge: '120', price: '' }
+]);
+
+const hasAnyAgePricingInput = (agePricing = []) =>
+  Array.isArray(agePricing)
+  && agePricing.some((row) =>
+    row
+    && (
+      row.label?.trim()
+      || row.minAge !== ''
+      || row.maxAge !== ''
+      || row.price !== ''
+    )
+  );
+
+const hasConfiguredAgePricing = (agePricing = []) =>
+  Array.isArray(agePricing)
+  && agePricing.length > 0
+  && agePricing.every((row) =>
+    row?.label?.trim()
+    && row.minAge !== ''
+    && row.maxAge !== ''
+    && row.price !== ''
+    && parseFloat(row.price) > 0
+  );
+
+const getEffectivePricingCategory = (data) =>
+  (hasAnyAgePricingInput(data?.agePricing) || hasConfiguredAgePricing(data?.agePricing))
+    ? 'age-based'
+    : (data?.pricingCategory || 'same-price');
+
+const containsHtml = (value = '') => /<\/?[a-z][\s\S]*>/i.test(value);
+
+const sanitizeRichTextHtml = (value = '') => {
+  if (!value) {
+    return '';
+  }
+
+  if (typeof window === 'undefined' || typeof DOMParser === 'undefined') {
+    return value;
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(value, 'text/html');
+  const allowedTags = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'UL', 'OL', 'LI', 'P', 'BR']);
+
+  const sanitizeNode = (node) => {
+    const childNodes = Array.from(node.childNodes);
+
+    childNodes.forEach((child) => {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        if (!allowedTags.has(child.tagName)) {
+          const fragment = document.createDocumentFragment();
+          while (child.firstChild) {
+            fragment.appendChild(child.firstChild);
+          }
+          child.replaceWith(fragment);
+          sanitizeNode(node);
+          return;
+        }
+
+        Array.from(child.attributes).forEach((attribute) => {
+          child.removeAttribute(attribute.name);
+        });
+
+        sanitizeNode(child);
+      }
+    });
+  };
+
+  sanitizeNode(doc.body);
+  return doc.body.innerHTML;
+};
+
+const normalizeRichTextValue = (value = '') => {
+  if (!value) {
+    return '';
+  }
+
+  if (containsHtml(value)) {
+    return sanitizeRichTextHtml(value);
+  }
+
+  const lines = value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    return '';
+  }
+
+  return `<ul>${lines.map((line) => `<li>${line}</li>`).join('')}</ul>`;
+};
+
+const getRichTextPlainText = (value = '') => {
+  if (!value) {
+    return '';
+  }
+
+  if (!containsHtml(value)) {
+    return value.trim();
+  }
+
+  if (typeof window === 'undefined' || typeof DOMParser === 'undefined') {
+    return value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(sanitizeRichTextHtml(value), 'text/html');
+  return doc.body.textContent?.replace(/\s+/g, ' ').trim() || '';
+};
+
+const renderFormattedContent = (value) => {
+  const normalized = normalizeRichTextValue(value);
+
+  if (!normalized) {
+    return <span className="text-gray-500">Not provided</span>;
+  }
+
+  return (
+    <div
+      className="mt-1 prose prose-sm max-w-none text-gray-700 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1"
+      dangerouslySetInnerHTML={{ __html: normalized }}
+    />
+  );
+};
+
+const RichTextField = ({
+  label,
+  name,
+  value,
+  onChange,
+  placeholder,
+  required = false,
+  helperText,
+  maxLength = 1000
+}) => {
+  const editorRef = useRef(null);
+  const previousValueRef = useRef('');
+  const normalizedValue = normalizeRichTextValue(value);
+  const plainText = getRichTextPlainText(value);
+
+  useEffect(() => {
+    if (!editorRef.current) {
+      return;
+    }
+
+    if (editorRef.current.innerHTML !== normalizedValue) {
+      editorRef.current.innerHTML = normalizedValue;
+    }
+
+    previousValueRef.current = normalizedValue;
+  }, [normalizedValue]);
+
+  const emitChange = (nextValue) => {
+    previousValueRef.current = nextValue;
+    onChange({
+      target: {
+        name,
+        value: nextValue
+      }
+    });
+  };
+
+  const handleInput = () => {
+    if (!editorRef.current) {
+      return;
+    }
+
+    const sanitized = sanitizeRichTextHtml(editorRef.current.innerHTML);
+    const nextPlainText = getRichTextPlainText(sanitized);
+
+    if (nextPlainText.length > maxLength) {
+      editorRef.current.innerHTML = previousValueRef.current;
+      return;
+    }
+
+    if (sanitized !== editorRef.current.innerHTML) {
+      editorRef.current.innerHTML = sanitized;
+    }
+
+    emitChange(sanitized);
+  };
+
+  const applyCommand = (command) => {
+    editorRef.current?.focus();
+    document.execCommand(command, false);
+    handleInput();
+  };
+
+  const toolbarButtons = [
+    { icon: Bold, label: 'Bold', command: 'bold' },
+    { icon: Italic, label: 'Italic', command: 'italic' },
+    { icon: Underline, label: 'Underline', command: 'underline' },
+    { icon: List, label: 'Bulleted list', command: 'insertUnorderedList' }
+  ];
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <label className="block text-sm font-medium text-gray-700">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+        <HelpCircle className="h-4 w-4 text-gray-400 cursor-pointer" />
+      </div>
+      {helperText && (
+        <p className="text-xs text-gray-600 mb-3">
+          {helperText}
+        </p>
+      )}
+
+      <div className="overflow-hidden rounded-lg border border-gray-300 bg-white focus-within:ring-2 focus-within:ring-[#3CAF54] focus-within:border-transparent">
+        <div className="flex items-center gap-1 border-b border-gray-200 bg-gray-50 px-3 py-2">
+          {toolbarButtons.map(({ icon: Icon, label: buttonLabel, command }) => (
+            <button
+              key={command}
+              type="button"
+              onClick={() => applyCommand(command)}
+              className="rounded-md p-2 text-gray-600 transition-colors hover:bg-white hover:text-gray-900"
+              aria-label={buttonLabel}
+              title={buttonLabel}
+            >
+              <Icon className="h-4 w-4" />
+            </button>
+          ))}
+        </div>
+
+        <div className="relative">
+          {!plainText && (
+            <div className="pointer-events-none absolute left-4 top-3 whitespace-pre-line text-sm text-gray-400">
+              {placeholder}
+            </div>
+          )}
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={handleInput}
+            className="prose prose-sm min-h-[220px] max-w-none px-4 py-3 text-gray-900 outline-none [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1"
+          />
+        </div>
+      </div>
+
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <p className="text-xs text-gray-500">
+          Use the list button to add unordered bullet points quickly.
+        </p>
+        <p className="text-xs text-gray-500">
+          {plainText.length} / {maxLength}
+        </p>
+      </div>
+    </div>
   );
 };
 
@@ -137,6 +396,7 @@ const CreateTourPackage = () => {
     availabilityType: '', // Time slots or Opening hours
     pricingType: '', // Price per person or per group/vehicle
     pricingCategory: 'same-price', // Pricing category: same-price or age-based
+    agePricing: [], // Age-based pricing rows
     schedules: [], // Array of schedule objects
     // Schedule details
     scheduleName: '', // Name of the schedule
@@ -178,6 +438,7 @@ const CreateTourPackage = () => {
   const notSuitableDropdownRef = useRef(null);
   const notAllowedDropdownRef = useRef(null);
   const mandatoryItemsDropdownRef = useRef(null);
+  const suppressStepResetOnLoadRef = useRef(false);
   
   const TOTAL_SUB_STEPS = 4; // Title, Description, Location, Tags
 
@@ -752,32 +1013,36 @@ const CreateTourPackage = () => {
               // Restore completed steps based on data
               const steps = new Set();
               if (transformedData.name && transformedData.category) steps.add(1);
-              if (transformedData.whatsIncluded || transformedData.guideType) steps.add(2);
-              if (transformedData.notSuitableFor.length > 0 || transformedData.knowBeforeYouGo) steps.add(3);
+              if (getRichTextPlainText(transformedData.whatsIncluded) || transformedData.guideType) steps.add(2);
+              if (transformedData.notSuitableFor.length > 0 || getRichTextPlainText(transformedData.knowBeforeYouGo)) steps.add(3);
               if (transformedData.photos.length > 0) steps.add(4);
               if (transformedData.optionReferenceCode || transformedData.availabilityType) steps.add(5);
               setCompletedSteps(steps);
               
-              // Navigate to appropriate step when editing existing package
-              const completedStepsArray = Array.from(steps).sort((a, b) => b - a);
-              if (completedStepsArray.length > 0) {
-                // If all 5 main steps are completed, go to Review step (Step 6)
-                // Otherwise, go to the next incomplete step
-                const allStepsCompleted = steps.has(1) && steps.has(2) && steps.has(3) && steps.has(4) && steps.has(5);
-                const targetStep = allStepsCompleted ? 6 : (completedStepsArray[0] + 1);
-                
-                setCurrentStep(targetStep);
-                
-                // Set appropriate substeps based on the target step
-                if (targetStep === 1) {
-                  setCurrentSubStep(1);
-                } else if (targetStep === 2) {
-                  setCurrentSubStep(1);
-                } else if (targetStep === 5) {
-                  setCurrentSubStep(1);
-                  setAvailabilitySubStep(1);
-                } else if (targetStep === 6) {
-                  // Review step - no substeps needed
+              if (suppressStepResetOnLoadRef.current) {
+                suppressStepResetOnLoadRef.current = false;
+              } else {
+                // Navigate to appropriate step when editing existing package
+                const completedStepsArray = Array.from(steps).sort((a, b) => b - a);
+                if (completedStepsArray.length > 0) {
+                  // If all 5 main steps are completed, go to Review step (Step 6)
+                  // Otherwise, go to the next incomplete step
+                  const allStepsCompleted = steps.has(1) && steps.has(2) && steps.has(3) && steps.has(4) && steps.has(5);
+                  const targetStep = allStepsCompleted ? 6 : (completedStepsArray[0] + 1);
+                  
+                  setCurrentStep(targetStep);
+                  
+                  // Set appropriate substeps based on the target step
+                  if (targetStep === 1) {
+                    setCurrentSubStep(1);
+                  } else if (targetStep === 2) {
+                    setCurrentSubStep(1);
+                  } else if (targetStep === 5) {
+                    setCurrentSubStep(1);
+                    setAvailabilitySubStep(1);
+                  } else if (targetStep === 6) {
+                    // Review step - no substeps needed
+                  }
                 }
               }
               
@@ -871,10 +1136,17 @@ const CreateTourPackage = () => {
   const isPackageComplete = (data) => {
     // Check all required fields from all steps
     const hasBasicInfo = data.name && data.category && data.shortDescription && data.locations && data.locations.length > 0;
-    const hasInclusions = data.whatsIncluded || data.guideType;
-    const hasExtraInfo = data.knowBeforeYouGo || (data.notSuitableFor && data.notSuitableFor.length > 0);
+    const hasInclusions = getRichTextPlainText(data.whatsIncluded) || data.guideType;
+    const hasExtraInfo = getRichTextPlainText(data.knowBeforeYouGo) || (data.notSuitableFor && data.notSuitableFor.length > 0);
     const hasPhotos = data.photos && data.photos.length >= MIN_PHOTOS;
-    const hasOptions = data.availabilityType && data.pricingType && data.pricePerPerson && parseFloat(data.pricePerPerson) > 0;
+    const effectivePricingCategory = getEffectivePricingCategory(data);
+    const hasAgeBasedPrices = hasConfiguredAgePricing(data.agePricing);
+    const hasOptions = data.availabilityType
+      && data.pricingType
+      && (
+        (effectivePricingCategory === 'age-based' && hasAgeBasedPrices) ||
+        (effectivePricingCategory !== 'age-based' && data.pricePerPerson && parseFloat(data.pricePerPerson) > 0)
+      );
     
     return hasBasicInfo && hasInclusions && hasExtraInfo && hasPhotos && hasOptions;
   };
@@ -920,13 +1192,14 @@ const CreateTourPackage = () => {
       });
 
       // Check if package is complete and set status accordingly
-      const packageComplete = isPackageComplete(formData);
+      const normalizedFormData = buildNormalizedPackageData(formData);
+      const packageComplete = isPackageComplete(normalizedFormData);
       const statusToSave = packageComplete ? 'active' : (formData.status || 'draft');
 
       // Combine existing photos with new File objects
       // File objects will be sent via FormData, existing photos as JSON
       const dataToSave = {
-        ...formData,
+        ...buildNormalizedPackageData(normalizedFormData, statusToSave),
         photos: [...existingPhotos, ...photoFiles], // Mix of existing photo objects and File objects
         tour_business_id: businessId,
         status: statusToSave
@@ -954,6 +1227,7 @@ const CreateTourPackage = () => {
         // This prevents infinite loops when the backend creates a new package
         if (newPackageId && newPackageId !== packageId && !isSaving) {
           console.log('🔄 Package ID changed:', { old: packageId, new: newPackageId });
+          suppressStepResetOnLoadRef.current = true;
           // Use a timeout to prevent immediate re-triggering of auto-save
           setTimeout(() => {
             window.history.replaceState({}, '', `/tours/dashboard/packages/create/${newPackageId}?businessId=${businessId}`);
@@ -1001,6 +1275,17 @@ const CreateTourPackage = () => {
     }
   };
 
+  const buildNormalizedPackageData = (data, statusOverride) => {
+    const effectivePricingCategory = getEffectivePricingCategory(data);
+
+    return {
+      ...data,
+      pricingCategory: effectivePricingCategory,
+      pricePerPerson: effectivePricingCategory === 'age-based' ? '' : data.pricePerPerson,
+      status: statusOverride ?? data.status
+    };
+  };
+
   // Navigate to a specific step
   const navigateToStep = (step) => {
     // Only allow navigation to completed steps or current step
@@ -1024,9 +1309,9 @@ const CreateTourPackage = () => {
       case 1:
         return data.name && data.category && data.shortDescription && data.locations.length > 0;
       case 2:
-        return data.whatsIncluded || data.guideType;
+        return getRichTextPlainText(data.whatsIncluded) || data.guideType;
       case 3:
-        return data.knowBeforeYouGo || data.notSuitableFor.length > 0;
+        return getRichTextPlainText(data.knowBeforeYouGo) || data.notSuitableFor.length > 0;
       case 4:
         return data.photos.length >= MIN_PHOTOS;
       case 5:
@@ -1046,6 +1331,28 @@ const CreateTourPackage = () => {
     }
     setCompletedSteps(newCompleted);
   }, [formData, isStepCompleted]);
+
+  useEffect(() => {
+    if (formData.pricingCategory === 'age-based' && !hasAnyAgePricingInput(formData.agePricing)) {
+      const defaultRows = createDefaultAgePricing();
+      const sameShape =
+        Array.isArray(formData.agePricing)
+        && formData.agePricing.length === defaultRows.length
+        && formData.agePricing.every((row, index) =>
+          row?.label === defaultRows[index].label
+          && row?.minAge === defaultRows[index].minAge
+          && row?.maxAge === defaultRows[index].maxAge
+          && row?.price === defaultRows[index].price
+        );
+
+      if (!sameShape) {
+        setFormData((prev) => ({
+          ...prev,
+          agePricing: defaultRows
+        }));
+      }
+    }
+  }, [formData.pricingCategory, formData.agePricing]);
 
   const categories = [
     'Adventure Tours',
@@ -1181,7 +1488,7 @@ const CreateTourPackage = () => {
     } else if (currentStep === 2) {
       // Handle sub-steps within Step 2: Inclusions
       if (currentSubStep === 1) {
-        if (!formData.whatsIncluded.trim()) {
+        if (!getRichTextPlainText(formData.whatsIncluded)) {
           alert('Please enter what\'s included');
           return;
         }
@@ -1195,9 +1502,6 @@ const CreateTourPackage = () => {
         setCurrentSubStep(3);
         setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       } else if (currentSubStep === 3) {
-        setCurrentSubStep(4);
-        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
-      } else if (currentSubStep === 4) {
         setCurrentStep(3);
         setCurrentSubStep(1);
         setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
@@ -1336,7 +1640,7 @@ const CreateTourPackage = () => {
       }
     } else if (currentStep === 3) {
       setCurrentStep(2);
-      setCurrentSubStep(4); // Go back to last substep of Step 2
+      setCurrentSubStep(3); // Go back to last substep of Step 2
       setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
     } else if (currentStep === 4) {
       setCurrentStep(3);
@@ -1387,10 +1691,10 @@ const CreateTourPackage = () => {
                 <span className="text-sm font-medium" style={{ color: '#1f6f31' }}>
                   Step {currentStep} of 6
                   {currentStep === 1 && ` - Basic Informations (Substep ${currentSubStep} of 4)`}
-                  {currentStep === 2 && ` - Inclusions (Substep ${currentSubStep} of 4)`}
-                  {currentStep === 5 && currentSubStep === 1 && ` - Options (Substep ${currentSubStep} of 3: Option setup)`}
-                  {currentStep === 5 && currentSubStep === 2 && ` - Options (Substep ${currentSubStep} of 3: Meeting point or pickup)`}
-                  {currentStep === 5 && currentSubStep === 3 && ` - Options (Substep ${currentSubStep} of 3: Availability & Pricing - Step ${availabilitySubStep} of 4)`}
+                  {currentStep === 2 && ` - Inclusions (Substep ${currentSubStep} of 3)`}
+                  {currentStep === 5 && currentSubStep === 1 && ` - Availability and booking (Substep ${currentSubStep} of 3: Setup)`}
+                  {currentStep === 5 && currentSubStep === 2 && ` - Availability and booking (Substep ${currentSubStep} of 3: Meeting point or pickup)`}
+                  {currentStep === 5 && currentSubStep === 3 && ` - Availability and booking (Substep ${currentSubStep} of 3: Availability & Pricing - Step ${availabilitySubStep} of 4)`}
                   {currentStep === 6 && ` - Review & Submit`}
                 </span>
                 <span className="text-xs text-gray-500">{Math.round((currentStep / 6) * 100)}%</span>
@@ -1470,10 +1774,10 @@ const CreateTourPackage = () => {
               <p className="text-center text-sm font-medium hidden md:block" style={{ color: '#1f6f31' }}>
                 Step {currentStep} of 6
                 {currentStep === 1 && ` - Basic Informations (Substep ${currentSubStep} of 4)`}
-                {currentStep === 2 && ` - Inclusions (Substep ${currentSubStep} of 4)`}
-                {currentStep === 5 && currentSubStep === 1 && ` - Options (Substep ${currentSubStep} of 3: Option setup)`}
-                {currentStep === 5 && currentSubStep === 2 && ` - Options (Substep ${currentSubStep} of 3: Meeting point or pickup)`}
-                {currentStep === 5 && currentSubStep === 3 && ` - Options (Substep ${currentSubStep} of 3: Availability & Pricing - Step ${availabilitySubStep} of 4)`}
+                {currentStep === 2 && ` - Inclusions (Substep ${currentSubStep} of 3)`}
+                {currentStep === 5 && currentSubStep === 1 && ` - Availability and booking (Substep ${currentSubStep} of 3: Setup)`}
+                {currentStep === 5 && currentSubStep === 2 && ` - Availability and booking (Substep ${currentSubStep} of 3: Meeting point or pickup)`}
+                {currentStep === 5 && currentSubStep === 3 && ` - Availability and booking (Substep ${currentSubStep} of 3: Availability & Pricing - Step ${availabilitySubStep} of 4)`}
                 {currentStep === 6 && ` - Review & Submit`}
               </p>
               {(isSaving || lastSaved) && (
@@ -1984,54 +2288,27 @@ const CreateTourPackage = () => {
 
                   <div className="space-y-6">
                     {/* What's included */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <label className="block text-sm font-medium text-gray-700">
-                          What's included? <span className="text-red-500">*</span>
-                        </label>
-                        <HelpCircle className="h-4 w-4 text-gray-400 cursor-pointer" />
-                      </div>
-                      <p className="text-xs text-gray-600 mb-2">
-                        List everything that's included in the price. Start a new line for each one. Ensure it's consistent with your descriptions and highlights.
-                      </p>
-                      <textarea
-                        name="whatsIncluded"
-                        value={formData.whatsIncluded}
-                        onChange={handleChange}
-                        placeholder="Professional tour guide with local insights&#10;Transportation between major sites (if applicable)&#10;Entrance fees to selected landmarks and attractions"
-                        rows="8"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent resize-y"
-                        maxLength={1000}
-                      ></textarea>
-                      <p className="text-xs text-gray-500 mt-1 text-right">
-                        {formData.whatsIncluded.length} / 1000
-                      </p>
-                    </div>
+                    <RichTextField
+                      label="What's included?"
+                      name="whatsIncluded"
+                      value={formData.whatsIncluded}
+                      onChange={handleChange}
+                      required
+                      maxLength={1000}
+                      helperText="List everything that's included in the price. Add one bullet per item so it's easy for customers to scan."
+                      placeholder={'Professional tour guide with local insights\nTransportation between major sites (if applicable)\nEntrance fees to selected landmarks and attractions'}
+                    />
 
                     {/* What's not included */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <label className="block text-sm font-medium text-gray-700">
-                          What's not included? (optional)
-                        </label>
-                        <HelpCircle className="h-4 w-4 text-gray-400 cursor-pointer" />
-                      </div>
-                      <p className="text-xs text-gray-600 mb-2">
-                        Name any optional fees or charges that customers may encounter during the activity. This allows customers to know what to expect.
-                      </p>
-                      <textarea
-                        name="whatsNotIncluded"
-                        value={formData.whatsNotIncluded}
-                        onChange={handleChange}
-                        placeholder="Personal expenses such as souvenirs or gifts&#10;Optional activities not listed in the itinerary&#10;Gratuities for guides or drivers"
-                        rows="8"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent resize-y"
-                        maxLength={1000}
-                      ></textarea>
-                      <p className="text-xs text-gray-500 mt-1 text-right">
-                        {formData.whatsNotIncluded.length} / 1000
-                      </p>
-                    </div>
+                    <RichTextField
+                      label="What's not included? (optional)"
+                      name="whatsNotIncluded"
+                      value={formData.whatsNotIncluded}
+                      onChange={handleChange}
+                      maxLength={1000}
+                      helperText="Name any optional fees or charges that customers may encounter during the activity."
+                      placeholder={'Personal expenses such as souvenirs or gifts\nOptional activities not listed in the itinerary\nGratuities for guides or drivers'}
+                    />
 
                     {/* Information box */}
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
@@ -2145,13 +2422,13 @@ const CreateTourPackage = () => {
                 </>
               )}
 
-              {/* Substep 3: Food & drinks */}
+              {/* Substep 3: Food, drinks & transportation */}
               {currentSubStep === 3 && (
                 <>
                   <div className="mb-6">
                     <div className="flex items-center gap-2 mb-2">
                       <h2 className="text-xl font-semibold text-gray-900">
-                        Food & drinks
+                        Food, drinks & transportation
                       </h2>
                     </div>
                   </div>
@@ -2267,29 +2544,20 @@ const CreateTourPackage = () => {
                           </div>
                         )}
                       </div>
-                  </div>
-                </>
-              )}
+                    <div className="space-y-6 border-t pt-6">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          Transportation
+                        </h3>
+                        <HelpCircle className="h-5 w-5 text-gray-400 cursor-pointer" />
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Is transportation used during this activity?
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Provide the main transportation type(s) that customers use during the experience, like a Segway or bike. Transportation used for pickup and drop-off will be added later.
+                      </p>
 
-              {/* Substep 4: Transportation */}
-              {currentSubStep === 4 && (
-                <>
-                  <div className="mb-6">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h2 className="text-xl font-semibold text-gray-900">
-                        Transportation
-                      </h2>
-                      <HelpCircle className="h-5 w-5 text-gray-400 cursor-pointer" />
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      Is transportation used during this activity?
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Provide the main transportation type(s) that customers use during the experience, like a Segway or bike. Transportation used for pickup and drop-off will be added later.
-                    </p>
-                  </div>
-
-                  <div className="space-y-6">
                     <div className="flex items-center gap-4">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -2361,9 +2629,9 @@ const CreateTourPackage = () => {
                               // Land Transportation
                               'Walking', 'Hiking', 'Trekking', 'Running', 'Jogging',
                               'Bicycle', 'Bike', 'Mountain Bike', 'E-bike', 'Electric Bike',
-                              'Scooter', 'E-scooter', 'Electric Scooter', 'Segway',
+                              'Segway',
                               'Car', 'SUV', 'Van', 'Minivan', 'Bus', 'Coach', 'Shuttle',
-                              'Motorcycle', 'Scooter (Motorcycle)', 'Tuk-tuk', 'Rickshaw',
+                              'Motorcycle', 'Tuk-tuk', 'Rickshaw',
                               'Taxi', 'Ride Share', 'Private Vehicle', 'Luxury Car',
                               
                               // Water Transportation
@@ -2375,7 +2643,7 @@ const CreateTourPackage = () => {
                               'Helicopter', 'Hot Air Balloon', 'Airplane', 'Small Aircraft',
                               
                               // Public Transportation
-                              'Metro', 'Subway', 'Train', 'Railway', 'Tram', 'Trolley',
+                              'Metro', 'Subway', 'Railway', 'Tram', 'Trolley',
                               'Cable Car', 'Funicular', 'Gondola', 'Chairlift',
                               
                               // Special/Unique
@@ -2386,8 +2654,8 @@ const CreateTourPackage = () => {
 
                             // Popular transportation types to show initially
                             const popularTransportationTypes = [
-                              'Walking', 'Bicycle', 'Car', 'Bus', 'Boat', 'Train',
-                              'Motorcycle', 'Scooter', 'Taxi', 'Helicopter'
+                              'Walking', 'Bicycle', 'Car', 'Bus', 'Boat',
+                              'Motorcycle', 'Taxi', 'Helicopter'
                             ];
 
                             // Filter transportation types based on search
@@ -2461,33 +2729,7 @@ const CreateTourPackage = () => {
                       </div>
                     )}
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Do customers travel to a different city/town during the activity?
-                      </label>
-                      <div className="space-y-3">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="travelToDifferentCity"
-                            checked={formData.travelToDifferentCity}
-                            onChange={() => setFormData(prev => ({ ...prev, travelToDifferentCity: true }))}
-                          />
-                          <span className="text-gray-700">Yes</span>
-                          <span className="text-xs text-gray-500 ml-2">Example: going from Paris to Versailles</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="travelToDifferentCity"
-                            checked={!formData.travelToDifferentCity}
-                            onChange={() => setFormData(prev => ({ ...prev, travelToDifferentCity: false }))}
-                          />
-                          <span className="text-gray-700">No</span>
-                          <span className="text-xs text-gray-500 ml-2">Example: going from one part of Paris to another part of Paris</span>
-                        </label>
-                      </div>
-                    </div>
+                  </div>
                   </div>
                 </>
               )}
@@ -2518,7 +2760,7 @@ const CreateTourPackage = () => {
                     onMouseEnter={(e) => e.target.style.backgroundColor = '#2d8f42'}
                     onMouseLeave={(e) => e.target.style.backgroundColor = '#3CAF54'}
                   >
-                    <span>{currentSubStep === 4 ? 'Continue' : 'Next'}</span>
+                    <span>{currentSubStep === 3 ? 'Continue' : 'Next'}</span>
                     <ArrowRight className="h-4 w-4" />
                   </button>
                 </div>
@@ -2829,24 +3071,15 @@ const CreateTourPackage = () => {
 
                 {/* Know before you go */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Know before you go (optional)
-                  </label>
-                  <p className="text-xs text-gray-600 mb-2">
-                    Add anything else that customers should know before making a booking.
-                  </p>
-                  <textarea
+                  <RichTextField
+                    label="Know before you go (optional)"
                     name="knowBeforeYouGo"
                     value={formData.knowBeforeYouGo}
                     onChange={handleChange}
-                    placeholder="Please insert your text in English"
-                    rows="6"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent resize-y"
                     maxLength={1000}
-                  ></textarea>
-                  <p className="text-xs text-gray-500 mt-1 text-right">
-                    {formData.knowBeforeYouGo.length} / 1000
-                  </p>
+                    helperText="Add anything else that customers should know before making a booking."
+                    placeholder={'The canopy walkway and some trails require a moderate level of fitness.\nWeather in rainforest areas can be unpredictable, so rain gear is recommended.\nActivities may start early in the morning for the best wildlife viewing.'}
+                  />
                 </div>
 
                 {/* Emergency contact */}
@@ -2892,27 +3125,6 @@ const CreateTourPackage = () => {
                   </p>
                 </div>
 
-                {/* Voucher information */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    What information needs to appear on the voucher? (optional)
-                  </label>
-                  <p className="text-xs text-gray-600 mb-2">
-                    Provide any other logistical information that hasn't been covered elsewhere.
-                  </p>
-                  <textarea
-                    name="voucherInformation"
-                    value={formData.voucherInformation}
-                    onChange={handleChange}
-                    placeholder="Please insert your text in English"
-                    rows="6"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent resize-y"
-                    maxLength={1000}
-                  ></textarea>
-                  <p className="text-xs text-gray-500 mt-1 text-right">
-                    {formData.voucherInformation.length} / 1000
-                  </p>
-                </div>
               </div>
 
               {/* Navigation Buttons */}
@@ -3206,7 +3418,7 @@ const CreateTourPackage = () => {
             </div>
           )}
 
-          {/* Step 5: Options - Sub-steps */}
+          {/* Step 5: Availability and booking - Sub-steps */}
           {currentStep === 5 && (
             <div className="bg-white rounded-lg border border-gray-200 p-8 shadow-sm">
               {/* Substep 1: Option setup */}
@@ -3215,35 +3427,13 @@ const CreateTourPackage = () => {
                   <div className="mb-6">
                     <div className="flex items-center gap-2 mb-2">
                       <h2 className="text-xl font-semibold text-gray-900">
-                        Option setup
+                        Availability and booking
                       </h2>
                       <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">Customizable</span>
                     </div>
                   </div>
 
                   <div className="space-y-6">
-                    {/* Option reference code */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Option reference code (optional)
-                      </label>
-                      <p className="text-xs text-gray-600 mb-2">
-                        Provide a reference code to help you keep track of which option the customer has booked. This is for your own records and won't be seen by the customer.
-                      </p>
-                      <input
-                        type="text"
-                        name="optionReferenceCode"
-                        value={formData.optionReferenceCode}
-                        onChange={handleChange}
-                        placeholder="e.g., default"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent"
-                        maxLength={20}
-                      />
-                      <p className="text-xs text-gray-500 mt-1 text-right">
-                        {formData.optionReferenceCode.length} / 20
-                      </p>
-                    </div>
-
                     {/* Maximum group size */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -3450,80 +3640,6 @@ const CreateTourPackage = () => {
                       </div>
                     </div>
 
-                    {/* Duration or validity */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          Duration or validity
-                        </h3>
-                        <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">Customizable</span>
-                      </div>
-                      <p className="text-xs text-gray-600 mb-4">
-                        Some activities start and stop at specific times, like a tour. Others allow customers to use their ticket anytime within a certain amount of time, like a 2-day city pass.
-                      </p>
-                      <div className="space-y-3">
-                        <label className="flex items-start gap-3 p-4 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                          <input
-                            type="radio"
-                            name="durationType"
-                            value="duration"
-                            checked={formData.durationType === 'duration'}
-                            onChange={(e) => setFormData(prev => ({ ...prev, durationType: e.target.value }))}
-                            className="mt-1"
-                          />
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-900">It lasts for a specific amount of time (duration)</div>
-                            <div className="text-sm text-gray-600 mt-1">Includes transfer time. Example: 3-hour guided tour</div>
-                          </div>
-                        </label>
-                        <label className="flex items-start gap-3 p-4 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                          <input
-                            type="radio"
-                            name="durationType"
-                            value="validity"
-                            checked={formData.durationType === 'validity'}
-                            onChange={(e) => setFormData(prev => ({ ...prev, durationType: e.target.value }))}
-                            className="mt-1"
-                          />
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-900">Customers can use their ticket anytime during a certain period (validity)</div>
-                            <div className="text-sm text-gray-600 mt-1">Example: museum tickets that can be used anytime during opening hours</div>
-                          </div>
-                        </label>
-                      </div>
-                      {formData.durationType && (
-                        <div className="mt-4">
-                          <select
-                            name="durationValue"
-                            value={formData.durationValue}
-                            onChange={handleChange}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent"
-                          >
-                            <option value="">Choose one...</option>
-                            {formData.durationType === 'duration' ? (
-                              <>
-                                <option value="1-hour">1 hour</option>
-                                <option value="2-hours">2 hours</option>
-                                <option value="3-hours">3 hours</option>
-                                <option value="4-hours">4 hours</option>
-                                <option value="half-day">Half day (4-6 hours)</option>
-                                <option value="full-day">Full day (6-8 hours)</option>
-                                <option value="multi-day">Multi-day</option>
-                              </>
-                            ) : (
-                              <>
-                                <option value="1-day">1 day</option>
-                                <option value="2-days">2 days</option>
-                                <option value="3-days">3 days</option>
-                                <option value="7-days">7 days</option>
-                                <option value="14-days">14 days</option>
-                                <option value="30-days">30 days</option>
-                              </>
-                            )}
-                          </select>
-                        </div>
-                      )}
-                    </div>
                   </div>
 
                   {/* Navigation Buttons */}
@@ -3615,101 +3731,6 @@ const CreateTourPackage = () => {
                     {formData.customerArrivalType === 'pickup' && (
                       <div className="space-y-6 border-t pt-6">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-3">
-                            Where will you pick up your customers?
-                          </label>
-                          <div className="space-y-3">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="pickupType"
-                                value="any-address"
-                                checked={formData.pickupType === 'any-address'}
-                                onChange={(e) => setFormData(prev => ({ ...prev, pickupType: e.target.value }))}
-                              />
-                              <span className="text-gray-700">From any address within a specific area</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="pickupType"
-                                value="defined-locations"
-                                checked={formData.pickupType === 'defined-locations'}
-                                onChange={(e) => setFormData(prev => ({ ...prev, pickupType: e.target.value }))}
-                              />
-                              <span className="text-gray-700">From a defined list of pickup locations (hotels, airports, etc.)</span>
-                            </label>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-3">
-                            When do you pick up your customers?
-                          </label>
-                          <div className="space-y-3">
-                            <label className="flex items-start gap-3 p-4 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                              <input
-                                type="radio"
-                                name="pickupTiming"
-                                value="same-time"
-                                checked={formData.pickupTiming === 'same-time'}
-                                onChange={(e) => setFormData(prev => ({ ...prev, pickupTiming: e.target.value }))}
-                                className="mt-1"
-                              />
-                              <div className="flex-1">
-                                <div className="font-medium text-gray-900">At the activity start time</div>
-                                <div className="text-sm text-gray-600 mt-1">Pickup and activity are at the same time</div>
-                              </div>
-                            </label>
-                            <label className="flex items-start gap-3 p-4 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                              <input
-                                type="radio"
-                                name="pickupTiming"
-                                value="before-activity"
-                                checked={formData.pickupTiming === 'before-activity'}
-                                onChange={(e) => setFormData(prev => ({ ...prev, pickupTiming: e.target.value }))}
-                                className="mt-1"
-                              />
-                              <div className="flex-1">
-                                <div className="font-medium text-gray-900">Before the activity starts</div>
-                                <div className="text-sm text-gray-600 mt-1">Example: pickup is at 8:00 AM, activity starts at 9:00 AM</div>
-                              </div>
-                            </label>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            When can the customer expect your final pickup confirmation?
-                          </label>
-                          <p className="text-xs text-gray-600 mb-3">
-                            We'll inform the customer about your suggested pickup details but you're responsible to confirm the exact pickup details to each customer individually.
-                          </p>
-                          <div className="space-y-3">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="pickupConfirmation"
-                                value="day-before"
-                                checked={formData.pickupConfirmation === 'day-before'}
-                                onChange={(e) => setFormData(prev => ({ ...prev, pickupConfirmation: e.target.value }))}
-                              />
-                              <span className="text-gray-700">The day before the activity takes place</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="pickupConfirmation"
-                                value="after-selection"
-                                checked={formData.pickupConfirmation === 'after-selection'}
-                                onChange={(e) => setFormData(prev => ({ ...prev, pickupConfirmation: e.target.value }))}
-                              />
-                              <span className="text-gray-700">Directly after customer selects pickup location</span>
-                            </label>
-                          </div>
-                        </div>
-
-                        <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             When do you usually pick up your customers?
                           </label>
@@ -3749,47 +3770,6 @@ const CreateTourPackage = () => {
                           <p className="text-xs text-gray-500 mt-1 text-right">
                             {formData.pickupDescription.length} / 1000
                           </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Drop-off */}
-                    {formData.customerArrivalType === 'pickup' && (
-                      <div className="border-t pt-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-3">
-                          Where will you drop off the customer at the end of the activity?
-                        </label>
-                        <div className="space-y-3">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="dropOffType"
-                              value="same-place"
-                              checked={formData.dropOffType === 'same-place'}
-                              onChange={(e) => setFormData(prev => ({ ...prev, dropOffType: e.target.value }))}
-                            />
-                            <span className="text-gray-700">At the same place you picked them up</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="dropOffType"
-                              value="different-place"
-                              checked={formData.dropOffType === 'different-place'}
-                              onChange={(e) => setFormData(prev => ({ ...prev, dropOffType: e.target.value }))}
-                            />
-                            <span className="text-gray-700">At a different place</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="dropOffType"
-                              value="no-dropoff"
-                              checked={formData.dropOffType === 'no-dropoff'}
-                              onChange={(e) => setFormData(prev => ({ ...prev, dropOffType: e.target.value }))}
-                            />
-                            <span className="text-gray-700">No drop-off service, the customer stays at the site or destination</span>
-                          </label>
                         </div>
                       </div>
                     )}
@@ -3991,21 +3971,6 @@ const CreateTourPackage = () => {
                               </div>
                             </label>
                           </div>
-                        </div>
-
-                        {/* Name your schedule */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Name your schedule
-                          </label>
-                          <input
-                            type="text"
-                            name="scheduleName"
-                            value={formData.scheduleName}
-                            onChange={handleChange}
-                            placeholder="E.g. Summer, Weekends price..."
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent"
-                          />
                         </div>
 
                         {/* Starting date */}
@@ -4385,7 +4350,7 @@ const CreateTourPackage = () => {
                                 name="pricingCategory"
                                 value="same-price"
                                 checked={formData.pricingCategory === 'same-price'}
-                                onChange={(e) => setFormData(prev => ({ ...prev, pricingCategory: e.target.value }))}
+                                onChange={(e) => setFormData(prev => ({ ...prev, pricingCategory: e.target.value, agePricing: [] }))}
                                 className="mt-1"
                               />
                               <div className="flex-1">
@@ -4398,7 +4363,11 @@ const CreateTourPackage = () => {
                                 name="pricingCategory"
                                 value="age-based"
                                 checked={formData.pricingCategory === 'age-based'}
-                                onChange={(e) => setFormData(prev => ({ ...prev, pricingCategory: e.target.value }))}
+                                onChange={(e) => setFormData(prev => ({
+                                  ...prev,
+                                  pricingCategory: e.target.value,
+                                  agePricing: hasAnyAgePricingInput(prev.agePricing) ? prev.agePricing : createDefaultAgePricing()
+                                }))}
                                 className="mt-1"
                               />
                               <div className="flex-1">
@@ -4411,6 +4380,93 @@ const CreateTourPackage = () => {
                               💡 Offering multiple participant types can boost bookings by up to 3x compared with activities with only one participant type.
                             </p>
                           </div>
+
+                          {formData.pricingCategory === 'age-based' && (
+                            <div className="mt-6 border border-gray-200 rounded-xl p-5 space-y-4">
+                              <div className="flex items-center justify-between gap-4">
+                                <div>
+                                  <h4 className="text-base font-semibold text-gray-900">Participant types</h4>
+                                  <p className="text-sm text-gray-600">Set the participant labels and age ranges you want to price separately.</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setFormData(prev => ({
+                                    ...prev,
+                                    agePricing: [...prev.agePricing, { label: '', minAge: '', maxAge: '', price: '' }]
+                                  }))}
+                                  className="px-3 py-2 text-sm text-[#3CAF54] hover:bg-green-50 rounded-lg transition-colors font-medium flex items-center gap-2"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                  Add type
+                                </button>
+                              </div>
+
+                              <div className="space-y-4">
+                                {formData.agePricing.map((row, index) => (
+                                  <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end border border-gray-100 rounded-lg p-4 bg-gray-50">
+                                    <div className="md:col-span-5">
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">Participant type</label>
+                                      <input
+                                        type="text"
+                                        value={row.label}
+                                        onChange={(e) => setFormData(prev => ({
+                                          ...prev,
+                                          agePricing: prev.agePricing.map((item, itemIndex) =>
+                                            itemIndex === index ? { ...item, label: e.target.value } : item
+                                          )
+                                        }))}
+                                        placeholder="Adult"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent"
+                                      />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">Min age</label>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={row.minAge}
+                                        onChange={(e) => setFormData(prev => ({
+                                          ...prev,
+                                          agePricing: prev.agePricing.map((item, itemIndex) =>
+                                            itemIndex === index ? { ...item, minAge: e.target.value } : item
+                                          )
+                                        }))}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent"
+                                      />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">Max age</label>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={row.maxAge}
+                                        onChange={(e) => setFormData(prev => ({
+                                          ...prev,
+                                          agePricing: prev.agePricing.map((item, itemIndex) =>
+                                            itemIndex === index ? { ...item, maxAge: e.target.value } : item
+                                          )
+                                        }))}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent"
+                                      />
+                                    </div>
+                                    <div className="md:col-span-3 flex justify-end">
+                                      <button
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({
+                                          ...prev,
+                                          agePricing: prev.agePricing.filter((_, itemIndex) => itemIndex !== index)
+                                        }))}
+                                        disabled={formData.agePricing.length === 1}
+                                        className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -4474,9 +4530,78 @@ const CreateTourPackage = () => {
                             Set the price for your activity
                           </h3>
                           <p className="text-sm text-gray-600 mb-6">
-                            Enter a single price per person. This price will apply to all participants regardless of group size.
+                            {formData.pricingCategory === 'age-based'
+                              ? 'Set a price for each participant type you configured in the previous step.'
+                              : 'Enter a single price per person. This price will apply to all participants regardless of group size.'}
                           </p>
-                          
+
+                          {formData.pricingCategory === 'age-based' ? (
+                            <div className="space-y-4">
+                              {formData.agePricing.map((row, index) => (
+                                <div key={index} className="border border-gray-200 rounded-xl p-4">
+                                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+                                    <div>
+                                      <h4 className="text-base font-semibold text-gray-900">{row.label || `Participant type ${index + 1}`}</h4>
+                                      <p className="text-sm text-gray-600">
+                                        Ages {row.minAge || '?'} to {row.maxAge || '?'}
+                                      </p>
+                                    </div>
+                                    <div className="w-full md:w-72">
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Price (RWF)
+                                      </label>
+                                      <div className="flex items-center gap-3">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          placeholder="0.00"
+                                          value={row.price || ''}
+                                          onChange={(e) => setFormData(prev => ({
+                                            ...prev,
+                                            agePricing: prev.agePricing.map((item, itemIndex) =>
+                                              itemIndex === index ? { ...item, price: e.target.value } : item
+                                            )
+                                          }))}
+                                          className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3CAF54] focus:border-transparent"
+                                        />
+                                        <span className="text-sm font-medium text-gray-700">RWF</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {commission && (
+                                    <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                      <div className="space-y-2">
+                                        <div className="flex justify-between text-sm">
+                                          <span className="text-gray-600">Customer pays:</span>
+                                          <span className="font-medium text-gray-900">
+                                            {row.price ? parseFloat(row.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'} RWF
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                          <span className="text-gray-600">Commission ({commission.commission_percentage}%):</span>
+                                          <span className="font-medium text-gray-700">
+                                            {row.price ? (parseFloat(row.price) * (commission.commission_percentage / 100)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'} RWF
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between text-sm pt-2 border-t border-gray-300">
+                                          <span className="font-medium text-gray-900">You receive:</span>
+                                          <span className="font-semibold text-[#3CAF54]">
+                                            {row.price ? (parseFloat(row.price) * (1 - commission.commission_percentage / 100)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'} RWF
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+
+                              {formData.agePricing.length === 0 && (
+                                <p className="text-sm text-amber-600">Add at least one participant type in Pricing Categories first.</p>
+                              )}
+                            </div>
+                          ) : (
                           <div className="max-w-md">
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                               Price per person (RWF)
@@ -4525,6 +4650,7 @@ const CreateTourPackage = () => {
                               </p>
                             ) : null}
                           </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -4615,11 +4741,11 @@ const CreateTourPackage = () => {
                   <div className="space-y-2 text-sm">
                     <div>
                       <span className="font-medium">What's Included:</span>
-                      {renderMultilineList(formData.whatsIncluded)}
+                      {renderFormattedContent(formData.whatsIncluded)}
                     </div>
                     <div>
                       <span className="font-medium">What's Not Included:</span>
-                      {renderMultilineList(formData.whatsNotIncluded)}
+                      {renderFormattedContent(formData.whatsNotIncluded)}
                     </div>
                     <p><span className="font-medium">Guide Type:</span> {formData.guideType || 'Not provided'}</p>
                     <p><span className="font-medium">Food Included:</span> {formData.foodIncluded ? 'Yes' : 'No'}</p>
@@ -4640,6 +4766,10 @@ const CreateTourPackage = () => {
                   </div>
                   <div className="space-y-2 text-sm">
                     <p><span className="font-medium">Pet Policy:</span> {formData.petPolicy ? 'Yes' : 'No'}</p>
+                    <div>
+                      <span className="font-medium">Know Before You Go:</span>
+                      {renderFormattedContent(formData.knowBeforeYouGo)}
+                    </div>
                     <p><span className="font-medium">Emergency Phone:</span> {formData.emergencyCountryCode} {formData.emergencyPhone || 'Not provided'}</p>
                   </div>
                 </div>
@@ -4658,10 +4788,10 @@ const CreateTourPackage = () => {
                   <p className="text-sm"><span className="font-medium">Photos Uploaded:</span> {formData.photos.length} photo(s)</p>
                 </div>
 
-                {/* Step 5: Options */}
+                {/* Step 5: Availability and booking */}
                 <div className="border border-gray-200 rounded-lg p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">Step 5: Options</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Step 5: Availability and booking</h3>
                     <button
                       onClick={() => navigateToStep(5)}
                       className="text-[#3CAF54] hover:underline text-sm flex items-center gap-1"
@@ -4695,7 +4825,7 @@ const CreateTourPackage = () => {
                       if (result && result.success) {
                         // Mark package as complete (status = 'active' or 'published')
                         const finalData = {
-                          ...formData,
+                          ...buildNormalizedPackageData(formData, 'active'),
                           tour_business_id: businessId,
                           status: 'active'
                         };

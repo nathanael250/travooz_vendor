@@ -5,6 +5,32 @@ import { tourPackagesAPI } from '../../../services/tourDashboardService';
 import toast from 'react-hot-toast';
 import NoTourPackagesCard from '../../../components/tours/NoTourPackagesCard';
 
+const formatPackagePrice = (pkg) => {
+  const currency = pkg.currency || 'RWF';
+  const singlePrice = pkg.price_per_person || pkg.pricePerPerson || pkg.price;
+  const minPrice = pkg.min_price !== undefined && pkg.min_price !== null ? Number(pkg.min_price) : null;
+  const maxPrice = pkg.max_price !== undefined && pkg.max_price !== null ? Number(pkg.max_price) : null;
+  const hasAgeBasedPricing = Boolean(pkg.has_age_based_pricing);
+  const formatMoney = (value) => Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  if (hasAgeBasedPricing && minPrice !== null && maxPrice !== null) {
+    if (minPrice === maxPrice) {
+      return `${formatMoney(minPrice)} ${currency}`;
+    }
+    return `${formatMoney(minPrice)} - ${formatMoney(maxPrice)} ${currency}`;
+  }
+
+  if (singlePrice !== undefined && singlePrice !== null && singlePrice !== '') {
+    return `${formatMoney(singlePrice)} ${currency}`;
+  }
+
+  if (minPrice !== null) {
+    return `${formatMoney(minPrice)} ${currency}`;
+  }
+
+  return 'Price not set';
+};
+
 const MyTourPackages = () => {
   const navigate = useNavigate();
   const [packages, setPackages] = useState([]);
@@ -231,10 +257,7 @@ const MyTourPackages = () => {
               const packageName = pkg.title || pkg.name || 'Unnamed Package';
               const category = pkg.category || 'N/A';
               const duration = pkg.duration_value ? `${pkg.duration_value} ${pkg.duration_type || 'hours'}` : 'N/A';
-              const priceValue = pkg.price_per_person || pkg.pricePerPerson || pkg.price || pkg.min_price;
-              const price = priceValue 
-                ? `${parseFloat(priceValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${pkg.currency || 'RWF'}`
-                : 'Price not set';
+              const price = formatPackagePrice(pkg);
               
               return (
                 <div key={packageId} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
@@ -327,10 +350,7 @@ const MyTourPackages = () => {
                   const packageName = pkg.title || pkg.name || 'Unnamed Package';
                   const category = pkg.category || 'N/A';
                   const duration = pkg.duration_value ? `${pkg.duration_value} ${pkg.duration_type || 'hours'}` : 'N/A';
-                  const priceValue = pkg.price_per_person || pkg.pricePerPerson || pkg.price || pkg.min_price;
-                  const price = priceValue 
-                    ? `${parseFloat(priceValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${pkg.currency || 'RWF'}`
-                    : 'Price not set';
+                  const price = formatPackagePrice(pkg);
                   
                   return (
                     <tr key={packageId} className="hover:bg-gray-50 transition-colors">
@@ -393,4 +413,3 @@ const MyTourPackages = () => {
 };
 
 export default MyTourPackages;
-
