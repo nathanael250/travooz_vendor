@@ -17,7 +17,7 @@ export default function SetupComplete() {
   const [modalType, setModalType] = useState('pending'); // 'pending' or 'approved'
 
   useEffect(() => {
-    const user = localStorage.getItem('user');
+    const user = localStorage.getItem('car_rental_user');
     if (!user) {
       navigate('/car-rental/list-your-car-rental', { replace: true });
       return;
@@ -138,6 +138,7 @@ export default function SetupComplete() {
 
   const handleLogout = () => {
     // Clear all authentication data
+    localStorage.removeItem('car_rental_user');
     localStorage.removeItem('token');
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');

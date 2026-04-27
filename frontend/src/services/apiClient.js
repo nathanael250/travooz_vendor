@@ -296,6 +296,7 @@ apiClient.interceptors.response.use(
         console.log('🚪 401 on car rental route - clearing car rental token and logging out');
         removeToken(SERVICES.CAR_RENTAL);
         // Clear user data
+        localStorage.removeItem('car_rental_user');
         localStorage.removeItem('user');
         localStorage.removeItem('car_rental_business_id');
         // Redirect to car rental login
@@ -346,4 +347,3 @@ apiClient.interceptors.response.use(
 );
 
 export default apiClient;
-

@@ -11,8 +11,8 @@ export default function ListYourCarRental() {
   // Redirect logged-in users away from the listing form
   useEffect(() => {
     const checkUserStatus = async () => {
-      const user = localStorage.getItem('user');
-      const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+      const user = localStorage.getItem('car_rental_user');
+      const token = localStorage.getItem('car_rental_token');
       
       // If user is logged in (has user data and token), redirect them immediately
       if (user && token) {
@@ -38,6 +38,8 @@ export default function ListYourCarRental() {
         } catch (error) {
           console.error('❌ Error parsing user data:', error);
           // If error, clear invalid data and allow them to continue
+          localStorage.removeItem('car_rental_user');
+          localStorage.removeItem('car_rental_token');
           localStorage.removeItem('user');
           localStorage.removeItem('token');
           localStorage.removeItem('auth_token');
@@ -846,7 +848,6 @@ export default function ListYourCarRental() {
     </div>
   );
 }
-
 
 
 

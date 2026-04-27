@@ -36,7 +36,7 @@ const CarRentalDashboardLayout = () => {
   useEffect(() => {
     // Check authentication
     const checkAuth = async () => {
-      const userData = localStorage.getItem('user');
+      const userData = localStorage.getItem('car_rental_user');
       const token = getToken(SERVICES.CAR_RENTAL);
       
       if (!userData || !token) {
@@ -76,6 +76,7 @@ const CarRentalDashboardLayout = () => {
 
   const handleLogout = () => {
     removeToken(SERVICES.CAR_RENTAL);
+    localStorage.removeItem('car_rental_user');
     localStorage.removeItem('user');
     localStorage.removeItem('service_type');
     localStorage.removeItem('car_rental_business_id');
@@ -238,4 +239,3 @@ const CarRentalDashboardLayout = () => {
 };
 
 export default CarRentalDashboardLayout;
-

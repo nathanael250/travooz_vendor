@@ -63,7 +63,7 @@ const Cars = () => {
 
   useEffect(() => {
     const businessIdFromStorage = localStorage.getItem('car_rental_business_id');
-    const userData = localStorage.getItem('user');
+    const userData = localStorage.getItem('car_rental_user');
     
     if (!businessIdFromStorage || !userData) {
       toast.error('Please login first');
@@ -72,7 +72,6 @@ const Cars = () => {
     }
 
     setBusinessId(businessIdFromStorage);
-    const user = JSON.parse(userData);
     setFormData(prev => ({ ...prev, vendor_id: parseInt(businessIdFromStorage) }));
     fetchCars(businessIdFromStorage);
   }, [navigate]);
@@ -1057,4 +1056,3 @@ const Cars = () => {
 };
 
 export default Cars;
-
