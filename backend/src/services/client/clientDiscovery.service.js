@@ -1,4 +1,5 @@
 const { executeQuery } = require('../../../config/database');
+const toursPackageService = require('../tours/toursPackage.service');
 
 class ClientDiscoveryService {
   /**
@@ -794,6 +795,38 @@ class ClientDiscoveryService {
 
       const tour = tours[0];
 
+      const packageWithRelations = await toursPackageService.getPackageWithRelations(tourId);
+      if (packageWithRelations) {
+        Object.assign(tour, {
+          highlights: packageWithRelations.highlights || [],
+          locations: packageWithRelations.locations || [],
+          tags: packageWithRelations.tags || [],
+          meals: packageWithRelations.meals || [],
+          dietaryRestrictions: packageWithRelations.dietaryRestrictions || [],
+          transportationTypes: packageWithRelations.transportationTypes || [],
+          notSuitableFor: packageWithRelations.notSuitableFor || [],
+          notAllowed: packageWithRelations.notAllowed || [],
+          mandatoryItems: packageWithRelations.mandatoryItems || [],
+          photos: packageWithRelations.photos || [],
+          languages: packageWithRelations.languages || [],
+          guideMaterials: packageWithRelations.guideMaterials || [],
+          schedules: packageWithRelations.schedules || []
+        });
+
+        if ((!tour.price_per_person || Number(tour.price_per_person) === 0) && Array.isArray(tour.schedules)) {
+          const ageBasedPrices = tour.schedules
+            .flatMap((schedule) => schedule.pricingCategories || [])
+            .map((category) => Number(category.customer_pays))
+            .filter((price) => Number.isFinite(price) && price > 0);
+
+          if (ageBasedPrices.length > 0) {
+            tour.min_price = Math.min(...ageBasedPrices);
+            tour.max_price = Math.max(...ageBasedPrices);
+            tour.display_price = tour.min_price;
+          }
+        }
+      }
+
       // Get images - ensure table exists first
       try {
         await executeQuery(`
@@ -840,6 +873,13 @@ class ClientDiscoveryService {
       }
       
       tour.images = images;
+      if (!tour.photos || tour.photos.length === 0) {
+        tour.photos = images.map((photoUrl, index) => ({
+          photo_url: photoUrl,
+          display_order: index,
+          is_primary: index === 0
+        }));
+      }
       console.log(`📸 Package ${tourId}: Found ${tour.images.length} images`);
 
       return tour;
@@ -1379,4 +1419,3 @@ class ClientDiscoveryService {
 }
 
 module.exports = new ClientDiscoveryService();
-
