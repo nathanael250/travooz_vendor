@@ -19,6 +19,12 @@ const carRentalAuthService = {
         
         // Store user data
         localStorage.setItem('car_rental_user', JSON.stringify(response.data.data.user));
+        if (response.data.data.carRentalBusinessId) {
+          localStorage.setItem('car_rental_business_id', String(response.data.data.carRentalBusinessId));
+        }
+        if (response.data.data.carRentalBusiness?.business_name) {
+          localStorage.setItem('car_rental_business_name', response.data.data.carRentalBusiness.business_name);
+        }
         return response.data.data;
       } else {
         throw new Error(response.data.message || 'Login failed');
@@ -36,6 +42,9 @@ const carRentalAuthService = {
       const response = await apiClient.get('/car-rental/auth/profile');
       if (response.data.success) {
         localStorage.setItem('car_rental_user', JSON.stringify(response.data.data));
+        if (response.data.data.car_rental_business_id) {
+          localStorage.setItem('car_rental_business_id', String(response.data.data.car_rental_business_id));
+        }
         return response.data.data;
       }
       throw new Error(response.data.message || 'Failed to get profile');
@@ -89,6 +98,8 @@ const carRentalAuthService = {
   logout() {
     removeToken(SERVICES.CAR_RENTAL);
     localStorage.removeItem('car_rental_user');
+    localStorage.removeItem('car_rental_business_id');
+    localStorage.removeItem('car_rental_business_name');
   },
 
   /**
@@ -115,7 +126,6 @@ const carRentalAuthService = {
 };
 
 export default carRentalAuthService;
-
 
 
 
